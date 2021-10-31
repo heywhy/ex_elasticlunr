@@ -18,5 +18,11 @@ defmodule ElasticlunrTest do
       assert IndexManager.loaded?(index_name)
       assert %Index{name: ^index_name, fields: []} = Elasticlunr.index(index_name)
     end
+
+    test "create a new index with default pipeline" do
+      index_name = Faker.Lorem.word()
+      default_pipline = Elasticlunr.default_pipeline()
+      assert %Index{pipeline: ^default_pipline} = Elasticlunr.index(index_name)
+    end
   end
 end

@@ -3,11 +3,13 @@ defmodule Elasticlunr do
   Documentation for `Elasticlunr`.
   """
 
-  alias Elasticlunr.{Index, IndexManager}
+  alias Elasticlunr.{Index, IndexManager, Pipeline}
+  alias Elasticlunr.Pipeline.{Stemmer, StopWordFilter, Trimmer}
 
-  @spec index(atom() | binary()) :: Index.t()
+  @spec index(atom() | binary()) :: Index.t() | :not_running
   def index(name, opts \\ []) do
-    with index <- Index.new(name, opts),
+    with pipeline <- with_default_pipeline(opts),
+          index <- Index.new(name, pipeline, opts),
          false <- IndexManager.loaded?(name),
          {:ok, index} <- IndexManager.load_index(index) do
       index
@@ -16,4 +18,11 @@ defmodule Elasticlunr do
         IndexManager.get(name)
     end
   end
+
+  @spec default_pipeline() :: Pipeline.t()
+  def default_pipeline do
+    Pipeline.new([Trimmer, StopWordFilter, Stemmer])
+  end
+
+  defp with_default_pipeline(_opts), do: default_pipeline()
 end

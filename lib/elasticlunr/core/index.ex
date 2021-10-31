@@ -1,19 +1,24 @@
 defmodule Elasticlunr.Index do
   @moduledoc false
 
-  @enforce_keys ~w[fields name ref]a
-  defstruct name: nil, ref: :id, fields: []
+  alias Elasticlunr.Pipeline
+
+  @fields ~w[fields name ref pipeline]a
+  @enforce_keys @fields
+  defstruct @fields
 
   @type t :: %__MODULE__{
           ref: atom(),
           fields: list(atom()),
+          pipeline: Pipeline.t(),
           name: atom() | binary()
         }
 
-  @spec new(atom(), keyword()) :: t()
-  def new(name, opts \\ []) do
+  @spec new(atom(), Pipeline.t(), keyword()) :: t()
+  def new(name, pipeline, opts \\ []) do
     attrs = %{
       name: name,
+      pipeline: pipeline,
       ref: Keyword.get(opts, :ref, :id),
       fields: Keyword.get(opts, :fields, [])
     }
