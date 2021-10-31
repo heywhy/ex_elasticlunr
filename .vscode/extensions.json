@@ -1,0 +1,7 @@
+{
+    "recommendations": [
+        "pantajoe.vscode-elixir-credo",
+        "jakebecker.elixir-ls",
+        "pgourlain.erlang"
+    ]
+}
