@@ -7,8 +7,11 @@ defmodule Elasticlunr.Index do
   @enforce_keys @fields
   defstruct @fields
 
+  @type document_ref :: atom() | binary()
+  @type document_field :: atom() | binary()
+
   @type t :: %__MODULE__{
-          ref: atom(),
+          ref: document_ref(),
           fields: list(atom()),
           pipeline: Pipeline.t(),
           name: atom() | binary()
