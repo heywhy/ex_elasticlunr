@@ -36,6 +36,44 @@ defmodule Elasticlunr.Pipeline do
     end)
   end
 
+  @spec insert_before(t(), module(), module()) :: t()
+  def insert_before(%__MODULE__{callback: callback} = pipeline, module, before_module) do
+    case Enum.find_index(callback, &(&1 == before_module)) do
+      nil ->
+        add(pipeline, module)
+
+      index ->
+        callback =
+          callback
+          |> List.insert_at(index, module)
+          |> Enum.uniq()
+
+        %{pipeline | callback: callback}
+    end
+  end
+
+  @spec insert_after(t(), module(), module()) :: t()
+  def insert_after(%__MODULE__{callback: callback} = pipeline, module, before_module) do
+    case Enum.find_index(callback, &(&1 == before_module)) do
+      nil ->
+        add(pipeline, module)
+
+      index ->
+        callback =
+          callback
+          |> List.insert_at(index + 1, module)
+          |> Enum.uniq()
+
+        %{pipeline | callback: callback}
+    end
+  end
+
+  @spec remove(t(), module()) :: t()
+  def remove(%__MODULE__{callback: callback} = pipeline, module) do
+    callback = Enum.reject(callback, &(&1 == module))
+    %{pipeline | callback: callback}
+  end
+
   defp excute_runner(tokens, module) do
     Enum.reduce(tokens, [], fn token, state ->
       output = module.call(token, state)
