@@ -4,8 +4,11 @@ defmodule Elasticlunr.Index do
   @enforce_keys ~w[fields name ref]a
   defstruct name: nil, ref: :id, fields: []
 
+  @type document_ref :: atom() | binary()
+  @type document_field :: atom() | binary()
+
   @type t :: %__MODULE__{
-          ref: atom(),
+          ref: document_ref(),
           fields: list(atom()),
           name: atom() | binary()
         }
