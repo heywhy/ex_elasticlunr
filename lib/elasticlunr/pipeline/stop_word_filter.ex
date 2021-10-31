@@ -4,7 +4,7 @@ defmodule Elasticlunr.Pipeline.StopWordFilter do
   @behaviour Elasticlunr.Pipeline
 
   @impl true
-  def call(token) do
+  def call(token, _tokens) do
     token
   end
 end
