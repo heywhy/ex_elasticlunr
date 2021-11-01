@@ -4,7 +4,6 @@ defmodule Elasticlunr do
   """
 
   alias Elasticlunr.{Index, IndexManager, Pipeline}
-  alias Elasticlunr.Pipeline.{Stemmer, StopWordFilter, Trimmer}
 
   @spec index(atom() | binary()) :: Index.t() | :not_running
   def index(name, opts \\ []) do
