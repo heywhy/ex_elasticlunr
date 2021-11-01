@@ -21,6 +21,16 @@ defmodule Elasticlunr.IndexManager do
     {:ok, index}
   end
 
+  def update_index(%Index{name: name} = index) do
+    case loaded?(name) do
+      true ->
+        name |> via |> GenServer.call({:update, index})
+
+      false ->
+        :not_running
+    end
+  end
+
   @spec loaded?(index_name()) :: boolean()
   def loaded?(name) do
     loaded_indices()
@@ -63,6 +73,10 @@ defmodule Elasticlunr.IndexManager do
   end
 
   def handle_call(:get, _from, index) do
+    {:reply, index, index}
+  end
+
+  def handle_call({:update, index}, _from, _state) do
     {:reply, index, index}
   end
 end

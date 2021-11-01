@@ -18,6 +18,11 @@ defmodule Elasticlunr do
     end
   end
 
+  @spec update_index(Index.t()) :: Index.t() | :not_running
+  def update_index(%Index{} = index) do
+    IndexManager.update_index(index)
+  end
+
   @spec default_pipeline() :: Pipeline.t()
   def default_pipeline, do: Pipeline.new(Pipeline.default_runners())
 
