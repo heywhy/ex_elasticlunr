@@ -50,7 +50,7 @@ defmodule Elasticlunr.IndexTest do
       assert index =
                Index.add_documents(index, [
                  %{
-                   id: Faker.Util.digit(),
+                   id: 10,
                    bio: Faker.Lorem.paragraph()
                  }
                ])
@@ -60,7 +60,7 @@ defmodule Elasticlunr.IndexTest do
       assert %Index{documents_size: 2} =
                Index.add_documents(index, [
                  %{
-                   id: Faker.Util.digit(),
+                   id: 29,
                    bio: Faker.Lorem.paragraph()
                  }
                ])
@@ -76,9 +76,35 @@ defmodule Elasticlunr.IndexTest do
 
       assert index = Index.add_documents(index, [document])
 
-      assert_raise RuntimeError, "Document id #{10} already exists in the index", fn ->
+      assert_raise RuntimeError, "Document id 10 already exists in the index", fn ->
         Index.add_documents(index, [document])
       end
+    end
+
+    test "removes document", %{pipeline: pipeline} do
+      index = Index.new(:test_index, pipeline, fields: ~w[id bio]a)
+
+      document = %{
+        id: 10,
+        bio: Faker.Lorem.paragraph()
+      }
+
+      assert index = Index.add_documents(index, [document])
+      assert %Index{documents_size: 1} = index
+      assert %Index{documents_size: 0} = Index.remove_documents(index, [10])
+    end
+
+    test "does not remove unknown document", %{pipeline: pipeline} do
+      index = Index.new(:test_index, pipeline, fields: ~w[id bio]a)
+
+      document = %{
+        id: 10,
+        bio: Faker.Lorem.paragraph()
+      }
+
+      assert index = Index.add_documents(index, [document])
+      assert %Index{documents_size: 1} = index
+      assert %Index{documents_size: 1} = Index.remove_documents(index, [11])
     end
   end
 end

@@ -64,4 +64,15 @@ defmodule Elasticlunr.Field do
       field
     end)
   end
+
+  @spec remove(t(), list(Index.document_ref())) :: t()
+  def remove(%__MODULE__{} = field, document_ids) do
+    document_ids
+    |> Enum.reduce(field, fn document_id, %{ids: ids, documents: documents} = field ->
+      documents = Map.delete(documents, document_id)
+      ids = Enum.reject(ids, &(&1 == document_id))
+
+      %{field | ids: ids, documents: documents}
+    end)
+  end
 end
