@@ -1,7 +1,7 @@
 defmodule Elasticlunr.Pipeline do
   @moduledoc false
 
-  alias Elasticlunr.Token
+  alias Elasticlunr.{Token, Tokenizer}
   alias Elasticlunr.Pipeline.{Stemmer, StopWordFilter, Trimmer}
 
   defstruct callback: []
@@ -27,6 +27,11 @@ defmodule Elasticlunr.Pipeline do
   def default_runners, do: [Trimmer, StopWordFilter, Stemmer]
 
   @spec run(Elasticlunr.Pipeline.t(), list(Token.t())) :: list(Token.t())
+  def run(%__MODULE__{} = pipeline, tokens) when not is_list(tokens) do
+    tokens = Tokenizer.tokenize(tokens)
+    run(pipeline, tokens)
+  end
+
   def run(%__MODULE__{callback: []}, tokens), do: tokens
 
   def run(%__MODULE__{callback: callback}, tokens) do

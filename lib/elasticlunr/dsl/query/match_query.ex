@@ -2,6 +2,9 @@ defmodule Elasticlunr.Dsl.MatchQuery do
   @moduledoc false
   use Elasticlunr.Dsl.Query
 
+  alias Elasticlunr.{Index, Dsl.QueryRepository}
+  alias Elasticlunr.Dsl.{MatchAllQuery, QueryRepository, TermsQuery}
+
   defstruct ~w[expand field query boost fuzziness min_match operator]a
   @type t :: %__MODULE__{boost: integer()}
 
@@ -17,6 +20,73 @@ defmodule Elasticlunr.Dsl.MatchQuery do
     }
 
     struct!(__MODULE__, attrs)
+  end
+
+  @impl true
+  def rewrite(
+        %__MODULE__{
+          boost: boost,
+          field: field,
+          query: query,
+          expand: expand,
+          operator: operator,
+          fuzziness: fuzziness,
+          min_match: min_match
+        },
+        %Index{} = index
+      ) do
+    tokens =
+      index
+      |> Index.analyze(field, query, is_query: true)
+      |> case do
+        tokens when is_list(tokens) ->
+          tokens
+
+        tokens ->
+          [tokens]
+      end
+
+    cond do
+      Enum.count(tokens) > 1 ->
+        minimum_should_match =
+          case operator == "and" && min_match == 0 do
+            true ->
+              Enum.count(tokens)
+
+            false ->
+              min_match
+          end
+
+        TermsQuery.new(
+          field: field,
+          expand: expand,
+          terms: tokens,
+          fuzziness: fuzziness,
+          boost: boost,
+          minimum_should_match: minimum_should_match
+        )
+
+      Enum.count(tokens) == 1 ->
+        [token] = tokens
+
+        TermsQuery.new(
+          field: field,
+          expand: expand,
+          terms: [token],
+          fuzziness: fuzziness,
+          boost: boost
+        )
+
+      true ->
+        MatchAllQuery.new()
+    end
+  end
+
+  @impl true
+  def score(%__MODULE__{} = module, %Index{} = index, options) do
+    module
+    |> rewrite(index)
+    |> QueryRepository.score(index, options)
   end
 
   @impl true

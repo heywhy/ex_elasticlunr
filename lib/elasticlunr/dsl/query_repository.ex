@@ -14,10 +14,31 @@ defmodule Elasticlunr.Dsl.QueryRepository do
     module.parse(options, query_options, repo)
   end
 
-  def score(query, index) when is_struct(query) do
+  def score(query, index, options \\ []) when is_struct(query) do
     # credo:disable-for-next-line
     IO.inspect(query)
 
-    query.__struct__.score(query, index)
+    query.__struct__.score(query, index, options)
+  end
+
+  def filter(query, index, options \\ []) when is_struct(query) do
+    # credo:disable-for-next-line
+    IO.inspect(query)
+
+    query.__struct__.filter(query, index, options)
+  end
+
+  def rewrite(query, index) when is_struct(query) do
+    # credo:disable-for-next-line
+    IO.inspect(query)
+
+    query.__struct__.rewrite(query, index)
+  end
+
+  def rewrite(query, index, options) when is_struct(query) do
+    # credo:disable-for-next-line
+    IO.inspect(query)
+
+    query.__struct__.filter(query, index, options)
   end
 end

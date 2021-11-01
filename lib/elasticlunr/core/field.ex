@@ -86,4 +86,15 @@ defmodule Elasticlunr.Field do
       %{field | ids: ids, documents: documents}
     end)
   end
+
+  @spec analyze(t(), any(), keyword) :: list(Token.t())
+  def analyze(%__MODULE__{pipeline: pipeline, query_pipeline: query_pipeline}, str, options) do
+    case Keyword.get(options, :is_query, false) && not is_nil(query_pipeline) do
+      true ->
+        Pipeline.run(query_pipeline, str)
+
+      false ->
+        Pipeline.run(pipeline, str)
+    end
+  end
 end

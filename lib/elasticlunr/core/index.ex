@@ -1,7 +1,7 @@
 defmodule Elasticlunr.Index do
   @moduledoc false
 
-  alias Elasticlunr.{Field, Pipeline}
+  alias Elasticlunr.{Field, Pipeline, Token}
   alias Elasticlunr.Dsl.{Query, QueryRepository}
 
   @fields ~w[fields name ref pipeline documents_size]a
@@ -29,7 +29,7 @@ defmodule Elasticlunr.Index do
       documents_size: 0,
       pipeline: pipeline,
       ref: Keyword.get(opts, :ref, :id),
-      fields: Keyword.get(opts, :fields, []) |> transform_fields()
+      fields: Keyword.get(opts, :fields, []) |> transform_fields(pipeline)
     }
 
     struct!(__MODULE__, attrs)
@@ -116,6 +116,13 @@ defmodule Elasticlunr.Index do
       end)
 
     update_documents_size(%{index | fields: fields})
+  end
+
+  @spec analyze(t(), document_field(), any(), keyword()) :: list(Token.t())
+  def analyze(%__MODULE__{fields: fields}, field, content, options) do
+    fields
+    |> Map.get(field)
+    |> Field.analyze(content, options)
   end
 
   @spec search(t(), search_query(), keyword()) :: list(search_result())
@@ -232,14 +239,16 @@ defmodule Elasticlunr.Index do
     %{index | documents_size: size}
   end
 
-  defp transform_fields(fields) do
+  defp transform_fields(fields, pipeline) do
     fields
     |> Enum.map(fn
       {field, options} ->
+        options = Keyword.put_new(options, :pipeline, pipeline)
+
         {field, Field.new(options)}
 
       field ->
-        {field, Field.new([])}
+        {field, Field.new(pipeline: pipeline)}
     end)
     |> Enum.into(%{})
   end

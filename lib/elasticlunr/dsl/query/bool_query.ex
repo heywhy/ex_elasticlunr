@@ -3,7 +3,7 @@ defmodule Elasticlunr.Dsl.BoolQuery do
   use Elasticlunr.Dsl.Query
 
   alias Elasticlunr.Index
-  alias Elasticlunr.Dsl.{Query}
+  alias Elasticlunr.Dsl.{NotQuery, Query, QueryRepository}
 
   defstruct ~w[rewritten should must must_not filter minimum_should_match]a
 
@@ -21,7 +21,7 @@ defmodule Elasticlunr.Dsl.BoolQuery do
       must: Keyword.get(opts, :must, false),
       must_not: Keyword.get(opts, :must_not, false),
       filter: Keyword.get(opts, :filter),
-      rewritten: Keyword.get(opts, :must, false),
+      rewritten: Keyword.get(opts, :rewritten, false),
       minimum_should_match: Keyword.get(opts, :minimum_should_match, 1)
     }
 
@@ -29,8 +29,143 @@ defmodule Elasticlunr.Dsl.BoolQuery do
   end
 
   @impl true
-  def score(%__MODULE__{}, %Index{} = _index) do
-    []
+  def rewrite(
+        %__MODULE__{
+          filter: filter,
+          must: must,
+          must_not: must_not,
+          should: should,
+          minimum_should_match: minimum_should_match
+        },
+        %Index{} = index
+      ) do
+    should =
+      should
+      |> Kernel.||([])
+      |> Enum.map(&QueryRepository.rewrite(&1, index))
+
+    must =
+      case must do
+        false ->
+          false
+
+        mod when is_struct(mod) ->
+          QueryRepository.rewrite(mod, index)
+      end
+
+    filters = filter || []
+
+    filters =
+      case must_not do
+        false ->
+          filters
+
+        must_not when is_struct(must_not) ->
+          query =
+            must_not
+            |> QueryRepository.rewrite(index)
+            |> NotQuery.new()
+
+          filters ++ [query]
+      end
+      |> Enum.map(&QueryRepository.rewrite(&1, index))
+
+    opts = [
+      must: must,
+      should: should,
+      filter: filters,
+      rewritten: true,
+      minimum_should_match: minimum_should_match
+    ]
+
+    new(opts)
+  end
+
+  @impl true
+  def score(%__MODULE__{rewritten: false} = query, %Index{} = index, options) do
+    query
+    |> rewrite(index)
+    |> score(index, options)
+  end
+
+  def score(
+        %__MODULE__{
+          must: must,
+          filter: filter,
+          should: should,
+          minimum_should_match: minimum_should_match
+        },
+        %Index{} = index,
+        _options
+      ) do
+    filter_results = filter_result(filter, index)
+    filter_results = filter_must(must, filter_results, index)
+
+    {docs, filtered} =
+      case filter_results do
+        false ->
+          {%{}, []}
+
+        value ->
+          Enum.reduce(value, {%{}, []}, fn %{ref: ref, score: score}, {docs, filtered} ->
+            filtered = [ref] ++ filtered
+
+            doc = %{
+              ref: ref,
+              matched: 0,
+              positions: [],
+              score: score || 0
+            }
+
+            docs = Map.put(docs, ref, doc)
+
+            {docs, filtered}
+          end)
+      end
+
+    {docs, _filtered} =
+      should
+      |> Enum.reduce({docs, filtered}, fn query, {docs, filtered} ->
+        results = QueryRepository.score(query, index, filtered: filtered)
+
+        {docs, filtered}
+      end)
+
+    docs
+    |> Map.values()
+    |> Enum.filter(fn doc -> doc.matched >= minimum_should_match && doc.score > 0 end)
+  end
+
+  defp filter_result(nil, _index), do: false
+  defp filter_result([], _index), do: false
+
+  defp filter_result(filter, index) do
+    filter
+    |> Enum.reduce(false, fn query, acc ->
+      q =
+        case acc do
+          false ->
+            []
+
+          val ->
+            [filtered: Enum.map(val, & &1.ref)]
+        end
+
+      QueryRepository.filter(query, index, q)
+    end)
+  end
+
+  defp filter_must(false, filter_results, _index), do: filter_results
+
+  defp filter_must(must_query, filter_results, index) when is_struct(must_query) do
+    q =
+      if filter_results != false do
+        [filtered: Enum.map(filter_results, & &1.ref)]
+      else
+        []
+      end
+
+    QueryRepository.score(must_query, index, q)
   end
 
   @impl true
