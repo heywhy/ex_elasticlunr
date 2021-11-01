@@ -2,6 +2,7 @@ defmodule Elasticlunr.Index do
   @moduledoc false
 
   alias Elasticlunr.{Field, Pipeline}
+  alias Elasticlunr.Dsl.{Query, QueryRepository}
 
   @fields ~w[fields name ref pipeline documents_size]a
   @enforce_keys @fields
@@ -17,6 +18,9 @@ defmodule Elasticlunr.Index do
           pipeline: Pipeline.t(),
           name: atom() | binary()
         }
+
+  @type search_query :: binary() | keyword()
+  @type search_result :: any()
 
   @spec new(atom(), Pipeline.t(), keyword()) :: t()
   def new(name, pipeline, opts \\ []) do
@@ -112,6 +116,101 @@ defmodule Elasticlunr.Index do
       end)
 
     update_documents_size(%{index | fields: fields})
+  end
+
+  @spec search(t(), search_query(), keyword()) :: list(search_result())
+  def search(index, query, opts \\ nil)
+  def search(%__MODULE__{}, nil, _opts), do: []
+
+  def search(%__MODULE__{ref: ref} = index, query, nil) when is_binary(query) do
+    fields = get_fields(index)
+
+    matches =
+      fields
+      |> Enum.reject(&(&1 == ref))
+      |> Enum.map(fn field ->
+        match = Keyword.put([], field, query)
+        [match: match]
+      end)
+
+    elasticsearch(index,
+      query: [
+        bool: [
+          should: matches
+        ]
+      ]
+    )
+  end
+
+  def search(%__MODULE__{ref: ref} = index, query, fields: fields) when is_binary(query) do
+    matches =
+      fields
+      |> Enum.filter(fn field ->
+        with true <- field != ref,
+             true <- Keyword.has_key?(fields, field),
+             [boost: boost] <- Keyword.get(fields, field) do
+          boost > 0
+        end
+      end)
+      |> Enum.map(fn field ->
+        [boost: boost] = Keyword.get(fields, field)
+        match = Keyword.put([], field, query)
+
+        [match: match, boost: boost]
+      end)
+
+    elasticsearch(index,
+      query: [
+        bool: [
+          should: matches
+        ]
+      ]
+    )
+  end
+
+  def search(%__MODULE__{} = index, [query: _] = query, _opts), do: elasticsearch(index, query)
+
+  def search(%__MODULE__{} = index, query, nil) when is_list(query),
+    do: search(index, query, operator: "OR")
+
+  def search(%__MODULE__{} = index, [] = query, options) do
+    matches =
+      query
+      |> Enum.map(fn {field, content} ->
+        expand = Keyword.get(options, :expand, false)
+
+        operator =
+          options
+          |> Keyword.get(:bool, "or")
+          |> String.downcase()
+
+        [
+          expand: expand,
+          match: Keyword.put([operator: operator], field, content)
+        ]
+      end)
+
+    elasticsearch(index,
+      query: [
+        bool: [
+          should: matches
+        ]
+      ]
+    )
+  end
+
+  defp elasticsearch(index, query: root) do
+    {key, value} = Query.split_root(root)
+
+    query = QueryRepository.parse(key, value, root)
+
+    query
+    |> QueryRepository.score(index)
+    |> Enum.sort(fn a, b -> a.score < b.score end)
+  end
+
+  defp elasticsearch(_index, _query) do
+    raise "Root object must have a query element"
   end
 
   defp update_documents_size(%__MODULE__{fields: fields} = index) do

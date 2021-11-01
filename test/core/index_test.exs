@@ -121,5 +121,22 @@ defmodule Elasticlunr.IndexTest do
       updated_document = %{document | bio: Faker.Lorem.paragraph()}
       assert %Index{documents_size: 1} = Index.update_documents(index, [updated_document])
     end
+
+    test "search for a document", %{pipeline: pipeline} do
+      index = Index.new(:test_index, pipeline, fields: ~w[id bio]a)
+
+      document = %{
+        id: 10,
+        bio: "foo"
+      }
+
+      index = Index.add_documents(index, [document])
+
+      assert Index.search(index, "foo") |> Enum.count() == 1
+      updated_document = %{document | bio: "bar"}
+      index = Index.update_documents(index, updated_document)
+      assert Index.search(index, "bar") |> Enum.count() == 1
+      assert Index.search(index, "foo") |> Enum.empty?()
+    end
   end
 end
