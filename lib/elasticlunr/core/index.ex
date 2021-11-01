@@ -75,6 +75,32 @@ defmodule Elasticlunr.Index do
     update_documents_size(%{index | fields: fields})
   end
 
+  @spec update_documents(t(), list(map())) :: t()
+  def update_documents(%__MODULE__{ref: ref, fields: fields} = index, documents) do
+    transform_document = fn {key, content}, {document, fields} ->
+      case Map.get(fields, key) do
+        nil ->
+          {document, fields}
+
+        %Field{} = field ->
+          id = Map.get(document, ref)
+          field = Field.update(field, [%{id: id, content: content}])
+          fields = Map.put(fields, key, field)
+
+          {document, fields}
+      end
+    end
+
+    fields =
+      Enum.reduce(documents, fields, fn document, fields ->
+        document
+        |> Enum.reduce({document, fields}, transform_document)
+        |> elem(1)
+      end)
+
+    update_documents_size(%{index | fields: fields})
+  end
+
   @spec remove_documents(t(), list(document_ref())) :: t()
   def remove_documents(%__MODULE__{fields: fields} = index, document_ids) do
     fields =

@@ -21,6 +21,8 @@ defmodule Elasticlunr.Field do
           ids: list(Index.document_ref())
         }
 
+  @type document :: %{id: Index.document_ref(), content: binary()}
+
   @spec new(keyword) :: t()
   def new(opts) do
     attrs = %{
@@ -39,7 +41,7 @@ defmodule Elasticlunr.Field do
     struct!(__MODULE__, attrs)
   end
 
-  @spec add(t(), list(%{id: Index.document_ref(), content: binary()})) :: t()
+  @spec add(t(), list(document())) :: t()
   def add(%__MODULE__{ids: ids, store: store, pipeline: _pipeline} = field, documents) do
     Enum.reduce(documents, field, fn %{id: id, content: content}, field ->
       if content in ids do
@@ -63,6 +65,15 @@ defmodule Elasticlunr.Field do
 
       field
     end)
+  end
+
+  @spec update(t(), list(document())) :: t()
+  def update(%__MODULE__{} = field, documents) do
+    document_ids = Enum.map(documents, & &1.id)
+
+    field
+    |> remove(document_ids)
+    |> add(documents)
   end
 
   @spec remove(t(), list(Index.document_ref())) :: t()

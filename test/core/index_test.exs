@@ -106,5 +106,20 @@ defmodule Elasticlunr.IndexTest do
       assert %Index{documents_size: 1} = index
       assert %Index{documents_size: 1} = Index.remove_documents(index, [11])
     end
+
+    test "update existing document", %{pipeline: pipeline} do
+      index = Index.new(:test_index, pipeline, fields: ~w[id bio]a)
+
+      document = %{
+        id: 10,
+        bio: Faker.Lorem.paragraph()
+      }
+
+      index = Index.add_documents(index, [document])
+
+      assert %Index{documents_size: 1} = index
+      updated_document = %{document | bio: Faker.Lorem.paragraph()}
+      assert %Index{documents_size: 1} = Index.update_documents(index, [updated_document])
+    end
   end
 end
