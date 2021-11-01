@@ -3,7 +3,7 @@ defmodule Elasticlunr.Index do
 
   alias Elasticlunr.{Field, Pipeline}
 
-  @fields ~w[fields name ref pipeline]a
+  @fields ~w[fields name ref pipeline documents_size]a
   @enforce_keys @fields
   defstruct @fields
 
@@ -12,6 +12,7 @@ defmodule Elasticlunr.Index do
 
   @type t :: %__MODULE__{
           fields: map(),
+          documents_size: integer(),
           ref: document_ref(),
           pipeline: Pipeline.t(),
           name: atom() | binary()
@@ -21,6 +22,7 @@ defmodule Elasticlunr.Index do
   def new(name, pipeline, opts \\ []) do
     attrs = %{
       name: name,
+      documents_size: 0,
       pipeline: pipeline,
       ref: Keyword.get(opts, :ref, :id),
       fields: Keyword.get(opts, :fields, []) |> transform_fields()
@@ -34,6 +36,9 @@ defmodule Elasticlunr.Index do
     %{index | fields: Map.put(fields, field, Field.new(opts))}
   end
 
+  @spec get_fields(t()) :: list(document_ref() | document_field())
+  def get_fields(%__MODULE__{fields: fields}), do: Map.keys(fields)
+
   @spec save_document(t(), boolean()) :: t()
   def save_document(%__MODULE__{fields: fields} = index, save) do
     fields =
@@ -42,6 +47,51 @@ defmodule Elasticlunr.Index do
       |> Enum.into(%{})
 
     %{index | fields: fields}
+  end
+
+  @spec add_documents(t(), list(map())) :: t()
+  def add_documents(%__MODULE__{ref: ref, fields: fields} = index, documents) do
+    transform_document = fn {key, content}, {document, fields} ->
+      case Map.get(fields, key) do
+        nil ->
+          {document, fields}
+
+        %Field{} = field ->
+          id = Map.get(document, ref)
+          field = Field.add(field, [%{id: id, content: content}])
+          fields = Map.put(fields, key, field)
+
+          {document, fields}
+      end
+    end
+
+    fields =
+      Enum.reduce(documents, fields, fn document, fields ->
+        document
+        |> Enum.reduce({document, fields}, transform_document)
+        |> elem(1)
+      end)
+
+    update_documents_size(%{index | fields: fields})
+  end
+
+  defp update_documents_size(%__MODULE__{fields: fields} = index) do
+    size =
+      index
+      |> get_fields()
+      |> Enum.map(&Map.get(fields, &1))
+      |> Enum.map(&Enum.count(&1.ids))
+      |> Enum.reduce(0, fn size, acc ->
+        case size > acc do
+          true ->
+            size
+
+          false ->
+            acc
+        end
+      end)
+
+    %{index | documents_size: size}
   end
 
   defp transform_fields(fields) do

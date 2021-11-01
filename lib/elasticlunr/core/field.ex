@@ -38,4 +38,30 @@ defmodule Elasticlunr.Field do
 
     struct!(__MODULE__, attrs)
   end
+
+  @spec add(t(), list(%{id: Index.document_ref(), content: binary()})) :: t()
+  def add(%__MODULE__{ids: ids, store: store, pipeline: _pipeline} = field, documents) do
+    Enum.reduce(documents, field, fn %{id: id, content: content}, field ->
+      if content in ids do
+        raise "Document id #{id} already exists in the index"
+      end
+
+      field =
+        case store do
+          false ->
+            field
+
+          true ->
+            %{documents: documents} = field
+            %{field | documents: Map.put(documents, id, content)}
+        end
+
+      %{ids: ids} = field
+      field = %{field | ids: [id] ++ ids}
+
+      # pipeline.run(content)
+
+      field
+    end)
+  end
 end

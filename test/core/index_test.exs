@@ -42,4 +42,43 @@ defmodule Elasticlunr.IndexTest do
       assert %Index{fields: %{name: %Field{store: false}}} = Index.save_document(index, false)
     end
   end
+
+  describe "fiddling with an index" do
+    test "adds document", %{pipeline: pipeline} do
+      index = Index.new(:test_index, pipeline, fields: ~w[id bio]a)
+
+      assert index =
+               Index.add_documents(index, [
+                 %{
+                   id: Faker.Util.digit(),
+                   bio: Faker.Lorem.paragraph()
+                 }
+               ])
+
+      assert %Index{documents_size: 1} = index
+
+      assert %Index{documents_size: 2} =
+               Index.add_documents(index, [
+                 %{
+                   id: Faker.Util.digit(),
+                   bio: Faker.Lorem.paragraph()
+                 }
+               ])
+    end
+
+    test "fails when adding duplicate document", %{pipeline: pipeline} do
+      index = Index.new(:test_index, pipeline, fields: ~w[id bio]a)
+
+      document = %{
+        id: 10,
+        bio: Faker.Lorem.paragraph()
+      }
+
+      assert index = Index.add_documents(index, [document])
+
+      assert_raise RuntimeError, "Document id #{10} already exists in the index", fn ->
+        Index.add_documents(index, [document])
+      end
+    end
+  end
 end
