@@ -129,6 +129,6 @@ defmodule Elasticlunr.Pipeline.StopWordFilter do
   ]
 
   @impl true
-  def call(%Token{token: token}, _tokens) when token in @default_stop_words, do: nil
-  def call(token, _tokens), do: token
+  def call(%Token{token: token}) when token in @default_stop_words, do: nil
+  def call(token), do: token
 end

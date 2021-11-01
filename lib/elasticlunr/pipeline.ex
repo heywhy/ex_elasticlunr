@@ -10,7 +10,7 @@ defmodule Elasticlunr.Pipeline do
           callback: list()
         }
 
-  @callback call(Token.t(), list(Token.t())) :: Token.t() | list(Token.t())
+  @callback call(Token.t()) :: Token.t() | list(Token.t()) | nil
 
   @spec new(list(module())) :: struct
   def new(callbacks) when is_list(callbacks) do
@@ -76,7 +76,7 @@ defmodule Elasticlunr.Pipeline do
 
   defp excute_runner(tokens, module) do
     Enum.reduce(tokens, [], fn token, state ->
-      output = module.call(token, state)
+      output = module.call(token)
 
       output =
         case is_list(output) do

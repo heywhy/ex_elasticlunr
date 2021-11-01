@@ -84,7 +84,7 @@ defmodule Elasticlunr.Pipeline.Stemmer do
   @re3_5 Regex.compile!("^#{@consonant_sequence}#{@vowel}[^aeiouwxy]$")
 
   @impl true
-  def call(%Token{token: str} = token, _tokens) do
+  def call(%Token{token: str} = token) do
     with true <- String.length(str) >= 3,
          {str, first_chr} <- check_first_chr(str),
          {str, _opts} <- step_1a(str, %{re: @re_1a, re2: @re2_1a}),

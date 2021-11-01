@@ -6,7 +6,7 @@ defmodule Elasticlunr.Pipeline.Trimmer do
   @behaviour Elasticlunr.Pipeline
 
   @impl true
-  def call(%Token{token: str} = token, _tokens) do
+  def call(%Token{token: str} = token) do
     str = Regex.replace(~r/^\W+/, str, "")
     str = Regex.replace(~r/\W+$/, str, "")
 

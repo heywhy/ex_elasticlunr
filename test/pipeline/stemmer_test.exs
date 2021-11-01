@@ -11,7 +11,7 @@ defmodule Elasticlunr.Pipeline.StemmerTest do
       stemmer_fixture()
       |> Enum.each(fn {word, stemmed_word} ->
         token = Token.new(word)
-        assert Stemmer.call(token, []) == Token.new(stemmed_word)
+        assert Stemmer.call(token) == Token.new(stemmed_word)
       end)
     end
 

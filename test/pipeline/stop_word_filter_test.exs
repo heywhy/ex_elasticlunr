@@ -20,7 +20,7 @@ defmodule Elasticlunr.Pipeline.StopWordFilterTest do
       assert [] =
                stop_words
                |> Enum.map(&Token.new/1)
-               |> Enum.reject(&is_nil(StopWordFilter.call(&1, [])))
+               |> Enum.reject(&is_nil(StopWordFilter.call(&1)))
     end
   end
 end
