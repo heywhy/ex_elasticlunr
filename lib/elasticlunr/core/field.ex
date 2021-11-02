@@ -41,6 +41,9 @@ defmodule Elasticlunr.Field do
     struct!(__MODULE__, attrs)
   end
 
+  @spec all(t()) :: list(Index.document_ref())
+  def all(%__MODULE__{ids: ids}), do: Map.keys(ids)
+
   @spec add(t(), list(document())) :: t()
   def add(%__MODULE__{ids: ids, store: store, pipeline: pipeline} = field, documents) do
     Enum.reduce(documents, field, fn %{id: id, content: content}, field ->

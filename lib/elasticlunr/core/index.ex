@@ -157,6 +157,13 @@ defmodule Elasticlunr.Index do
     |> Field.terms(query)
   end
 
+  @spec all(t()) :: list(document_ref())
+  def all(%__MODULE__{ref: ref, fields: fields}) do
+    fields
+    |> Map.get(ref)
+    |> Field.all()
+  end
+
   @spec search(t(), search_query(), keyword()) :: list(search_result())
   def search(index, query, opts \\ nil)
   def search(%__MODULE__{}, nil, _opts), do: []
