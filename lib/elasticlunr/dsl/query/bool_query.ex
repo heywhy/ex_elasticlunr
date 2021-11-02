@@ -104,7 +104,7 @@ defmodule Elasticlunr.Dsl.BoolQuery do
     {docs, filtered} =
       case filter_results do
         false ->
-          {%{}, []}
+          {%{}, nil}
 
         value ->
           Enum.reduce(value, {%{}, []}, fn %{ref: ref, score: score}, {docs, filtered} ->
@@ -127,6 +127,24 @@ defmodule Elasticlunr.Dsl.BoolQuery do
       should
       |> Enum.reduce({docs, filtered}, fn query, {docs, filtered} ->
         results = QueryRepository.score(query, index, filtered: filtered)
+
+        docs =
+          results
+          |> Enum.reduce(docs, fn doc, docs ->
+            ob =
+              Map.get(docs, doc.ref, %{
+                ref: doc.ref,
+                score: 0,
+                matched: 0,
+                positions: %{}
+              })
+
+            %{matched: matched, score: score} = ob
+
+            ob = %{ob | matched: matched + 1, score: score + doc.score}
+
+            Map.put(docs, doc.ref, ob)
+          end)
 
         {docs, filtered}
       end)

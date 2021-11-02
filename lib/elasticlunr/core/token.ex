@@ -22,4 +22,8 @@ defmodule Elasticlunr.Token do
 
     struct!(token, opts)
   end
+
+  @spec get_position(t()) :: {integer(), integer()} | nil
+  def get_position(%__MODULE__{metadata: %{start: start, end: end_1}}), do: {start, end_1}
+  def get_position(%__MODULE__{metadata: %{}}), do: nil
 end

@@ -42,8 +42,8 @@ defmodule Elasticlunr.Dsl.MatchQuery do
         tokens when is_list(tokens) ->
           tokens
 
-        tokens ->
-          [tokens]
+        token ->
+          [token]
       end
 
     cond do

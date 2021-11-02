@@ -1,7 +1,21 @@
+defmodule Elasticlunr.Index.IdPipeline do
+  @moduledoc false
+
+  alias Elasticlunr.{Pipeline, Token}
+
+  @behaviour Pipeline
+
+  @impl true
+  def call(%Token{token: str}) do
+    [str]
+  end
+end
+
 defmodule Elasticlunr.Index do
   @moduledoc false
 
   alias Elasticlunr.{Field, Pipeline, Token}
+  alias Elasticlunr.Index.IdPipeline
   alias Elasticlunr.Dsl.{Query, QueryRepository}
 
   @fields ~w[fields name ref pipeline documents_size]a
@@ -24,12 +38,21 @@ defmodule Elasticlunr.Index do
 
   @spec new(atom(), Pipeline.t(), keyword()) :: t()
   def new(name, pipeline, opts \\ []) do
+    ref = Keyword.get(opts, :ref, :id)
+
+    fields =
+      opts
+      |> Keyword.get(:fields, [])
+      |> Keyword.delete(ref)
+      |> transform_fields(pipeline)
+      |> Map.put(ref, Field.new(pipeline: Pipeline.new([IdPipeline])))
+
     attrs = %{
       name: name,
       documents_size: 0,
       pipeline: pipeline,
-      ref: Keyword.get(opts, :ref, :id),
-      fields: Keyword.get(opts, :fields, []) |> transform_fields(pipeline)
+      ref: ref,
+      fields: fields
     }
 
     struct!(__MODULE__, attrs)
@@ -123,6 +146,15 @@ defmodule Elasticlunr.Index do
     fields
     |> Map.get(field)
     |> Field.analyze(content, options)
+  end
+
+  @spec terms(t(), keyword()) :: any()
+  def terms(%__MODULE__{fields: fields}, query) do
+    field = Keyword.get(query, :field)
+
+    fields
+    |> Map.get(field)
+    |> Field.terms(query)
   end
 
   @spec search(t(), search_query(), keyword()) :: list(search_result())
