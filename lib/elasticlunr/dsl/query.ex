@@ -11,7 +11,7 @@ defmodule Elasticlunr.Dsl.Query do
 
   @type options :: any()
 
-  @callback filter(module :: struct(), index :: Index.t(), options :: options()) :: struct()
+  @callback filter(module :: struct(), index :: Index.t(), options :: options()) :: list()
   @callback score(module :: struct(), index :: Index.t(), options :: options()) :: score_results()
   @callback rewrite(module :: struct(), index :: Index.t()) :: struct()
   @callback parse(options :: keyword(), query_options :: keyword(), repo :: module()) ::
@@ -32,7 +32,7 @@ defmodule Elasticlunr.Dsl.Query do
     mod = __CALLER__.module
 
     quote bind_quoted: [mod: mod] do
-      if not Module.defines?(mod, {:filter, 2}) do
+      if not Module.defines?(mod, {:filter, 3}) do
         @impl true
         def filter(query, index, options) do
           query
