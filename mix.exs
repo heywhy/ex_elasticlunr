@@ -16,7 +16,7 @@ defmodule Elasticlunr.MixProject do
   # Run "mix help compile.app" to learn about applications.
   def application do
     [
-      extra_applications: [:logger],
+      extra_applications: [:logger, :crypto],
       mod: {Elasticlunr.Application, []}
     ]
   end
@@ -28,6 +28,7 @@ defmodule Elasticlunr.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
+      {:uuid, "~> 1.1" },
       {:credo, "~> 1.5", only: [:dev, :test], runtime: false},
       {:faker, "~> 0.16", only: :test}
     ]

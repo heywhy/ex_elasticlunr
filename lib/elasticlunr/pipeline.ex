@@ -13,7 +13,7 @@ defmodule Elasticlunr.Pipeline do
   @callback call(Token.t()) :: Token.t() | list(Token.t()) | nil
 
   @spec new(list(module())) :: struct
-  def new(callbacks) when is_list(callbacks) do
+  def new(callbacks \\ []) do
     struct!(__MODULE__, callback: callbacks)
   end
 

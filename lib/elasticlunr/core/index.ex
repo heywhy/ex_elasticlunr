@@ -18,13 +18,13 @@ defmodule Elasticlunr.Index do
           name: atom() | binary()
         }
 
-  @spec new(atom(), Pipeline.t(), keyword()) :: t()
-  def new(name, pipeline, opts \\ []) do
+  @spec new(keyword()) :: t()
+  def new(opts \\ []) do
     attrs = %{
-      name: name,
       documents_size: 0,
-      pipeline: pipeline,
       ref: Keyword.get(opts, :ref, :id),
+      name: Keyword.get_lazy(opts, :name, &UUID.uuid4/0),
+      pipeline: Keyword.get(opts, :pipeline, Pipeline.new()),
       fields: Keyword.get(opts, :fields, []) |> transform_fields()
     }
 
