@@ -15,7 +15,7 @@ defmodule Elasticlunr.Dsl.Query do
   @callback score(module :: struct(), index :: Index.t(), options :: options()) :: score_results()
   @callback rewrite(module :: struct(), index :: Index.t()) :: struct()
   @callback parse(options :: keyword(), query_options :: keyword(), repo :: module()) ::
-              score_results()
+              struct()
 
   @spec split_root(list()) :: {atom(), any()}
   def split_root(root) when is_list(root), do: hd(root)

@@ -130,7 +130,6 @@ defmodule Elasticlunr.IndexTest do
         bio: "foo"
       }
 
-      # index = Index.add_documents(index, [document, %{id: 29, bio: "chucks foo"}])
       index = Index.add_documents(index, [document])
 
       assert Index.search(index, "foo") |> Enum.count() == 1

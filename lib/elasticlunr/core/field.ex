@@ -169,7 +169,7 @@ defmodule Elasticlunr.Field do
     |> recalculate_idf()
   end
 
-  @spec analyze(t(), any(), keyword) :: list(Token.t())
+  @spec analyze(t(), any(), keyword) :: Token.t() | list(Token.t())
   def analyze(%__MODULE__{pipeline: pipeline, query_pipeline: query_pipeline}, str, options) do
     case Keyword.get(options, :is_query, false) && not is_nil(query_pipeline) do
       true ->

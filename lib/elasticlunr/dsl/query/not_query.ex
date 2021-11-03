@@ -28,7 +28,7 @@ defmodule Elasticlunr.Dsl.NotQuery do
     matched_ids = Enum.map(query_score, & &1.ref)
 
     query_all
-    |> Enum.reject(& &1 in matched_ids)
-    |> Enum.map(& %{ref: &1, score: 1})
+    |> Enum.reject(&(&1 in matched_ids))
+    |> Enum.map(&%{ref: &1, score: 1})
   end
 end

@@ -141,7 +141,7 @@ defmodule Elasticlunr.Index do
     update_documents_size(%{index | fields: fields})
   end
 
-  @spec analyze(t(), document_field(), any(), keyword()) :: list(Token.t())
+  @spec analyze(t(), document_field(), any(), keyword()) :: Token.t() | list(Token.t())
   def analyze(%__MODULE__{fields: fields}, field, content, options) do
     fields
     |> Map.get(field)
