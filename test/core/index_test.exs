@@ -117,7 +117,7 @@ defmodule Elasticlunr.IndexTest do
       assert is_nil(Field.get_token(field, "a"))
       assert %{idf: idf} = Field.get_token(field, "another")
       assert idf > 0
-      assert %{documents: %{30 => 1.0}} = Field.get_token(field, "another")
+      assert %{documents: [30]} = Field.get_token(field, "another")
     end
 
     test "does not remove unknown document" do

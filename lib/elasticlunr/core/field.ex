@@ -79,7 +79,7 @@ defmodule Elasticlunr.Field do
           flnorm: flnorm,
           tf: Map.get(tf, term),
           idf: Map.get(idf, term),
-          documents: Map.get(tf, term, %{})
+          documents: Map.get(tf, term, %{}) |> Map.keys()
         }
     end
   end
