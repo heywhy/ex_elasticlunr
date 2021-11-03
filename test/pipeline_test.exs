@@ -49,5 +49,12 @@ defmodule Elasticlunr.PipelineTest do
 
       assert ^tokens = Pipeline.run(pipeline, tokens)
     end
+
+    test "runs a custom function" do
+      pipeline = Pipeline.new([& &1])
+      tokens = Tokenizer.tokenize("hello world")
+
+      assert ^tokens = Pipeline.run(pipeline, tokens)
+    end
   end
 end

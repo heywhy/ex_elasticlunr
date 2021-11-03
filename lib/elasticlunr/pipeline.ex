@@ -81,7 +81,7 @@ defmodule Elasticlunr.Pipeline do
 
   defp excute_runner(tokens, module) do
     Enum.reduce(tokens, [], fn token, state ->
-      output = module.call(token)
+      output = execute(module, token)
 
       output =
         case is_list(output) do
@@ -97,4 +97,7 @@ defmodule Elasticlunr.Pipeline do
       state ++ output
     end)
   end
+
+  defp execute(callback, token) when is_function(callback), do: callback.(token)
+  defp execute(module, token), do: module.call(token)
 end
