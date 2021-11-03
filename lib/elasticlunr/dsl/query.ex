@@ -32,6 +32,7 @@ defmodule Elasticlunr.Dsl.Query do
 
     quote bind_quoted: [mod: mod] do
       if not Module.defines?(mod, {:filter, 2}) do
+        @impl true
         def filter(query, index, options) do
           query
           |> QueryRepository.score(index, options)
@@ -40,6 +41,7 @@ defmodule Elasticlunr.Dsl.Query do
       end
 
       if not Module.defines?(mod, {:rewrite, 2}) do
+        @impl true
         def rewrite(query, _index), do: query
       end
     end

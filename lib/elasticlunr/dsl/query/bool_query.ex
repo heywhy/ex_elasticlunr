@@ -113,7 +113,7 @@ defmodule Elasticlunr.Dsl.BoolQuery do
             doc = %{
               ref: ref,
               matched: 0,
-              positions: [],
+              positions: %{},
               score: score || 0
             }
 
@@ -126,7 +126,16 @@ defmodule Elasticlunr.Dsl.BoolQuery do
     {docs, _filtered} =
       should
       |> Enum.reduce({docs, filtered}, fn query, {docs, filtered} ->
-        results = QueryRepository.score(query, index, filtered: filtered)
+        opts =
+          case filtered do
+            nil ->
+              []
+
+            filtered ->
+              [filtered: filtered]
+          end
+
+        results = QueryRepository.score(query, index, opts)
 
         docs =
           results
@@ -139,9 +148,17 @@ defmodule Elasticlunr.Dsl.BoolQuery do
                 positions: %{}
               })
 
-            %{matched: matched, score: score} = ob
+            %{matched: matched, score: score, positions: positions} = ob
 
-            ob = %{ob | matched: matched + 1, score: score + doc.score}
+            # credo:disable-for-lines:2
+            positions =
+              Enum.reduce(doc.positions, positions, fn {field, tokens}, positions ->
+                p = Map.get(positions, field, [])
+                p = Enum.reduce(tokens, p, &(&2 ++ [&1]))
+                Map.put(positions, field, p)
+              end)
+
+            ob = %{ob | positions: positions, matched: matched + 1, score: score + doc.score}
 
             Map.put(docs, doc.ref, ob)
           end)
@@ -177,10 +194,12 @@ defmodule Elasticlunr.Dsl.BoolQuery do
 
   defp filter_must(must_query, filter_results, index) when is_struct(must_query) do
     q =
-      if filter_results != false do
-        [filtered: Enum.map(filter_results, & &1.ref)]
-      else
-        []
+      case filter_results do
+        false ->
+          []
+
+        results ->
+          [filtered: Enum.map(results, & &1.ref)]
       end
 
     QueryRepository.score(must_query, index, q)

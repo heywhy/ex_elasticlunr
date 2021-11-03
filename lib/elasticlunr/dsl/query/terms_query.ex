@@ -43,12 +43,18 @@ defmodule Elasticlunr.Dsl.TermsQuery do
         options \\ []
       ) do
     terms =
-      if expand do
-        Enum.map(terms, fn %Token{token: token} ->
-          Regex.compile!("^#{token}.*")
-        end)
-      else
-        terms
+      case expand do
+        true ->
+          Enum.map(terms, fn
+            %Token{token: token} ->
+              Regex.compile!("^#{token}.*")
+
+            token ->
+              Regex.compile!("^#{token}.*")
+          end)
+
+        false ->
+          terms
       end
 
     query = [
@@ -63,19 +69,18 @@ defmodule Elasticlunr.Dsl.TermsQuery do
         nil ->
           query
 
-        fielded ->
-          Keyword.put(query, :docs, fielded)
+        filtered when is_list(filtered) ->
+          Keyword.put(query, :docs, filtered)
       end
 
     docs = Index.terms(index, query)
     ids = Map.keys(docs)
 
     pick_score = fn a, b ->
-      if(hd(b) > hd(a), do: b, else: a)
+      if(hd(a) > hd(b), do: a, else: b)
     end
 
     Enum.reduce(ids, [], fn id, matched ->
-      # [score, doc] = pick_score.(id)
       [score, doc] =
         Map.get(docs, id)
         |> Enum.map(fn doc ->
@@ -90,7 +95,7 @@ defmodule Elasticlunr.Dsl.TermsQuery do
         positions: Map.put(%{}, field, doc.positions)
       }
 
-      [ob] ++ matched
+      matched ++ [ob]
     end)
   end
 end

@@ -36,7 +36,7 @@ defmodule Elasticlunr.MixProject do
 
   defp aliases do
     [
-      test: ~w[credo test]
+      test: ~w[format credo test]
     ]
   end
 end

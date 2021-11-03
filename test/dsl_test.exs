@@ -2,7 +2,7 @@ defmodule Elasticlunr.DslTest do
   use ExUnit.Case
 
   alias Elasticlunr.{Index, Pipeline, Token}
-  alias Elasticlunr.Dsl.{MatchAllQuery, TermsQuery}
+  alias Elasticlunr.Dsl.{BoolQuery, MatchAllQuery, MatchQuery, TermsQuery}
 
   setup context do
     callback = fn
@@ -12,6 +12,7 @@ defmodule Elasticlunr.DslTest do
       str ->
         str
         |> String.split(" ")
+        |> String.downcase()
         |> Enum.map(&Token.new(&1))
     end
 
@@ -33,8 +34,8 @@ defmodule Elasticlunr.DslTest do
     Map.put(context, :index, index)
   end
 
-  describe "primitives ::" do
-    test "[match_all] correctly operates match_all query", %{index: index} do
+  describe "match_all" do
+    test "correctly operates match_all query", %{index: index} do
       query = MatchAllQuery.new()
 
       assert result = MatchAllQuery.score(query, index, [])
@@ -44,8 +45,10 @@ defmodule Elasticlunr.DslTest do
         assert score == 1
       end
     end
+  end
 
-    test "[terms] performs base functionality", %{index: index} do
+  describe "terms" do
+    test "performs base functionality", %{index: index} do
       query =
         TermsQuery.new(
           field: :content,
@@ -57,7 +60,7 @@ defmodule Elasticlunr.DslTest do
       assert [%{ref: 1}] = result
     end
 
-    test "[terms] boost", %{index: index} do
+    test "boost", %{index: index} do
       non_boost_query =
         TermsQuery.new(
           field: :content,
@@ -77,6 +80,64 @@ defmodule Elasticlunr.DslTest do
       assert [%{score: score_1}] = boost_result
       assert [%{score: score_2}] = non_boost_result
       assert score_1 == score_2 * 2
+    end
+  end
+
+  describe "bool" do
+    test "filters via must functionality", %{index: index} do
+      query =
+        BoolQuery.new(
+          must: TermsQuery.new(field: :content, terms: ["lorem"]),
+          should: [
+            TermsQuery.new(field: :content, terms: ["dog"])
+          ]
+        )
+
+      assert BoolQuery.score(query, index, []) |> Enum.count() == 1
+    end
+
+    test "filters via must_not functionality", %{index: index} do
+      query =
+        BoolQuery.new(
+          must: TermsQuery.new(field: :content, terms: ["lorem"]),
+          must_not: TermsQuery.new(field: :content, terms: ["ipsum"]),
+          should: [
+            TermsQuery.new(field: :content, terms: ["dog"])
+          ]
+        )
+
+      assert BoolQuery.score(query, index, []) |> Enum.empty?()
+    end
+  end
+
+  describe "match" do
+    test "performs base functionality", %{index: index} do
+      query = MatchQuery.new(field: :content, query: "brown fox")
+
+      assert results = MatchQuery.score(query, index, [])
+      assert Enum.count(results) == 1
+      assert [%{ref: 1}] = results
+    end
+
+    test "honours minimum_should_match", %{index: index} do
+      query = MatchQuery.new(field: :content, query: "brown fox quick", minimum_should_match: 2)
+
+      assert results = MatchQuery.score(query, index, [])
+      assert Enum.count(results) == 1
+      assert [%{ref: 1}] = results
+    end
+
+    test "honours and operator", %{index: index} do
+      query =
+        MatchQuery.new(
+          field: :content,
+          query: "fox quick",
+          operator: "and"
+        )
+
+      assert results = MatchQuery.score(query, index, [])
+      assert Enum.count(results) == 1
+      assert [%{ref: 1}] = results
     end
   end
 end

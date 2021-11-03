@@ -232,20 +232,33 @@ defmodule Elasticlunr.Field do
     matching_docs =
       query
       |> Keyword.get(:terms)
-      |> Enum.map(&to_token/1)
-      |> Enum.reduce(%{}, fn %Token{token: term}, matching_docs ->
-        matching_docs =
-          case fuzz == 0 && Map.has_key?(terms, term) do
-            true ->
-              ids = Map.keys(Map.get(terms, term))
+      |> Enum.map(fn
+        %Regex{} = re -> re
+        val -> to_token(val)
+      end)
+      |> Enum.reduce(%{}, fn
+        %Regex{} = re, matching_docs ->
+          ids = Map.keys(terms)
 
-              filter_ids(field, ids, term, matching_docs, query)
+          ids
+          |> Enum.filter(&Regex.match?(re, &1))
+          |> Enum.reduce(matching_docs, fn term, matching_docs ->
+            filter_ids(field, ids, term, matching_docs, query)
+          end)
 
-            false ->
-              matching_docs
-          end
+        %Token{token: term}, matching_docs ->
+          matching_docs =
+            case fuzz == 0 && Map.has_key?(terms, term) do
+              true ->
+                ids = Map.keys(Map.get(terms, term))
 
-        match_with_fuzz(field, term, fuzz, query, matching_docs)
+                filter_ids(field, ids, term, matching_docs, query)
+
+              false ->
+                matching_docs
+            end
+
+          match_with_fuzz(field, term, fuzz, query, matching_docs)
       end)
 
     if msm <= 1 do
@@ -253,7 +266,7 @@ defmodule Elasticlunr.Field do
     else
       matching_docs
       |> Enum.filter(fn {_key, content} ->
-        String.length(content) >= msm
+        Enum.count(content) >= msm
       end)
       |> Enum.into(%{})
     end
@@ -301,6 +314,11 @@ defmodule Elasticlunr.Field do
       _ ->
         ids
     end
+    |> get_matching_docs(field, term, matching_docs)
+  end
+
+  defp get_matching_docs(docs, field, term, matching_docs) do
+    docs
     |> Enum.reduce(matching_docs, fn id, matching_docs ->
       matched =
         matching_docs
@@ -312,11 +330,11 @@ defmodule Elasticlunr.Field do
   end
 
   defp match_with_fuzz(%{terms: terms} = field, term, fuzz, query, matching_docs) when fuzz > 0 do
-    ids = Map.keys(Map.get(terms, term))
-
-    ids
+    terms
+    |> Map.keys()
     |> Enum.reduce(matching_docs, fn key, matching_docs ->
       if Utils.levenshtein_distance(key, term) <= fuzz do
+        ids = Map.keys(Map.get(terms, key))
         filter_ids(field, ids, key, matching_docs, query)
       else
         matching_docs
