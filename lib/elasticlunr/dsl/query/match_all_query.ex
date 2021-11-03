@@ -15,4 +15,11 @@ defmodule Elasticlunr.Dsl.MatchAllQuery do
     |> Keyword.get(:boost, 1)
     |> __MODULE__.new()
   end
+
+  @impl true
+  def score(%__MODULE__{boost: boost}, %Index{} = index, _options) do
+    doc_ids = Index.all(index)
+
+    Enum.map(doc_ids, &%{ref: &1, boost: boost})
+  end
 end

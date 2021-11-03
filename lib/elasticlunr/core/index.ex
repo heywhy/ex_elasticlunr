@@ -60,6 +60,7 @@ defmodule Elasticlunr.Index do
       |> Keyword.get(:fields, [])
       |> Keyword.delete(ref)
       |> Enum.reduce(ob, fn
+        {field, opts}, ob -> add_field(ob, field, opts)
         field, ob -> add_field(ob, field)
       end)
 
@@ -317,17 +318,5 @@ defmodule Elasticlunr.Index do
       end)
 
     %{index | documents_size: size}
-  end
-
-  defp transform_fields(fields, opts) do
-    fields
-    |> Enum.map(fn
-      {field, options} ->
-        {field, Field.new(options ++ opts)}
-
-      field ->
-        {field, Field.new(opts)}
-    end)
-    |> Enum.into(%{})
   end
 end
