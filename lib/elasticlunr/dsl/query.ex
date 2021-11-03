@@ -17,8 +17,9 @@ defmodule Elasticlunr.Dsl.Query do
   @callback parse(options :: keyword(), query_options :: keyword(), repo :: module()) ::
               struct()
 
-  @spec split_root(list()) :: {atom(), any()}
+  @spec split_root(list() | tuple()) :: {atom(), any()}
   def split_root(root) when is_list(root), do: hd(root)
+  def split_root({_, _} = root), do: root
 
   defmacro __using__(_) do
     quote location: :keep do

@@ -98,4 +98,29 @@ defmodule Elasticlunr.Dsl.TermsQuery do
       matched ++ [ob]
     end)
   end
+
+  @impl true
+  def parse(options, _query_options, repo) do
+    cond do
+      Enum.empty?(options) ->
+        repo.parse(:match_all, [])
+
+      Enum.count(options) > 1 ->
+        should =
+          Enum.map(options, fn {field, terms} ->
+            %{
+              terms: Map.put(%{}, field, to_list(terms))
+            }
+          end)
+
+        repo.parse(:bool, should: should)
+
+      true ->
+        [{field, terms}] = options
+        __MODULE__.new(field: field, terms: to_list(terms))
+    end
+  end
+
+  defp to_list(value) when is_list(value), do: value
+  defp to_list(value), do: [value]
 end
