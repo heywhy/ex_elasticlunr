@@ -28,7 +28,7 @@ defmodule Elasticlunr.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:uuid, "~> 1.1" },
+      {:uuid, "~> 1.1"},
       {:credo, "~> 1.5", only: [:dev, :test], runtime: false},
       {:faker, "~> 0.16", only: :test}
     ]
