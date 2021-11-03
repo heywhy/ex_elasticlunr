@@ -18,7 +18,7 @@ defmodule Elasticlunr.Index do
   alias Elasticlunr.Index.IdPipeline
   alias Elasticlunr.Dsl.{Query, QueryRepository}
 
-  @fields ~w[fields name ref pipeline documents_size]a
+  @fields ~w[fields name ref pipeline documents_size store_positions store_documents]a
   @enforce_keys @fields
   defstruct @fields
 
@@ -30,7 +30,9 @@ defmodule Elasticlunr.Index do
           documents_size: integer(),
           ref: document_ref(),
           pipeline: Pipeline.t(),
-          name: atom() | binary()
+          name: atom() | binary(),
+          store_positions: boolean(),
+          store_documents: boolean()
         }
 
   @type search_query :: binary() | keyword()
@@ -41,31 +43,60 @@ defmodule Elasticlunr.Index do
     ref = Keyword.get(opts, :ref, :id)
     pipeline = Keyword.get(opts, :pipeline, Pipeline.new())
 
-    fields =
-      opts
-      |> Keyword.get(:fields, [])
-      |> Keyword.delete(ref)
-      |> transform_fields(pipeline)
-      |> Map.put(ref, Field.new(pipeline: Pipeline.new([IdPipeline])))
-
     attrs = %{
       documents_size: 0,
       ref: ref,
-      fields: fields,
       pipeline: pipeline,
+      fields: %{},
       name: Keyword.get_lazy(opts, :name, &UUID.uuid4/0),
+      store_documents: Keyword.get(opts, :store_documents, true),
+      store_positions: Keyword.get(opts, :store_positions, true)
     }
 
-    struct!(__MODULE__, attrs)
+    ob = struct!(__MODULE__, attrs)
+
+    field =
+      opts
+      |> Keyword.get(:fields, [])
+      |> Keyword.delete(ref)
+      |> Enum.reduce(ob, fn
+        field, ob -> add_field(ob, field)
+      end)
+
+    fields =
+      field
+      |> Map.get(:fields)
+      |> Map.put(ref, Field.new(pipeline: Pipeline.new([IdPipeline])))
+
+    %{field | fields: fields}
   end
 
   @spec add_field(t(), document_field(), keyword()) :: t()
-  def add_field(%__MODULE__{fields: fields} = index, field, opts \\ []) do
+  def add_field(
+        %__MODULE__{
+          fields: fields,
+          pipeline: pipeline,
+          store_documents: store_documents
+        } = index,
+        field,
+        opts \\ []
+      ) do
+    opts =
+      opts
+      |> Keyword.put_new(:pipeline, pipeline)
+      |> Keyword.put_new(:store_documents, store_documents)
+      |> Keyword.put(:store_positions, true)
+
     %{index | fields: Map.put(fields, field, Field.new(opts))}
   end
 
   @spec get_fields(t()) :: list(document_ref() | document_field())
   def get_fields(%__MODULE__{fields: fields}), do: Map.keys(fields)
+
+  @spec get_field(t(), document_field()) :: Field.t()
+  def get_field(%__MODULE__{fields: fields}, field) do
+    Map.get(fields, field)
+  end
 
   @spec save_document(t(), boolean()) :: t()
   def save_document(%__MODULE__{fields: fields} = index, save) do
@@ -279,16 +310,14 @@ defmodule Elasticlunr.Index do
     %{index | documents_size: size}
   end
 
-  defp transform_fields(fields, pipeline) do
+  defp transform_fields(fields, opts) do
     fields
     |> Enum.map(fn
       {field, options} ->
-        options = Keyword.put_new(options, :pipeline, pipeline)
-
-        {field, Field.new(options)}
+        {field, Field.new(options ++ opts)}
 
       field ->
-        {field, Field.new(pipeline: pipeline)}
+        {field, Field.new(opts)}
     end)
     |> Enum.into(%{})
   end

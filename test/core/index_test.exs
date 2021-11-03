@@ -16,8 +16,7 @@ defmodule Elasticlunr.IndexTest do
     test "creates a new instance and populate fields" do
       fields = ~w[id name]a
 
-      assert %Index{fields: %{id: %Field{}, name: %Field{}}} =
-               Index.new(fields: fields)
+      assert %Index{fields: %{id: %Field{}, name: %Field{}}} = Index.new(fields: fields)
     end
   end
 
@@ -31,7 +30,7 @@ defmodule Elasticlunr.IndexTest do
     end
 
     test "save document" do
-      index =  Index.add_field(Index.new(), :name)
+      index = Index.add_field(Index.new(), :name)
 
       assert %Index{fields: %{name: %Field{store: true}}} = index
       assert %Index{fields: %{name: %Field{store: false}}} = Index.save_document(index, false)
@@ -61,6 +60,25 @@ defmodule Elasticlunr.IndexTest do
                ])
     end
 
+    test "allows addition of document with empty field" do
+      index = Index.new(fields: ~w[id title bio]a)
+
+      assert index = Index.add_documents(index, [%{id: 10, bio: "", title: "test"}])
+
+      assert term_frequency =
+               index
+               |> Index.get_field(:title)
+               |> Field.term_frequency("test")
+
+      assert term_frequency
+             |> Enum.count()
+             |> Kernel.==(1)
+
+      assert term_frequency
+             |> Map.get(10)
+             |> Kernel.==(1)
+    end
+
     test "fails when adding duplicate document" do
       index = Index.new(fields: ~w[id bio]a)
 
@@ -81,12 +99,25 @@ defmodule Elasticlunr.IndexTest do
 
       document = %{
         id: 10,
-        bio: Faker.Lorem.paragraph()
+        bio: "this is a test"
       }
 
-      assert index = Index.add_documents(index, [document])
+      document_2 = %{
+        id: 30,
+        bio: "this is another test"
+      }
+
+      assert index = Index.add_documents(index, [document_2, document])
+      assert %Index{documents_size: 2} = index
+      assert index = Index.remove_documents(index, [10])
       assert %Index{documents_size: 1} = index
-      assert %Index{documents_size: 0} = Index.remove_documents(index, [10])
+      assert field = Index.get_field(index, :bio)
+      refute Field.has_token(field, "a")
+      assert Field.has_token(field, "another")
+      assert is_nil(Field.get_token(field, "a"))
+      assert %{idf: idf} = Field.get_token(field, "another")
+      assert idf > 0
+      assert %{documents: %{30 => 1.0}} = Field.get_token(field, "another")
     end
 
     test "does not remove unknown document" do

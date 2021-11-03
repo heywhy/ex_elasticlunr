@@ -8,12 +8,14 @@ defmodule Elasticlunr.Field do
   @enforce_keys @fields
   defstruct @fields
 
+  @type flnorm :: integer() | float()
+
   @type t :: %__MODULE__{
           pipeline: Pipeline.t() | nil,
           query_pipeline: Pipeline.t() | nil,
           store: boolean(),
           store_positions: boolean(),
-          flnorm: integer(),
+          flnorm: flnorm(),
           tf: map(),
           idf: map(),
           terms: map(),
@@ -22,6 +24,13 @@ defmodule Elasticlunr.Field do
         }
 
   @type document :: %{id: Index.document_ref(), content: binary()}
+  @type token_info :: %{
+          term: term,
+          tf: map(),
+          idf: map(),
+          flnorm: flnorm(),
+          documents: map()
+        }
 
   @spec new(keyword) :: t()
   def new(opts) do
@@ -33,9 +42,9 @@ defmodule Elasticlunr.Field do
       terms: %{},
       documents: %{},
       pipeline: Keyword.get(opts, :pipeline),
+      store: Keyword.get(opts, :store_documents, false),
       query_pipeline: Keyword.get(opts, :query_pipeline),
-      store: Keyword.get(opts, :save_documents, true),
-      store_positions: Keyword.get(opts, :store_positions, true)
+      store_positions: Keyword.get(opts, :store_positions, false)
     }
 
     struct!(__MODULE__, attrs)
@@ -43,6 +52,37 @@ defmodule Elasticlunr.Field do
 
   @spec all(t()) :: list(Index.document_ref())
   def all(%__MODULE__{ids: ids}), do: Map.keys(ids)
+
+  @spec term_frequency(t(), binary()) :: map()
+  def term_frequency(%__MODULE__{tf: tf}, term), do: Map.get(tf, term)
+
+  @spec has_token(t(), binary()) :: boolean()
+  def has_token(%__MODULE__{idf: idf}, term) do
+    case Map.get(idf, term) do
+      nil ->
+        false
+
+      count ->
+        count > 0
+    end
+  end
+
+  @spec get_token(t(), binary()) :: token_info() | nil
+  def get_token(%__MODULE__{idf: idf, tf: tf, flnorm: flnorm}, term) do
+    case Map.get(idf, term) do
+      nil ->
+        nil
+
+      _ ->
+        %{
+          term: term,
+          flnorm: flnorm,
+          tf: Map.get(tf, term),
+          idf: Map.get(idf, term),
+          documents: Map.get(tf, term, %{})
+        }
+    end
+  end
 
   @spec add(t(), list(document())) :: t()
   def add(%__MODULE__{ids: ids, store: store, pipeline: pipeline} = field, documents) do
@@ -90,8 +130,6 @@ defmodule Elasticlunr.Field do
       attr = Map.get(term_attrs, id)
       %{total: total, positions: positions} = attr
 
-      total = total + 1
-
       positions =
         case Token.get_position(token) do
           nil ->
@@ -101,7 +139,8 @@ defmodule Elasticlunr.Field do
             positions ++ [position]
         end
 
-      term_attrs = Map.put(term_attrs, id, %{attr | positions: positions, total: total + 1})
+      total = total + 1
+      term_attrs = Map.put(term_attrs, id, %{attr | positions: positions, total: total})
 
       terms = Map.put(terms, term, term_attrs)
 
