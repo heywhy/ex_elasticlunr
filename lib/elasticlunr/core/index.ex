@@ -36,9 +36,10 @@ defmodule Elasticlunr.Index do
   @type search_query :: binary() | keyword()
   @type search_result :: any()
 
-  @spec new(atom(), Pipeline.t(), keyword()) :: t()
-  def new(name, pipeline, opts \\ []) do
+  @spec new(keyword()) :: t()
+  def new(opts \\ []) do
     ref = Keyword.get(opts, :ref, :id)
+    pipeline = Keyword.get(opts, :pipeline, Pipeline.new())
 
     fields =
       opts
@@ -48,11 +49,11 @@ defmodule Elasticlunr.Index do
       |> Map.put(ref, Field.new(pipeline: Pipeline.new([IdPipeline])))
 
     attrs = %{
-      name: name,
       documents_size: 0,
-      pipeline: pipeline,
       ref: ref,
-      fields: fields
+      fields: fields,
+      pipeline: pipeline,
+      name: Keyword.get_lazy(opts, :name, &UUID.uuid4/0),
     }
 
     struct!(__MODULE__, attrs)

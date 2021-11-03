@@ -3,40 +3,35 @@ defmodule Elasticlunr.IndexTest do
 
   alias Elasticlunr.{Field, Index}
 
-  setup context do
-    Map.put(context, :pipeline, Elasticlunr.default_pipeline())
-  end
-
   describe "creating an index" do
-    test "creates a new instance", %{pipeline: pipeline} do
-      assert %Index{name: :test_index, ref: :id, fields: %{}} = Index.new(:test_index, pipeline)
+    test "creates a new instance" do
+      assert %Index{name: name} = Index.new()
+      assert is_binary(name)
+      assert %Index{name: :test_index, ref: :id, fields: %{}} = Index.new(name: :test_index)
 
       assert %Index{name: :test_index, ref: :name, fields: %{}} =
-               Index.new(:test_index, pipeline, ref: :name)
+               Index.new(name: :test_index, ref: :name)
     end
 
-    test "creates a new instance and populate fields", %{pipeline: pipeline} do
+    test "creates a new instance and populate fields" do
       fields = ~w[id name]a
 
-      assert %Index{name: :test_index, fields: %{id: %Field{}, name: %Field{}}} =
-               Index.new(:test_index, pipeline, fields: fields)
+      assert %Index{fields: %{id: %Field{}, name: %Field{}}} =
+               Index.new(fields: fields)
     end
   end
 
   describe "modifying an index" do
-    test "adds new fields", %{pipeline: pipeline} do
-      index = Index.new(:test_index, pipeline)
+    test "adds new fields" do
+      index = Index.new()
       assert %Index{fields: %{}} = index
       assert index = Index.add_field(index, :name)
       assert %Index{fields: %{name: %Field{}}} = index
       assert %Index{fields: %{name: %Field{}, bio: %Field{}}} = Index.add_field(index, :bio)
     end
 
-    test "save document", %{pipeline: pipeline} do
-      index =
-        :test_index
-        |> Index.new(pipeline)
-        |> Index.add_field(:name)
+    test "save document" do
+      index =  Index.add_field(Index.new(), :name)
 
       assert %Index{fields: %{name: %Field{store: true}}} = index
       assert %Index{fields: %{name: %Field{store: false}}} = Index.save_document(index, false)
@@ -44,8 +39,8 @@ defmodule Elasticlunr.IndexTest do
   end
 
   describe "fiddling with an index" do
-    test "adds document", %{pipeline: pipeline} do
-      index = Index.new(:test_index, pipeline, fields: ~w[id bio]a)
+    test "adds document" do
+      index = Index.new(fields: ~w[id bio]a)
 
       assert index =
                Index.add_documents(index, [
@@ -66,8 +61,8 @@ defmodule Elasticlunr.IndexTest do
                ])
     end
 
-    test "fails when adding duplicate document", %{pipeline: pipeline} do
-      index = Index.new(:test_index, pipeline, fields: ~w[id bio]a)
+    test "fails when adding duplicate document" do
+      index = Index.new(fields: ~w[id bio]a)
 
       document = %{
         id: 10,
@@ -81,8 +76,8 @@ defmodule Elasticlunr.IndexTest do
       end
     end
 
-    test "removes document", %{pipeline: pipeline} do
-      index = Index.new(:test_index, pipeline, fields: ~w[id bio]a)
+    test "removes document" do
+      index = Index.new(fields: ~w[id bio]a)
 
       document = %{
         id: 10,
@@ -94,8 +89,8 @@ defmodule Elasticlunr.IndexTest do
       assert %Index{documents_size: 0} = Index.remove_documents(index, [10])
     end
 
-    test "does not remove unknown document", %{pipeline: pipeline} do
-      index = Index.new(:test_index, pipeline, fields: ~w[id bio]a)
+    test "does not remove unknown document" do
+      index = Index.new(fields: ~w[id bio]a)
 
       document = %{
         id: 10,
@@ -107,8 +102,8 @@ defmodule Elasticlunr.IndexTest do
       assert %Index{documents_size: 1} = Index.remove_documents(index, [11])
     end
 
-    test "update existing document", %{pipeline: pipeline} do
-      index = Index.new(:test_index, pipeline, fields: ~w[id bio]a)
+    test "update existing document" do
+      index = Index.new(fields: ~w[id bio]a)
 
       document = %{
         id: 10,
