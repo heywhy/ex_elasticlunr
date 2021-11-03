@@ -117,8 +117,8 @@ defmodule Elasticlunr.IndexTest do
       assert %Index{documents_size: 1} = Index.update_documents(index, [updated_document])
     end
 
-    test "search for a document", %{pipeline: pipeline} do
-      index = Index.new(:test_index, pipeline, fields: ~w[bio]a)
+    test "search for a document" do
+      index = Index.new(fields: ~w[bio]a)
 
       document = %{
         id: 10,
