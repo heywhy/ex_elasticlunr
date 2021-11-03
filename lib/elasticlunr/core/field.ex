@@ -84,6 +84,11 @@ defmodule Elasticlunr.Field do
     end
   end
 
+  @spec set_query_pipeline(t(), module()) :: t()
+  def set_query_pipeline(%__MODULE__{} = field, pipeline) do
+    %{field | query_pipeline: pipeline}
+  end
+
   @spec add(t(), list(document())) :: t()
   def add(%__MODULE__{ids: ids, store: store, pipeline: pipeline} = field, documents) do
     Enum.reduce(documents, field, fn %{id: id, content: content}, field ->
@@ -227,6 +232,7 @@ defmodule Elasticlunr.Field do
     matching_docs =
       query
       |> Keyword.get(:terms)
+      |> Enum.map(&to_token/1)
       |> Enum.reduce(%{}, fn %Token{token: term}, matching_docs ->
         matching_docs =
           case fuzz == 0 && Map.has_key?(terms, term) do

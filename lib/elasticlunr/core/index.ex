@@ -90,6 +90,15 @@ defmodule Elasticlunr.Index do
     %{index | fields: Map.put(fields, field, Field.new(opts))}
   end
 
+  @spec update_field(t(), document_field(), Field.t()) :: t()
+  def update_field(%__MODULE__{fields: fields} = index, name, %Field{} = field) do
+    if not Map.has_key?(fields, name) do
+      raise "Unknown field #{name} in index"
+    end
+
+    %{index | fields: Map.put(fields, name, field)}
+  end
+
   @spec get_fields(t()) :: list(document_ref() | document_field())
   def get_fields(%__MODULE__{fields: fields}), do: Map.keys(fields)
 
@@ -284,7 +293,7 @@ defmodule Elasticlunr.Index do
 
     query
     |> QueryRepository.score(index)
-    |> Enum.sort(fn a, b -> a.score < b.score end)
+    |> Enum.sort(fn a, b -> a.score > b.score end)
   end
 
   defp elasticsearch(_index, _query) do

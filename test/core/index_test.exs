@@ -1,7 +1,7 @@
 defmodule Elasticlunr.IndexTest do
   use ExUnit.Case
 
-  alias Elasticlunr.{Field, Index}
+  alias Elasticlunr.{Field, Index, Pipeline, Token}
 
   describe "creating an index" do
     test "creates a new instance" do
@@ -163,6 +163,58 @@ defmodule Elasticlunr.IndexTest do
       index = Index.update_documents(index, [updated_document])
       assert Index.search(index, "bar") |> Enum.count() == 1
       assert Index.search(index, "foo") |> Enum.empty?()
+    end
+
+    test "allows the use of multiple, different pipelines for searching and indexing" do
+      index = Index.new(fields: ~w[info]a)
+
+      callback = fn %Token{token: token} ->
+        tokens = [token]
+
+        case token == "foo" do
+          false ->
+            tokens
+
+          true ->
+            ~w[bar baz barry] ++ tokens
+        end
+      end
+
+      query_pipeline = Pipeline.new([callback])
+
+      field =
+        index
+        |> Index.get_field(:info)
+        |> Field.set_query_pipeline(query_pipeline)
+
+      index = Index.update_field(index, :info, field)
+
+      index =
+        index
+        |> Index.add_documents([
+          %{id: "a", info: "Barry had a beer with Fred in the bar"},
+          %{id: "b", info: "the bar is empty"}
+        ])
+
+      results =
+        Index.search(index,
+          query: [
+            match: [info: "foo"]
+          ]
+        )
+
+      assert Enum.count(results) == 2
+      assert [%{score: score_1}, %{score: score_2}] = results
+      assert score_2 < score_1
+
+      results =
+        Index.search(index,
+          query: [
+            match: [info: "fred"]
+          ]
+        )
+
+      assert Enum.count(results) == 1
     end
   end
 end
