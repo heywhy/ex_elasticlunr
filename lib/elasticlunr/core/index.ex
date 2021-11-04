@@ -206,7 +206,7 @@ defmodule Elasticlunr.Index do
     |> Field.all()
   end
 
-  @spec search(t(), search_query(), keyword()) :: list(search_result())
+  @spec search(t(), search_query(), keyword() | nil) :: list(search_result())
   def search(index, query, opts \\ nil)
   def search(%__MODULE__{}, nil, _opts), do: []
 
