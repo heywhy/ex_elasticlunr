@@ -238,11 +238,14 @@ defmodule Elasticlunr.Field do
       end)
       |> Enum.reduce(%{}, fn
         %Regex{} = re, matching_docs ->
-          ids = Map.keys(terms)
+          matched_terms =
+            terms
+            |> Map.keys()
+            |> Enum.filter(&Regex.match?(re, &1))
 
-          ids
-          |> Enum.filter(&Regex.match?(re, &1))
-          |> Enum.reduce(matching_docs, fn term, matching_docs ->
+          Enum.reduce(matched_terms, matching_docs, fn term, matching_docs ->
+            ids = Map.get(terms, term) |> Map.keys()
+
             filter_ids(field, ids, term, matching_docs, query)
           end)
 
