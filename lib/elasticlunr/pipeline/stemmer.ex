@@ -50,9 +50,7 @@ defmodule Elasticlunr.Pipeline.Stemmer do
   # [C]VC[V] is m=1
   @meq1 "^(#{@consonant_sequence})?#{@vowel_sequence}#{@consonant_sequence}(#{@vowel_sequence})?$"
   # [C]VCVC... is m>1
-  @mgr1 "^(#{@consonant_sequence})?#{@vowel_sequence}#{@consonant_sequence}#{@vowel_sequence}#{
-          @consonant_sequence
-        }"
+  @mgr1 "^(#{@consonant_sequence})?#{@vowel_sequence}#{@consonant_sequence}#{@vowel_sequence}#{@consonant_sequence}"
   # vowel in stem
   @s_v "^(#{@consonant_sequence})?#{@vowel}"
 
