@@ -41,7 +41,7 @@ defmodule Elasticlunr.Index do
   @spec new(keyword()) :: t()
   def new(opts \\ []) do
     ref = Keyword.get(opts, :ref, :id)
-    pipeline = Keyword.get(opts, :pipeline, Pipeline.new())
+    pipeline = Keyword.get_lazy(opts, :pipeline, &Pipeline.new/0)
 
     attrs = %{
       documents_size: 0,
