@@ -10,7 +10,6 @@ jobs:
         elixir:
           - 1.12-slim   # otp 24
           - 1.11-slim   # otp 23
-          - 1.10-slim   # otp 22
     container:
       image: elixir:${{ matrix.elixir }}
     steps:
