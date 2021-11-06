@@ -106,7 +106,8 @@ defmodule Elasticlunr.DslTest do
           ]
         )
 
-      assert BoolQuery.score(query, index, []) |> Enum.empty?()
+      refute BoolQuery.score(query, index, [])
+             |> Enum.empty?()
     end
   end
 
