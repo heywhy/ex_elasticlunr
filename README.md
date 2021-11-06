@@ -1,4 +1,4 @@
-# Elasticlunr
+# Elasticlunr ![Test](https://github.com/heywhy/ex_elasticlunr/actions/workflows/ci.yml/badge.svg)
 
 This is port of [elasticlunr.js](https://github.com/weixsong/elasticlunr.js) project to Elixir.
 
