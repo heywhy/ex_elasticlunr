@@ -3,10 +3,7 @@
 ## Install
 
 ```elixir
-Mix.install(
-  [{:elasticlunr, github: "heywhy/ex_elasticlunr"}],
-  [force: true]
-)
+Mix.install([{:elasticlunr, "~> 0.1"}])
 ```
 
 ## Create Searchable Index
