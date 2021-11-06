@@ -1,6 +1,8 @@
 defmodule Elasticlunr.MixProject do
   use Mix.Project
 
+  @source_url "https://github.com/heywhy/ex_elasticlunr"
+
   def project do
     [
       app: :elasticlunr,
@@ -8,8 +10,11 @@ defmodule Elasticlunr.MixProject do
       elixir: "~> 1.11",
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
+      description: description(),
+      package: package(),
       aliases: aliases(),
-      deps: deps()
+      deps: deps(),
+      source_url: @source_url
     ]
   end
 
@@ -30,6 +35,7 @@ defmodule Elasticlunr.MixProject do
     [
       {:uuid, "~> 1.1"},
       {:credo, "~> 1.5", only: [:dev, :test], runtime: false},
+      {:ex_doc, "~> 0.25", only: :dev, runtime: false},
       {:faker, "~> 0.16", only: :test}
     ]
   end
@@ -37,6 +43,22 @@ defmodule Elasticlunr.MixProject do
   defp aliases do
     [
       test: ~w[format credo test]
+    ]
+  end
+
+  defp description do
+    "Elasticlunr is a lightweight full-text search engine. It's a port of Elasticlunr.js"
+  end
+
+  defp package do
+    [
+      files: ["lib", "mix.exs", "README.md"],
+      maintainers: ["Atanda Rasheed"],
+      licenses: ["MIT License"],
+      links: %{
+        "GitHub" => @source_url,
+        "Docs" => "https://hexdocs.pm/ex_elasticlunr"
+      }
     ]
   end
 end
