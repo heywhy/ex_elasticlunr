@@ -149,9 +149,11 @@ defmodule Elasticlunr.Dsl.BoolQuery do
 
             %{matched: matched, score: score, positions: positions} = ob
 
-            # credo:disable-for-lines:2
             positions =
-              Enum.reduce(doc.positions, positions, fn {field, tokens}, positions ->
+              doc
+              |> Map.get(:positions, %{})
+              # credo:disable-for-lines:2
+              |> Enum.reduce(positions, fn {field, tokens}, positions ->
                 p = Map.get(positions, field, [])
                 p = Enum.reduce(tokens, p, &(&2 ++ [&1]))
                 Map.put(positions, field, p)

@@ -28,7 +28,16 @@ defmodule Elasticlunr.DslTest do
           content:
             "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Maecenas viverra enim non purus rutrum porta ut non urna. Nullam eu ante eget nisi laoreet pretium. Curabitur varius velit vel viverra facilisis. Pellentesque et condimentum mauris. Quisque faucibus varius interdum. Fusce cursus pretium tempus. Ut gravida tortor et mi dignissim sagittis. Aliquam ullamcorper dignissim arcu sollicitudin fermentum. Nunc elementum tortor ex, sit amet posuere lectus accumsan quis. Vivamus sit amet eros blandit, sagittis quam at, vulputate felis. Ut faucibus pretium feugiat. Fusce diam felis, euismod ac tellus id, blandit venenatis dolor. Nullam porttitor suscipit diam, a feugiat dui pharetra at."
         },
-        %{id: 3, content: "Lorem dog"}
+        %{id: 3, content: "Lorem dog"},
+        %{
+          id: 4,
+          content: "livebook is elixir's own jupyter. it's a very impressive impression."
+        },
+        %{
+          id: 5,
+          content:
+            "there are lots of contributors to the elixir project and many cool projects using elixir, ex. livebook, elixir_nx and so on"
+        }
       ])
 
     Map.put(context, :index, index)
@@ -39,7 +48,7 @@ defmodule Elasticlunr.DslTest do
       query = MatchAllQuery.new()
 
       assert result = MatchAllQuery.score(query, index, [])
-      assert Enum.count(result) == 3
+      assert Enum.count(result) == 5
 
       for %{score: score} <- result do
         assert score == 1
@@ -108,6 +117,10 @@ defmodule Elasticlunr.DslTest do
 
       refute BoolQuery.score(query, index, [])
              |> Enum.empty?()
+    end
+
+    test "check if document has positions before trying to acess it", %{index: index} do
+      assert Index.search(index, "me") |> Enum.empty?()
     end
   end
 
