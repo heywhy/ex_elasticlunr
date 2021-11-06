@@ -25,13 +25,16 @@ index =
     %{
       id: 2,
       content:
-        "there are lots of contributors to the elixir project and many cool projects using elixir."
+        "there are lots of contributors to the elixir project and many cool projects using elixir, ex. livebook, elixir_nx and so on"
     }
   ])
 ```
 
 ## Search Index
 
+<!-- livebook:{"livebook_object":"cell_input","name":"Search","type":"text","value":"livebook"} -->
+
 ```elixir
-results = Index.search(index, "elixir")
+search_query = IO.gets("Search")
+results = Index.search(index, search_query)
 ```
