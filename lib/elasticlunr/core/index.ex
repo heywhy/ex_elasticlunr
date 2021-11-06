@@ -77,6 +77,7 @@ defmodule Elasticlunr.Index do
         %__MODULE__{
           fields: fields,
           pipeline: pipeline,
+          store_positions: store_positions,
           store_documents: store_documents
         } = index,
         field,
@@ -86,7 +87,7 @@ defmodule Elasticlunr.Index do
       opts
       |> Keyword.put_new(:pipeline, pipeline)
       |> Keyword.put_new(:store_documents, store_documents)
-      |> Keyword.put(:store_positions, true)
+      |> Keyword.put_new(:store_positions, store_positions)
 
     %{index | fields: Map.put(fields, field, Field.new(opts))}
   end
