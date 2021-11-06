@@ -12,7 +12,7 @@ Mix.install([{:elasticlunr, "~> 0.1"}])
 alias Elasticlunr.Index
 
 index =
-  Elasticlunr.index(:livebook, store_positions: false)
+  Elasticlunr.index(:livebook)
   |> Index.add_field(:content)
 ```
 
