@@ -1,6 +1,10 @@
 # Elasticlunr
 
-**TODO: Add description**
+This is port of [elasticlunr.js](https://github.com/weixsong/elasticlunr.js) project to Elixir.
+
+Just click the button below to run it!
+
+[![Run in Livebook](https://livebook.dev/badge/v1/blue.svg)](https://livebook.dev/run?url=https%3A%2F%2Fgithub.com%2Fheywhy%2Fex_elasticlunr%2Fblob%2Fmaster%2Fdocs.livemd)
 
 ## Installation
 

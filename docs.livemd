@@ -1,0 +1,40 @@
+# Elasticlunr
+
+## Install
+
+```elixir
+Mix.install(
+  [{:elasticlunr, github: "heywhy/ex_elasticlunr"}],
+  [force: true]
+)
+```
+
+## Create Searchable Index
+
+```elixir
+alias Elasticlunr.Index
+
+index =
+  Elasticlunr.index(:livebook, store_positions: false)
+  |> Index.add_field(:content)
+```
+
+## Add Documents
+
+```elixir
+index =
+  Index.add_documents(index, [
+    %{id: 1, content: "livebook is elixir's own jupyter. it's a very impressive impression."},
+    %{
+      id: 2,
+      content:
+        "there are lots of contributors to the elixir project and many cool projects using elixir."
+    }
+  ])
+```
+
+## Search Index
+
+```elixir
+results = Index.search(index, "elixir")
+```
