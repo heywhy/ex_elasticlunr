@@ -5,7 +5,7 @@ defmodule Elasticlunr do
 
   alias Elasticlunr.{Index, IndexManager, Pipeline}
 
-  @spec index(atom() | binary()) :: Index.t() | :not_running
+  @spec index(atom() | binary(), keyword()) :: Index.t() | :not_running
   def index(name, opts \\ []) do
     with opts <- with_default_pipeline([name: name] ++ opts),
          index <- Index.new(opts),

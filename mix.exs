@@ -14,7 +14,15 @@ defmodule Elasticlunr.MixProject do
       package: package(),
       aliases: aliases(),
       deps: deps(),
-      source_url: @source_url
+      source_url: @source_url,
+
+      # Docs
+      name: "Elasticlunr",
+      homepage_url: "https://hexdocs.pm/elasticlunr",
+      docs: [
+        main: "readme",
+        extras: ["README.md", "LICENSE"]
+      ]
     ]
   end
 
