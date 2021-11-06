@@ -4,7 +4,6 @@ defmodule Elasticlunr.Pipeline.StopWordFilter do
   @behaviour Elasticlunr.Pipeline
 
   @default_stop_words [
-    '',
     "a",
     "able",
     "about",
