@@ -1,7 +1,7 @@
 defmodule Elasticlunr.PipelineTest do
   use ExUnit.Case
 
-  alias Elasticlunr.{Pipeline, Tokenizer}
+  alias Elasticlunr.{Pipeline, Token, Tokenizer}
   alias Elasticlunr.Pipeline.{Stemmer, StopWordFilter, Trimmer}
 
   describe "creating pipeline" do
@@ -45,14 +45,17 @@ defmodule Elasticlunr.PipelineTest do
   describe "running pipeline" do
     test "executes runners in the queue" do
       pipeline = Pipeline.new(Pipeline.default_runners())
-      tokens = Tokenizer.tokenize("hello world")
+      tokens = Tokenizer.tokenize("consignment worlds")
 
-      assert ^tokens = Pipeline.run(pipeline, tokens)
+      assert [
+               %Token{token: "consign"},
+               %Token{token: "world"}
+             ] = Pipeline.run(pipeline, tokens)
     end
 
     test "runs a custom function" do
       pipeline = Pipeline.new([& &1])
-      tokens = Tokenizer.tokenize("hello world")
+      tokens = Tokenizer.tokenize("consignment worlds")
 
       assert ^tokens = Pipeline.run(pipeline, tokens)
     end
