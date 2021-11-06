@@ -11,10 +11,6 @@ jobs:
           - 1.12-slim   # otp 24
           - 1.11-slim   # otp 23
           - 1.10-slim   # otp 22
-          - 1.9-slim    # otp 22
-          - 1.8-otp-22
-          - 1.8-slim    # otp 21
-          - 1.7-slim    # otp 21
     container:
       image: elixir:${{ matrix.elixir }}
     steps:
