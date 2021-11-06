@@ -1,6 +1,6 @@
 # Elasticlunr
 
-[![Test](https://github.com/heywhy/ex_elasticlunr/actions/workflows/Test/badge.svg?branch=master)](https://github.com/heywhy/ex_elasticlunr/actions)
+[![Test](https://github.com/heywhy/ex_elasticlunr/actions/workflows/test.yml/badge.svg?branch=master)](https://github.com/heywhy/ex_elasticlunr/actions)
 
 This is port of [elasticlunr.js](https://github.com/weixsong/elasticlunr.js) project to Elixir.
 
