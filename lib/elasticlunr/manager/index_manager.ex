@@ -1,5 +1,4 @@
 defmodule Elasticlunr.IndexManager do
-  @moduledoc false
   use GenServer
 
   alias Elasticlunr.{Index, IndexRegistry, IndexSupervisor}

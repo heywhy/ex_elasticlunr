@@ -1,6 +1,4 @@
 defmodule Elasticlunr.Token do
-  @moduledoc false
-
   defstruct ~w[token metadata]a
 
   @type t :: %__MODULE__{

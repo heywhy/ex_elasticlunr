@@ -1,6 +1,4 @@
 defmodule Elasticlunr.Utils.Process do
-  @moduledoc false
-
   @spec child_pid?(tuple, atom) :: boolean
   def child_pid?({:undefined, pid, :worker, [mod]}, mod) when is_pid(pid), do: true
   def child_pid?(_child, _module), do: false

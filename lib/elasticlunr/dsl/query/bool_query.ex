@@ -1,5 +1,4 @@
 defmodule Elasticlunr.Dsl.BoolQuery do
-  @moduledoc false
   use Elasticlunr.Dsl.Query
 
   alias Elasticlunr.Index

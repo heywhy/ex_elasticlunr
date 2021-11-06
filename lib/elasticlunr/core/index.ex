@@ -12,8 +12,6 @@ defmodule Elasticlunr.Index.IdPipeline do
 end
 
 defmodule Elasticlunr.Index do
-  @moduledoc false
-
   alias Elasticlunr.{Field, Pipeline, Token}
   alias Elasticlunr.Index.IdPipeline
   alias Elasticlunr.Dsl.{Query, QueryRepository}

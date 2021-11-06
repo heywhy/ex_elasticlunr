@@ -1,6 +1,4 @@
 defmodule Elasticlunr.Field do
-  @moduledoc false
-
   alias Elasticlunr.{Index, Pipeline, Token, Utils}
 
   @fields ~w[pipeline query_pipeline store store_positions flnorm tf idf ids documents terms]a

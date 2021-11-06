@@ -1,6 +1,4 @@
 defmodule Elasticlunr.Dsl.QueryRepository do
-  @moduledoc false
-
   alias Elasticlunr.Dsl.{BoolQuery, MatchAllQuery, MatchQuery, NotQuery, TermsQuery}
 
   def get(:not), do: NotQuery

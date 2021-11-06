@@ -1,5 +1,4 @@
 defmodule Elasticlunr.Dsl.TermsQuery do
-  @moduledoc false
   use Elasticlunr.Dsl.Query
 
   alias Elasticlunr.{Index, Token}

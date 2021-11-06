@@ -1,13 +1,11 @@
 defmodule Elasticlunr.Pipeline do
-  @moduledoc false
-
   alias Elasticlunr.{Token, Tokenizer}
   alias Elasticlunr.Pipeline.{Stemmer, StopWordFilter, Trimmer}
 
   defstruct callback: []
 
   @type t :: %__MODULE__{
-          callback: list()
+          callback: list(module() | function())
         }
 
   @callback call(Token.t()) :: Token.t() | list(Token.t()) | nil

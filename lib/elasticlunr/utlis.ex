@@ -1,6 +1,4 @@
 defmodule Elasticlunr.Utils do
-  @moduledoc false
-
   @spec levenshtein_distance(binary, binary) :: integer()
   def levenshtein_distance(a, b) do
     ta = String.downcase(a) |> to_charlist |> List.to_tuple()

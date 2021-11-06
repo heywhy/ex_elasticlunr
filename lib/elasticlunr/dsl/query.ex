@@ -1,6 +1,4 @@
 defmodule Elasticlunr.Dsl.Query do
-  @moduledoc false
-
   alias Elasticlunr.{Index, Dsl.QueryRepository}
 
   @type score_results ::

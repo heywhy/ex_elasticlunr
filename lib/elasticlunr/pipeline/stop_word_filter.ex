@@ -1,6 +1,4 @@
 defmodule Elasticlunr.Pipeline.StopWordFilter do
-  @moduledoc false
-
   alias Elasticlunr.Token
 
   @behaviour Elasticlunr.Pipeline

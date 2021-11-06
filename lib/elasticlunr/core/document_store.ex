@@ -1,6 +1,4 @@
 defmodule Elasticlunr.DocumentStore do
-  @moduledoc false
-
   alias Elasticlunr.Index
 
   defstruct save: true, documents: %{}, document_info: %{}, length: 0

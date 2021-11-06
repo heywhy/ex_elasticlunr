@@ -1,6 +1,4 @@
 defmodule Elasticlunr.Tokenizer do
-  @moduledoc false
-
   alias Elasticlunr.Token
 
   @default_separator ~r/[\s\-]+/
