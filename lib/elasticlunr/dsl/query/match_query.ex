@@ -93,20 +93,20 @@ defmodule Elasticlunr.Dsl.MatchQuery do
     fields =
       options
       |> Enum.filter(fn
-        {key, _val} when key in ~w[fuzziness operator]a ->
+        {key, _val} when key in ~w[fuzziness operator] ->
           false
 
         _ ->
           true
       end)
 
-    fuzziness = Keyword.get(options, :fuzziness)
-    operator = Keyword.get(options, :operator, "or")
-    expand = Keyword.get(query_options, :expand, false)
+    fuzziness = Map.get(options, "fuzziness")
+    operator = Map.get(options, "operator", "or")
+    expand = Map.get(query_options, "expand", false)
 
     cond do
       Enum.empty?(fields) ->
-        repo.parse(:match_all, [], [])
+        repo.parse("match_all", [], [])
 
       Enum.count(fields) > 1 ->
         minimum_should_match =
@@ -121,20 +121,19 @@ defmodule Elasticlunr.Dsl.MatchQuery do
         should =
           fields
           |> Enum.map(fn {field, content} ->
-            match =
-              [
-                operator: operator,
-                fuzziness: fuzziness
-              ]
-              |> Keyword.put(field, content)
+            match = %{
+              field => content,
+              "operator" => operator,
+              "fuzziness" => fuzziness
+            }
 
-            [match: match, expand: expand]
+            %{"match" => match, "expand" => expand}
           end)
 
-        repo.parse(:bool,
-          should: should,
-          minimum_should_match: minimum_should_match
-        )
+        repo.parse("bool", %{
+          "should" => should,
+          "minimum_should_match" => minimum_should_match
+        })
 
       true ->
         [{field, content}] = fields

@@ -7,16 +7,15 @@ defmodule Elasticlunr.IndexTest do
     test "creates a new instance" do
       assert %Index{name: name} = Index.new()
       assert is_binary(name)
-      assert %Index{name: :test_index, ref: :id, fields: %{}} = Index.new(name: :test_index)
+      assert %Index{name: :test_index, ref: "id", fields: %{}} = Index.new(name: :test_index)
 
-      assert %Index{name: :test_index, ref: :name, fields: %{}} =
-               Index.new(name: :test_index, ref: :name)
+      assert %Index{name: :test_index, ref: "name", fields: %{}} =
+               Index.new(name: :test_index, ref: "name")
     end
 
     test "creates a new instance and populate fields" do
-      fields = ~w[id name]a
-
-      assert %Index{fields: %{id: %Field{}, name: %Field{}}} = Index.new(fields: fields)
+      assert %Index{fields: %{"id" => %Field{}, "name" => %Field{}}} =
+               Index.add_field(Index.new(), "name")
     end
   end
 
@@ -24,28 +23,32 @@ defmodule Elasticlunr.IndexTest do
     test "adds new fields" do
       index = Index.new()
       assert %Index{fields: %{}} = index
-      assert index = Index.add_field(index, :name)
-      assert %Index{fields: %{name: %Field{}}} = index
-      assert %Index{fields: %{name: %Field{}, bio: %Field{}}} = Index.add_field(index, :bio)
+      assert index = Index.add_field(index, "name")
+      assert %Index{fields: %{"name" => %Field{}}} = index
+
+      assert %Index{fields: %{"name" => %Field{}, "bio" => %Field{}}} =
+               Index.add_field(index, "bio")
     end
 
     test "save document" do
-      index = Index.add_field(Index.new(), :name)
+      index = Index.add_field(Index.new(), "name")
 
-      assert %Index{fields: %{name: %Field{store: true}}} = index
-      assert %Index{fields: %{name: %Field{store: false}}} = Index.save_document(index, false)
+      assert %Index{fields: %{"name" => %Field{store: true}}} = index
+      assert %Index{fields: %{"name" => %Field{store: false}}} = Index.save_document(index, false)
     end
   end
 
   describe "fiddling with an index" do
     test "adds document" do
-      index = Index.new(fields: ~w[id bio]a)
+      index =
+        Index.new()
+        |> Index.add_field("bio")
 
       assert index =
                Index.add_documents(index, [
                  %{
-                   id: 10,
-                   bio: Faker.Lorem.paragraph()
+                   "id" => 10,
+                   "bio" => Faker.Lorem.paragraph()
                  }
                ])
 
@@ -54,20 +57,23 @@ defmodule Elasticlunr.IndexTest do
       assert %Index{documents_size: 2} =
                Index.add_documents(index, [
                  %{
-                   id: 29,
-                   bio: Faker.Lorem.paragraph()
+                   "id" => 29,
+                   "bio" => Faker.Lorem.paragraph()
                  }
                ])
     end
 
     test "allows addition of document with empty field" do
-      index = Index.new(fields: ~w[id title bio]a)
+      index =
+        Index.new()
+        |> Index.add_field("bio")
+        |> Index.add_field("title")
 
-      assert index = Index.add_documents(index, [%{id: 10, bio: "", title: "test"}])
+      assert index = Index.add_documents(index, [%{"id" => 10, "bio" => "", "title" => "test"}])
 
       assert term_frequency =
                index
-               |> Index.get_field(:title)
+               |> Index.get_field("title")
                |> Field.term_frequency("test")
 
       assert term_frequency
@@ -80,11 +86,11 @@ defmodule Elasticlunr.IndexTest do
     end
 
     test "fails when adding duplicate document" do
-      index = Index.new(fields: ~w[id bio]a)
+      index = Index.add_field(Index.new(), "bio")
 
       document = %{
-        id: 10,
-        bio: Faker.Lorem.paragraph()
+        "id" => 10,
+        "bio" => Faker.Lorem.paragraph()
       }
 
       assert index = Index.add_documents(index, [document])
@@ -95,23 +101,26 @@ defmodule Elasticlunr.IndexTest do
     end
 
     test "removes document" do
-      index = Index.new(fields: ~w[id bio]a)
+      index =
+        Index.new()
+        |> Index.add_field("id")
+        |> Index.add_field("bio")
 
       document = %{
-        id: 10,
-        bio: "this is a test"
+        "id" => 10,
+        "bio" => "this is a test"
       }
 
       document_2 = %{
-        id: 30,
-        bio: "this is another test"
+        "id" => 30,
+        "bio" => "this is another test"
       }
 
       assert index = Index.add_documents(index, [document_2, document])
       assert %Index{documents_size: 2} = index
       assert index = Index.remove_documents(index, [10])
       assert %Index{documents_size: 1} = index
-      assert field = Index.get_field(index, :bio)
+      assert field = Index.get_field(index, "bio")
       refute Field.has_token(field, "a")
       assert Field.has_token(field, "another")
       assert is_nil(Field.get_token(field, "a"))
@@ -121,11 +130,11 @@ defmodule Elasticlunr.IndexTest do
     end
 
     test "does not remove unknown document" do
-      index = Index.new(fields: ~w[id bio]a)
+      index = Index.add_field(Index.new(), "bio")
 
       document = %{
-        id: 10,
-        bio: Faker.Lorem.paragraph()
+        "id" => 10,
+        "bio" => Faker.Lorem.paragraph()
       }
 
       assert index = Index.add_documents(index, [document])
@@ -134,39 +143,39 @@ defmodule Elasticlunr.IndexTest do
     end
 
     test "update existing document" do
-      index = Index.new(fields: ~w[id bio]a)
+      index = Index.add_field(Index.new(), "bio")
 
       document = %{
-        id: 10,
-        bio: Faker.Lorem.paragraph()
+        "id" => 10,
+        "bio" => Faker.Lorem.paragraph()
       }
 
       index = Index.add_documents(index, [document])
 
       assert %Index{documents_size: 1} = index
-      updated_document = %{document | bio: Faker.Lorem.paragraph()}
+      updated_document = %{document | "bio" => Faker.Lorem.paragraph()}
       assert %Index{documents_size: 1} = Index.update_documents(index, [updated_document])
     end
 
     test "search for a document" do
-      index = Index.new(fields: ~w[bio]a)
+      index = Index.add_field(Index.new(), "bio")
 
       document = %{
-        id: 10,
-        bio: "foo"
+        "id" => 10,
+        "bio" => "foo"
       }
 
       index = Index.add_documents(index, [document])
 
       assert Index.search(index, "foo") |> Enum.count() == 1
-      updated_document = %{document | bio: "bar"}
+      updated_document = %{document | "bio" => "bar"}
       index = Index.update_documents(index, [updated_document])
       assert Index.search(index, "bar") |> Enum.count() == 1
       assert Index.search(index, "foo") |> Enum.empty?()
     end
 
     test "allows the use of multiple, different pipelines for searching and indexing" do
-      index = Index.new(fields: ~w[info]a)
+      index = Index.add_field(Index.new(), "info")
 
       callback = fn %Token{token: token} ->
         tokens = [token]
@@ -184,35 +193,35 @@ defmodule Elasticlunr.IndexTest do
 
       field =
         index
-        |> Index.get_field(:info)
+        |> Index.get_field("info")
         |> Field.set_query_pipeline(query_pipeline)
 
-      index = Index.update_field(index, :info, field)
+      index = Index.update_field(index, "info", field)
 
       index =
         index
         |> Index.add_documents([
-          %{id: "a", info: "Barry had a beer with Fred in the bar"},
-          %{id: "b", info: "the bar is empty"}
+          %{"id" => "a", "info" => "Barry had a beer with Fred in the bar"},
+          %{"id" => "b", "info" => "the bar is empty"}
         ])
 
       results =
-        Index.search(index,
-          query: [
-            match: [info: "foo"]
-          ]
-        )
+        Index.search(index, %{
+          "query" => %{
+            "match" => %{"info" => "foo"}
+          }
+        })
 
       assert Enum.count(results) == 2
       assert [%{score: score_1}, %{score: score_2}] = results
       assert score_2 < score_1
 
       results =
-        Index.search(index,
-          query: [
-            match: [info: "fred"]
-          ]
-        )
+        Index.search(index, %{
+          "query" => %{
+            "match" => %{"info" => "fred"}
+          }
+        })
 
       assert Enum.count(results) == 1
     end

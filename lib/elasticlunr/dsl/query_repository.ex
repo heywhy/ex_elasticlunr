@@ -1,11 +1,11 @@
 defmodule Elasticlunr.Dsl.QueryRepository do
   alias Elasticlunr.Dsl.{BoolQuery, MatchAllQuery, MatchQuery, NotQuery, TermsQuery}
 
-  def get(:not), do: NotQuery
-  def get(:bool), do: BoolQuery
-  def get(:match), do: MatchQuery
-  def get(:terms), do: TermsQuery
-  def get(:match_all), do: MatchAllQuery
+  def get("not"), do: NotQuery
+  def get("bool"), do: BoolQuery
+  def get("match"), do: MatchQuery
+  def get("terms"), do: TermsQuery
+  def get("match_all"), do: MatchAllQuery
   def get(element), do: raise("Unknown query type #{element}")
 
   def parse(module, options, query_options \\ [], repo \\ __MODULE__) do
