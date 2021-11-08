@@ -1,6 +1,7 @@
 defmodule Elasticlunr.Dsl.TermsQuery do
   use Elasticlunr.Dsl.Query
 
+  alias Elasticlunr.Dsl.Query
   alias Elasticlunr.{Index, Token}
 
   defstruct ~w[minimum_should_match expand field terms boost fuzziness]a
@@ -111,14 +112,45 @@ defmodule Elasticlunr.Dsl.TermsQuery do
           options
           |> Enum.reject(fn {key, _field} -> key in @options end)
           |> Enum.map(fn {field, terms} ->
-            %{"terms" => %{field => to_list(terms)}}
+            %{"terms" => %{field => terms}}
           end)
 
         repo.parse("bool", %{"should" => should})
 
       true ->
-        [{field, terms}] = Enum.into(options, [])
-        __MODULE__.new(field: field, terms: to_list(terms))
+        {field, params} = Query.split_root(options)
+        terms = get_terms(params)
+        opts = to_terms_params(params)
+
+        __MODULE__.new([field: field, terms: terms] ++ opts)
+    end
+  end
+
+  defp get_terms(params) when is_map(params) do
+    params
+    |> Map.get("query")
+    |> to_list()
+  end
+
+  defp get_terms(value), do: to_list(value)
+
+  defp to_terms_params(params) when is_map(params) do
+    []
+    |> update_options(params, :minimum_should_match)
+    |> update_options(params, :fuzziness)
+    |> update_options(params, :expand)
+    |> update_options(params, :boost)
+  end
+
+  defp to_terms_params(params), do: to_terms_params(%{"query" => params})
+
+  defp update_options(opts, params, key) do
+    case Map.get(params, to_string(key)) do
+      nil ->
+        opts
+
+      value ->
+        Keyword.put(opts, key, value)
     end
   end
 
