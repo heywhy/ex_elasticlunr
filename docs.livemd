@@ -3,7 +3,7 @@
 ## Install
 
 ```elixir
-Mix.install([{:elasticlunr, "~> 0.1"}])
+Mix.install([{:elasticlunr, "~> 0.2"}])
 ```
 
 ## Create Searchable Index
@@ -13,7 +13,7 @@ alias Elasticlunr.Index
 
 index =
   Elasticlunr.index(:livebook)
-  |> Index.add_field(:content)
+  |> Index.add_field("content")
 ```
 
 ## Add Documents
@@ -21,10 +21,13 @@ index =
 ```elixir
 index =
   Index.add_documents(index, [
-    %{id: 1, content: "livebook is elixir's own jupyter. it's a very impressive impression."},
     %{
-      id: 2,
-      content:
+      "id" => 1,
+      "content" => "livebook is elixir's own jupyter. it's a very impressive impression."
+    },
+    %{
+      "id" => 2,
+      "content" =>
         "there are lots of contributors to the elixir project and many cool projects using elixir, ex. livebook, elixir_nx and so on"
     }
   ])
