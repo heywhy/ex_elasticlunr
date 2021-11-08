@@ -7,17 +7,22 @@ defmodule Elasticlunr.Dsl.Query do
             ref: Index.document_ref()
           })
 
-  @type options :: any()
-
-  @callback filter(module :: struct(), index :: Index.t(), options :: options()) :: list()
-  @callback score(module :: struct(), index :: Index.t(), options :: options()) :: score_results()
+  @callback filter(module :: struct(), index :: Index.t(), options :: keyword()) :: list()
+  @callback score(module :: struct(), index :: Index.t(), options :: keyword()) :: score_results()
   @callback rewrite(module :: struct(), index :: Index.t()) :: struct()
-  @callback parse(options :: keyword(), query_options :: keyword(), repo :: module()) ::
+  @callback parse(options :: map(), query_options :: map(), repo :: module()) ::
               struct()
 
-  @spec split_root(list() | tuple()) :: {atom(), any()}
-  def split_root(root) when is_list(root), do: hd(root)
+  @spec split_root(map() | tuple()) :: {atom(), any()} | any()
+  def split_root(root) when is_map(root) do
+    [root_key] = Map.keys(root)
+    value = Map.get(root, root_key)
+
+    {root_key, value}
+  end
+
   def split_root({_, _} = root), do: root
+  def split_root(root), do: root
 
   defmacro __using__(_) do
     quote location: :keep do

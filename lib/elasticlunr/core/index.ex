@@ -33,41 +33,28 @@ defmodule Elasticlunr.Index do
           store_documents: boolean()
         }
 
-  @type search_query :: binary() | keyword()
+  @type search_query :: binary() | map()
   @type search_result :: any()
 
   @spec new(keyword()) :: t()
   def new(opts \\ []) do
-    ref = Keyword.get(opts, :ref, :id)
+    ref = Keyword.get(opts, :ref, "id")
     pipeline = Keyword.get_lazy(opts, :pipeline, &Pipeline.new/0)
+
+    id_field = Field.new(pipeline: Pipeline.new([IdPipeline]))
+    fields = Map.put(%{}, to_string(ref), id_field)
 
     attrs = %{
       documents_size: 0,
       ref: ref,
+      fields: fields,
       pipeline: pipeline,
-      fields: %{},
       name: Keyword.get_lazy(opts, :name, &UUID.uuid4/0),
       store_documents: Keyword.get(opts, :store_documents, true),
       store_positions: Keyword.get(opts, :store_positions, true)
     }
 
-    ob = struct!(__MODULE__, attrs)
-
-    field =
-      opts
-      |> Keyword.get(:fields, [])
-      |> Keyword.delete(ref)
-      |> Enum.reduce(ob, fn
-        {field, opts}, ob -> add_field(ob, field, opts)
-        field, ob -> add_field(ob, field)
-      end)
-
-    fields =
-      field
-      |> Map.get(:fields)
-      |> Map.put(ref, Field.new(pipeline: Pipeline.new([IdPipeline])))
-
-    %{field | fields: fields}
+    struct!(__MODULE__, attrs)
   end
 
   @spec add_field(t(), document_field(), keyword()) :: t()
@@ -80,7 +67,8 @@ defmodule Elasticlunr.Index do
         } = index,
         field,
         opts \\ []
-      ) do
+      )
+      when is_binary(field) do
     opts =
       opts
       |> Keyword.put_new(:pipeline, pipeline)
@@ -205,7 +193,7 @@ defmodule Elasticlunr.Index do
     |> Field.all()
   end
 
-  @spec search(t(), search_query(), keyword() | nil) :: list(search_result())
+  @spec search(t(), search_query(), map() | nil) :: list(search_result())
   def search(index, query, opts \\ nil)
   def search(%__MODULE__{}, nil, _opts), do: []
 
@@ -216,77 +204,77 @@ defmodule Elasticlunr.Index do
       fields
       |> Enum.reject(&(&1 == ref))
       |> Enum.map(fn field ->
-        match = Keyword.put([], field, query)
-        [match: match]
+        %{"match" => %{field => query}}
       end)
 
-    elasticsearch(index,
-      query: [
-        bool: [
-          should: matches
-        ]
-      ]
-    )
+    elasticsearch(index, %{
+      "query" => %{
+        "bool" => %{
+          "should" => matches
+        }
+      }
+    })
   end
 
-  def search(%__MODULE__{ref: ref} = index, query, fields: fields) when is_binary(query) do
+  def search(%__MODULE__{ref: ref} = index, query, %{"fields" => fields}) when is_binary(query) do
     matches =
       fields
       |> Enum.filter(fn field ->
         with true <- field != ref,
-             true <- Keyword.has_key?(fields, field),
-             [boost: boost] <- Keyword.get(fields, field) do
+             true <- Map.has_key?(fields, field),
+             %{"boost" => boost} <- Map.get(fields, field) do
           boost > 0
         end
       end)
       |> Enum.map(fn field ->
-        [boost: boost] = Keyword.get(fields, field)
-        match = Keyword.put([], field, query)
+        %{"boost" => boost} = Map.get(fields, field)
+        match = %{field => query}
 
-        [match: match, boost: boost]
+        %{"match" => match, "boost" => boost}
       end)
 
-    elasticsearch(index,
-      query: [
-        bool: [
-          should: matches
-        ]
-      ]
-    )
+    elasticsearch(index, %{
+      "query" => %{
+        "bool" => %{
+          "should" => matches
+        }
+      }
+    })
   end
 
-  def search(%__MODULE__{} = index, [query: _] = query, _opts), do: elasticsearch(index, query)
+  def search(%__MODULE__{} = index, %{"query" => _} = query, _opts),
+    do: elasticsearch(index, query)
 
-  def search(%__MODULE__{} = index, query, nil) when is_list(query),
-    do: search(index, query, operator: "OR")
+  def search(%__MODULE__{} = index, query, nil) when is_map(query),
+    do: search(index, query, %{"operator" => "OR"})
 
   def search(%__MODULE__{} = index, [] = query, options) do
     matches =
       query
       |> Enum.map(fn {field, content} ->
-        expand = Keyword.get(options, :expand, false)
+        expand = Map.get(options, "expand", false)
 
         operator =
           options
-          |> Keyword.get(:bool, "or")
+          |> Map.get("bool", "or")
           |> String.downcase()
 
-        [
-          expand: expand,
-          match: Keyword.put([operator: operator], field, content)
-        ]
+        %{
+          "expand" => expand,
+          "match" => %{"operator" => operator, field => content}
+        }
       end)
 
-    elasticsearch(index,
-      query: [
-        bool: [
-          should: matches
-        ]
-      ]
-    )
+    elasticsearch(index, %{
+      "query" => %{
+        "bool" => %{
+          "should" => matches
+        }
+      }
+    })
   end
 
-  defp elasticsearch(index, query: root) do
+  defp elasticsearch(index, %{"query" => root}) do
     {key, value} = Query.split_root(root)
 
     query = QueryRepository.parse(key, value, root)

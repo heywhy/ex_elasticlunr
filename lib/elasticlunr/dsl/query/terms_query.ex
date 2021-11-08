@@ -14,6 +14,8 @@ defmodule Elasticlunr.Dsl.TermsQuery do
           fuzziness: integer()
         }
 
+  @options ~w[boost expand fuzziness minimum_should_match]
+
   @spec new(keyword()) :: t()
   def new(opts) do
     attrs = %{
@@ -102,20 +104,20 @@ defmodule Elasticlunr.Dsl.TermsQuery do
   def parse(options, _query_options, repo) do
     cond do
       Enum.empty?(options) ->
-        repo.parse(:match_all, [])
+        repo.parse("match_all", %{})
 
       Enum.count(options) > 1 ->
         should =
-          Enum.map(options, fn {field, terms} ->
-            %{
-              terms: Map.put(%{}, field, to_list(terms))
-            }
+          options
+          |> Enum.reject(fn {key, _field} -> key in @options end)
+          |> Enum.map(fn {field, terms} ->
+            %{"terms" => %{field => to_list(terms)}}
           end)
 
-        repo.parse(:bool, should: should)
+        repo.parse("bool", %{"should" => should})
 
       true ->
-        [{field, terms}] = options
+        [{field, terms}] = Enum.into(options, [])
         __MODULE__.new(field: field, terms: to_list(terms))
     end
   end

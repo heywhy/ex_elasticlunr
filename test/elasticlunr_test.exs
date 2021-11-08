@@ -7,8 +7,11 @@ defmodule ElasticlunrTest do
     test "creates a new index" do
       assert %Index{name: "index_1", fields: %{}} = Elasticlunr.index("index_1")
 
-      assert %Index{name: "index_2", fields: %{title: _, body: _}} =
-               Elasticlunr.index("index_2", fields: ~w[title body]a)
+      assert %Index{name: "index_2", fields: %{"title" => _, "body" => _}} =
+               "index_2"
+               |> Elasticlunr.index()
+               |> Index.add_field("body")
+               |> Index.add_field("title")
     end
 
     test "retrieves existing index instead of creating a new one" do

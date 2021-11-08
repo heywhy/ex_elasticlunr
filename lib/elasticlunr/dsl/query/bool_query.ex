@@ -212,7 +212,7 @@ defmodule Elasticlunr.Dsl.BoolQuery do
           repo.parse(key, value, query)
 
         _ ->
-          repo.parse(:match_all, [])
+          repo.parse("match_all", [])
       end
     end
 
@@ -226,7 +226,7 @@ defmodule Elasticlunr.Dsl.BoolQuery do
   end
 
   defp patch_options(opts, :should, options, mapper) do
-    case Keyword.get(options, :should) do
+    case Map.get(options, "should") do
       nil ->
         opts
 
@@ -235,27 +235,33 @@ defmodule Elasticlunr.Dsl.BoolQuery do
           should
           |> Enum.map(mapper)
 
-        Keyword.put([], :should, should)
+        Keyword.put(opts, :should, should)
+
+      should ->
+        Keyword.put(opts, :should, [mapper.(should)])
     end
   end
 
   defp patch_options(opts, :filter, options, mapper) do
-    case Keyword.get(options, :filter) do
+    case Map.get(options, "filter") do
       nil ->
         opts
 
       filter when is_list(filter) ->
         filter = Enum.map(filter, mapper)
         Keyword.put(opts, :filter, filter)
+
+      filter ->
+        Keyword.put(opts, :filter, [mapper.(filter)])
     end
   end
 
   defp patch_options(opts, :must, options, repo) do
-    case Keyword.get(options, :must) do
+    case Map.get(options, "must") do
       nil ->
         opts
 
-      must when is_list(must) ->
+      must when is_map(must) ->
         {key, options} = Query.split_root(must)
         must = repo.parse(key, options, must)
 
@@ -264,7 +270,7 @@ defmodule Elasticlunr.Dsl.BoolQuery do
   end
 
   defp patch_options(opts, :must_not, options, repo) do
-    case Keyword.get(options, :must_not) do
+    case Map.get(options, "must_not") do
       nil ->
         opts
 
@@ -279,7 +285,7 @@ defmodule Elasticlunr.Dsl.BoolQuery do
 
   defp patch_options(opts, :minimum_should_match, options) do
     options
-    |> Keyword.get(:minimum_should_match)
+    |> Map.get("minimum_should_match")
     |> case do
       nil ->
         opts
@@ -289,10 +295,10 @@ defmodule Elasticlunr.Dsl.BoolQuery do
     end
     |> case do
       true ->
-        minimum_should_match = Keyword.get(options, :minimum_should_match)
+        minimum_should_match = Map.get(options, "minimum_should_match")
         Keyword.put(opts, :minimum_should_match, minimum_should_match)
 
-      opts ->
+      _ ->
         opts
     end
   end

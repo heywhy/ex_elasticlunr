@@ -11,7 +11,7 @@ defmodule Elasticlunr.Dsl.MatchAllQuery do
   @impl true
   def parse(options, _query_options, _repo) do
     options
-    |> Keyword.get(:boost, 1)
+    |> Map.get("boost", 1)
     |> __MODULE__.new()
   end
 
