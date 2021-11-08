@@ -3,7 +3,7 @@
 ## Install
 
 ```elixir
-Mix.install([{:elasticlunr, "~> 0.2"}])
+Mix.install([{:elasticlunr, "~> 0.3"}])
 ```
 
 ## Create Searchable Index
@@ -35,9 +35,123 @@ index =
 
 ## Search Index
 
+The search results is an array that contains a map - the ref attribute
+refers the document id.
+
 <!-- livebook:{"livebook_object":"cell_input","name":"Search","type":"text","value":"livebook"} -->
 
 ```elixir
 search_query = IO.gets("Search")
 results = Index.search(index, search_query)
+```
+
+## Nested Document Attributes
+
+As seen in the earlier example all documents indexed where without nested attributes.
+But Imagine a situation where your datasource returns documents with nested attributes
+and you want search by these atributes - it's possible with elasticlunr by specifying
+the top-level attribute.
+
+<!-- livebook:{"break_markdown":true} -->
+
+Let's say our datasource returns a list of users with their address which is an object and
+you want to index this information so that you can query them.
+
+```elixir
+# here we build our users index
+
+users_index =
+  Elasticlunr.index(:users)
+  |> Index.add_field("name")
+  |> Index.add_field("address")
+  |> Index.add_field("education")
+```
+
+```elixir
+documents = [
+  %{
+    "id" => 1,
+    "name" => "rose mary",
+    "education" => "BSc.",
+    "address" => %{
+      "line1" => "Brooklyn Street",
+      "line2" => "4181",
+      "city" => "Portland",
+      "state" => "Oregon",
+      "country" => "USA"
+    }
+  },
+  %{
+    "id" => 2,
+    "name" => "jason richard",
+    "education" => "Msc.",
+    "address" => %{
+      "line1" => "Crown Street",
+      "line2" => "2057",
+      "city" => "St Malo",
+      "state" => "Quebec",
+      "country" => "CA"
+    }
+  },
+  %{
+    "id" => 3,
+    "name" => "peters book",
+    "education" => "BSc.",
+    "address" => %{
+      "line1" => "Murry Street",
+      "line2" => "2285",
+      "city" => "Norfolk",
+      "state" => "Virginia",
+      "country" => "USA"
+    }
+  },
+  %{
+    "id" => 4,
+    "name" => "jason mount",
+    "education" => "Highschool",
+    "address" => %{
+      "line1" => "Aspen Court",
+      "line2" => "2057",
+      "city" => "Boston",
+      "state" => "Massachusetts",
+      "country" => "USA"
+    }
+  }
+]
+
+users_index =
+  users_index
+  |> Index.add_documents(documents)
+```
+
+<!-- livebook:{"livebook_object":"cell_input","name":"Search users","type":"text","value":"jason murry"} -->
+
+```elixir
+search_query = IO.gets("Search users")
+Index.search(users_index, search_query)
+```
+
+```elixir
+# here we are searching for users where name must match jaso* and address.line1
+# should match street
+
+Index.search(users_index, %{
+  "query" => %{
+    "bool" => %{
+      "must" => %{
+        "match" => %{
+          "name" => %{
+            "query" => "jas",
+            "expand" => true
+          }
+        }
+      },
+      "should" => %{
+        "match" => %{
+          "address.line1" => "street"
+        }
+      }
+    }
+  }
+})
 ```
