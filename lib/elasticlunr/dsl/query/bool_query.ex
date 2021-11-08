@@ -235,7 +235,10 @@ defmodule Elasticlunr.Dsl.BoolQuery do
           should
           |> Enum.map(mapper)
 
-        Keyword.put([], :should, should)
+        Keyword.put(opts, :should, should)
+
+      should ->
+        Keyword.put(opts, :should, [mapper.(should)])
     end
   end
 
@@ -247,6 +250,9 @@ defmodule Elasticlunr.Dsl.BoolQuery do
       filter when is_list(filter) ->
         filter = Enum.map(filter, mapper)
         Keyword.put(opts, :filter, filter)
+
+      filter ->
+        Keyword.put(opts, :filter, [mapper.(filter)])
     end
   end
 
@@ -292,7 +298,7 @@ defmodule Elasticlunr.Dsl.BoolQuery do
         minimum_should_match = Map.get(options, "minimum_should_match")
         Keyword.put(opts, :minimum_should_match, minimum_should_match)
 
-      opts ->
+      _ ->
         opts
     end
   end

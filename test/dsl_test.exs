@@ -3,6 +3,7 @@ defmodule Elasticlunr.DslTest do
 
   alias Elasticlunr.{Index, Pipeline, Token}
   alias Elasticlunr.Dsl.{BoolQuery, MatchAllQuery, MatchQuery, TermsQuery}
+  alias Elasticlunr.Dsl.QueryRepository
 
   setup context do
     callback = fn
@@ -44,6 +45,10 @@ defmodule Elasticlunr.DslTest do
   end
 
   describe "match_all" do
+    test "parses correctly" do
+      assert %MatchAllQuery{boost: 2.5} = QueryRepository.parse("match_all", %{"boost" => 2.5})
+    end
+
     test "correctly operates match_all query", %{index: index} do
       query = MatchAllQuery.new()
 
@@ -57,6 +62,20 @@ defmodule Elasticlunr.DslTest do
   end
 
   describe "terms" do
+    test "parses correctly" do
+      assert %MatchAllQuery{} = QueryRepository.parse("terms", %{})
+
+      assert %TermsQuery{field: "name", terms: ["nelson"]} =
+               QueryRepository.parse("terms", %{"name" => "nelson"})
+
+      assert %BoolQuery{
+               should: [
+                 %TermsQuery{field: "country", terms: ["us"], boost: 1},
+                 %TermsQuery{field: "name", terms: ["john"], boost: 1}
+               ]
+             } = QueryRepository.parse("terms", %{"name" => "john", "country" => "us"})
+    end
+
     test "performs base functionality", %{index: index} do
       query =
         TermsQuery.new(
@@ -93,6 +112,25 @@ defmodule Elasticlunr.DslTest do
   end
 
   describe "bool" do
+    test "parses correctly" do
+      assert %BoolQuery{must: %TermsQuery{field: "country", terms: ["us"]}} =
+               QueryRepository.parse("bool", %{"must" => %{"terms" => %{"country" => "us"}}})
+
+      assert %BoolQuery{
+               minimum_should_match: 1,
+               must: %TermsQuery{field: "country", terms: ["us"]},
+               must_not: %TermsQuery{field: "gender", terms: ["male"]},
+               filter: [%MatchQuery{field: "balance", query: 1000}],
+               should: [%MatchQuery{field: "account_type", query: "savings"}]
+             } =
+               QueryRepository.parse("bool", %{
+                 "must" => %{"terms" => %{"country" => "us"}},
+                 "must_not" => %{"terms" => %{"gender" => "male"}},
+                 "filter" => %{"match" => %{"balance" => 1000}},
+                 "should" => %{"match" => %{"account_type" => "savings"}}
+               })
+    end
+
     test "filters via must functionality", %{index: index} do
       query =
         BoolQuery.new(
@@ -125,6 +163,29 @@ defmodule Elasticlunr.DslTest do
   end
 
   describe "match" do
+    test "parses correctly" do
+      assert %MatchAllQuery{boost: 1} = QueryRepository.parse("match", %{})
+
+      assert %MatchQuery{field: "country", query: "us"} =
+               QueryRepository.parse("match", %{"country" => "us"})
+
+      assert %MatchQuery{field: "country", query: "us", operator: "and"} =
+               QueryRepository.parse("match", %{
+                 "country" => %{"query" => "us", "operator" => "and"}
+               })
+
+      assert %BoolQuery{
+               should: [
+                 %MatchQuery{field: "city", query: "arizona"},
+                 %MatchQuery{field: "country", query: "us"}
+               ]
+             } =
+               QueryRepository.parse("match", %{
+                 "city" => "arizona",
+                 "country" => "us"
+               })
+    end
+
     test "performs base functionality", %{index: index} do
       query = MatchQuery.new(field: "content", query: "brown fox")
 
