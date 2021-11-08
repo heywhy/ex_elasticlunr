@@ -106,7 +106,7 @@ defmodule Elasticlunr.Index do
   end
 
   @spec add_documents(t(), list(map())) :: t()
-  def add_documents(%__MODULE__{ref: ref, fields: fields} = index, documents) do
+  def add_documents(%__MODULE__{ref: ref} = index, documents) do
     transform_document = fn {key, content}, {document, fields} ->
       case Map.get(fields, key) do
         nil ->
@@ -120,6 +120,8 @@ defmodule Elasticlunr.Index do
           {document, fields}
       end
     end
+
+    {%{fields: fields} = index, documents} = transform_documents(index, documents)
 
     fields =
       Enum.reduce(documents, fields, fn document, fields ->
@@ -248,7 +250,7 @@ defmodule Elasticlunr.Index do
   def search(%__MODULE__{} = index, query, nil) when is_map(query),
     do: search(index, query, %{"operator" => "OR"})
 
-  def search(%__MODULE__{} = index, [] = query, options) do
+  def search(%__MODULE__{} = index, %{} = query, options) do
     matches =
       query
       |> Enum.map(fn {field, content} ->
@@ -305,5 +307,48 @@ defmodule Elasticlunr.Index do
       end)
 
     %{index | documents_size: size}
+  end
+
+  defp transform_documents(index, documents) do
+    documents = Enum.map(documents, &flatten_document/1)
+
+    add_or_ignore_field = fn key, index, fields ->
+      case Map.get(fields, key) do
+        nil ->
+          add_field(index, key)
+
+        %Field{} ->
+          index
+      end
+    end
+
+    Enum.reduce(documents, {index, documents}, fn document, {index, documents} ->
+      %{fields: fields} = index
+
+      recognized_keys =
+        Map.keys(document)
+        |> Enum.filter(fn attribute ->
+          [field | _tail] = String.split(attribute, ".")
+          Map.has_key?(fields, field)
+        end)
+
+      index =
+        Enum.reduce(recognized_keys, index, fn key, index ->
+          add_or_ignore_field.(key, index, fields)
+        end)
+
+      {index, documents}
+    end)
+  end
+
+  defp flatten_document(document, prefix \\ "") do
+    Enum.reduce(document, %{}, fn
+      {key, value}, transformed when is_map(value) ->
+        mapped = flatten_document(value, "#{prefix}#{key}.")
+        Map.merge(transformed, mapped)
+
+      {key, value}, transformed ->
+        Map.put(transformed, "#{prefix}#{key}", value)
+    end)
   end
 end

@@ -2,6 +2,7 @@ defmodule Elasticlunr.IndexTest do
   use ExUnit.Case
 
   alias Elasticlunr.{Field, Index, Pipeline, Token}
+  alias Faker.Address.En, as: Address
 
   describe "creating an index" do
     test "creates a new instance" do
@@ -61,6 +62,65 @@ defmodule Elasticlunr.IndexTest do
                    "bio" => Faker.Lorem.paragraph()
                  }
                ])
+    end
+
+    test "adds documents and flatten nested attributes" do
+      index =
+        Index.new()
+        |> Index.add_field("name")
+        |> Index.add_field("address")
+
+      document = %{
+        "id" => 20,
+        "name" => "nelson",
+        "address" => %{
+          "city" => Address.city(),
+          "country" => Address.country_code(),
+          "line1" => Address.street_address(),
+          "line2" => Address.secondary_address(),
+          "state" => Address.state()
+        }
+      }
+
+      index = Index.add_documents(index, [document])
+
+      query = %{
+        "bool" => %{
+          "should" => %{
+            "match" => %{"address.city" => get_in(document, ["address", "city"])}
+          }
+        }
+      }
+
+      assert %Index{fields: %{"address.city" => %Field{}}, documents_size: 1} = index
+      refute Index.search(index, %{"query" => query}) |> Enum.empty?()
+    end
+
+    test "removes documents with nested attributes" do
+      index =
+        Index.new()
+        |> Index.add_field("name")
+        |> Index.add_field("address")
+
+      document = %{
+        "id" => 20,
+        "name" => "nelson",
+        "address" => %{
+          "city" => Address.city(),
+          "country" => Address.country_code(),
+          "line1" => Address.street_address(),
+          "line2" => Address.secondary_address(),
+          "state" => Address.state()
+        }
+      }
+
+      index = Index.add_documents(index, [document])
+
+      assert %Index{fields: %{"address.city" => %Field{ids: %{20 => _}}}, documents_size: 1} =
+               index
+
+      assert %Index{fields: %{"address.city" => %Field{ids: %{}}}, documents_size: 0} =
+               Index.remove_documents(index, [20])
     end
 
     test "allows addition of document with empty field" do
