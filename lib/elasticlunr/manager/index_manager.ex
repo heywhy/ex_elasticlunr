@@ -20,6 +20,7 @@ defmodule Elasticlunr.IndexManager do
     {:ok, index}
   end
 
+  @spec update_index(Elasticlunr.Index.t()) :: Index.t() | :not_running
   def update_index(%Index{name: name} = index) do
     case loaded?(name) do
       true ->
