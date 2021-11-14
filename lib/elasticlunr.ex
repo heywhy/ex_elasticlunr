@@ -3,9 +3,11 @@ defmodule Elasticlunr do
   Documentation for `Elasticlunr`.
   """
 
+  @type index_name :: atom() | binary()
+
   alias Elasticlunr.{Index, IndexManager, Pipeline}
 
-  @spec index(atom() | binary(), keyword()) :: Index.t() | :not_running
+  @spec index(index_name(), keyword()) :: Index.t() | :not_running
   def index(name, opts \\ []) do
     with opts <- with_default_pipeline([name: name] ++ opts),
          index <- Index.new(opts),
@@ -18,9 +20,13 @@ defmodule Elasticlunr do
     end
   end
 
-  @spec update_index(Index.t()) :: Index.t() | :not_running
-  def update_index(%Index{} = index) do
-    IndexManager.update_index(index)
+  @spec update_index(index_name(), function()) :: Index.t() | :not_running
+  def update_index(name, callback) do
+    with %Index{} = index <- IndexManager.get(name),
+         index <- callback.(index),
+         %Index{} = index <- IndexManager.update_index(index) do
+      index
+    end
   end
 
   @spec default_pipeline() :: Pipeline.t()

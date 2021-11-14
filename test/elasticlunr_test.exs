@@ -28,4 +28,37 @@ defmodule ElasticlunrTest do
       assert %Index{pipeline: ^default_pipline} = Elasticlunr.index(index_name)
     end
   end
+
+  describe "updating index" do
+    test "invokes callback function" do
+      index_name = Faker.Lorem.word()
+
+      callback = fn index ->
+        send(self(), :callback_called)
+        index
+      end
+
+      assert %Index{fields: %{}} = Elasticlunr.index(index_name)
+
+      assert %Index{name: ^index_name} = Elasticlunr.update_index(index_name, callback)
+      assert %Index{name: ^index_name} = IndexManager.get(index_name)
+
+      assert_received :callback_called
+    end
+
+    test "updates index attributes" do
+      index_name = Faker.Lorem.word()
+
+      callback = fn index ->
+        Index.add_field(index, "name")
+      end
+
+      assert %Index{fields: %{}} = Elasticlunr.index(index_name)
+
+      assert %Index{name: ^index_name, fields: %{"name" => _}} =
+               Elasticlunr.update_index(index_name, callback)
+
+      assert %Index{name: ^index_name, fields: %{"name" => _}} = IndexManager.get(index_name)
+    end
+  end
 end
