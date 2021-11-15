@@ -273,6 +273,22 @@ defmodule Elasticlunr.Field do
     end
   end
 
+  def all_tokens(%__MODULE__{tf: tf, idf: idf, flnorm: flnorm, terms: terms}) do
+    Map.keys(terms)
+    |> Enum.map(fn term ->
+      tf = Map.get(tf, term, %{})
+
+      %{
+        tf: tf,
+        term: term,
+        terms: Map.get(terms, term),
+        idf: Map.get(idf, term),
+        norm: flnorm,
+        documents: Map.keys(tf)
+      }
+    end)
+  end
+
   defp recalculate_idf(%{idf: idf, ids: ids, terms: terms} = field) do
     terms_length = Enum.count(terms)
 

@@ -61,4 +61,32 @@ defmodule ElasticlunrTest do
       assert %Index{name: ^index_name, fields: %{"name" => _}} = IndexManager.get(index_name)
     end
   end
+
+  describe "serializing indexes" do
+    test "writes to disk" do
+      index_name = :serialized_index
+
+      documents =
+        Stream.map(1..1_000, fn i ->
+          %{
+            "id" => i,
+            "name" => Faker.Person.name(),
+            "address" => Faker.Address.En.street_address(true)
+          }
+        end)
+
+      callback = fn index ->
+        documents = Enum.to_list(documents)
+
+        index
+        |> Index.add_field("name")
+        |> Index.add_field("address")
+        |> Index.add_documents(documents)
+      end
+
+      assert Elasticlunr.index(index_name)
+      assert Elasticlunr.update_index(index_name, callback)
+      assert :ok = Elasticlunr.flush_indexes()
+    end
+  end
 end

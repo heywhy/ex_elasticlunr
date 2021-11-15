@@ -6,6 +6,7 @@ defmodule Elasticlunr do
   @type index_name :: atom() | binary()
 
   alias Elasticlunr.{Index, IndexManager, Pipeline}
+  alias Elasticlunr.Storage.Disk
 
   @spec index(index_name(), keyword()) :: Index.t() | :not_running
   def index(name, opts \\ []) do
@@ -31,6 +32,15 @@ defmodule Elasticlunr do
 
   @spec default_pipeline() :: Pipeline.t()
   def default_pipeline, do: Pipeline.new(Pipeline.default_runners())
+
+  @spec flush_indexes(module()) :: :ok | {:error, any()}
+  def flush_indexes(provider \\ Disk) do
+    IndexManager.loaded_indices()
+    |> Enum.reduce(:ok, fn index_name, _acc ->
+      index = IndexManager.get(index_name)
+      :ok = provider.write(index_name, index)
+    end)
+  end
 
   defp with_default_pipeline(opts), do: Keyword.put_new(opts, :pipeline, default_pipeline())
 end
