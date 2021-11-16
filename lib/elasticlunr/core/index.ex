@@ -106,31 +106,17 @@ defmodule Elasticlunr.Index do
   end
 
   @spec add_documents(t(), list(map())) :: t()
-  def add_documents(%__MODULE__{ref: ref} = index, documents) do
-    transform_document = fn {key, content}, {document, fields} ->
-      case Map.get(fields, key) do
-        nil ->
-          {document, fields}
+  def add_documents(%__MODULE__{} = index, documents) do
+    docs_length = length(documents)
 
-        %Field{} = field ->
-          id = Map.get(document, ref)
-          field = Field.add(field, [%{id: id, content: content}])
-          fields = Map.put(fields, key, field)
+    [index] =
+      transform_documents(index, documents)
+      |> Stream.with_index(1)
+      |> Stream.drop_while(fn {_, index} -> index < docs_length end)
+      |> Stream.map(&elem(&1, 0))
+      |> Enum.to_list()
 
-          {document, fields}
-      end
-    end
-
-    {%{fields: fields} = index, documents} = transform_documents(index, documents)
-
-    fields =
-      Enum.reduce(documents, fields, fn document, fields ->
-        document
-        |> Enum.reduce({document, fields}, transform_document)
-        |> elem(1)
-      end)
-
-    update_documents_size(%{index | fields: fields})
+    update_documents_size(index)
   end
 
   @spec update_documents(t(), list(map())) :: t()
@@ -165,8 +151,7 @@ defmodule Elasticlunr.Index do
       Enum.reduce(fields, fields, fn {key, field}, fields ->
         field = Field.remove(field, document_ids)
 
-        fields
-        |> Map.put(key, field)
+        Map.put(fields, key, field)
       end)
 
     update_documents_size(%{index | fields: fields})
@@ -309,10 +294,8 @@ defmodule Elasticlunr.Index do
     %{index | documents_size: size}
   end
 
-  defp transform_documents(index, documents) do
-    documents = Enum.map(documents, &flatten_document/1)
-
-    add_or_ignore_field = fn key, index, fields ->
+  defp transform_documents(%{ref: ref} = index, documents) do
+    add_or_ignore_field = fn index, key, fields ->
       case Map.get(fields, key) do
         nil ->
           add_field(index, key)
@@ -322,23 +305,30 @@ defmodule Elasticlunr.Index do
       end
     end
 
-    Enum.reduce(documents, {index, documents}, fn document, {index, documents} ->
+    documents
+    |> Stream.map(&flatten_document/1)
+    |> Stream.scan(index, fn document, index ->
       %{fields: fields} = index
 
       recognized_keys =
         Map.keys(document)
-        |> Enum.filter(fn attribute ->
+        |> Stream.filter(fn attribute ->
           [field | _tail] = String.split(attribute, ".")
           Map.has_key?(fields, field)
         end)
 
-      index =
-        Enum.reduce(recognized_keys, index, fn key, index ->
-          add_or_ignore_field.(key, index, fields)
-        end)
+      Enum.reduce(recognized_keys, index, fn key, index ->
+        index = add_or_ignore_field.(index, key, fields)
+        field = get_field(index, key)
+        field = Field.add(field, [%{id: Map.get(document, ref), content: Map.get(document, key)}])
 
-      {index, documents}
+        patch_field(index, key, field)
+      end)
     end)
+  end
+
+  defp patch_field(%{fields: fields} = index, key, %Field{} = field) do
+    %{index | fields: Map.put(fields, key, field)}
   end
 
   defp flatten_document(document, prefix \\ "") do

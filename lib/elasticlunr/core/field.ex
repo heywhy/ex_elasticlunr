@@ -115,7 +115,7 @@ defmodule Elasticlunr.Field do
 
   defp update_field_stats(field, id, tokens) do
     tokens
-    |> Enum.map(&to_token/1)
+    |> Stream.map(&to_token/1)
     |> Enum.reduce(field, fn token, field ->
       %Token{token: term} = token
       %{tf: tf, terms: terms} = field
@@ -230,7 +230,7 @@ defmodule Elasticlunr.Field do
     matching_docs =
       query
       |> Keyword.get(:terms)
-      |> Enum.map(fn
+      |> Stream.map(fn
         %Regex{} = re -> re
         val -> to_token(val)
       end)
@@ -239,7 +239,7 @@ defmodule Elasticlunr.Field do
           matched_terms =
             terms
             |> Map.keys()
-            |> Enum.filter(&Regex.match?(re, &1))
+            |> Stream.filter(&Regex.match?(re, &1))
 
           Enum.reduce(matched_terms, matching_docs, fn term, matching_docs ->
             ids = Map.get(terms, term) |> Map.keys()
@@ -266,16 +266,17 @@ defmodule Elasticlunr.Field do
       matching_docs
     else
       matching_docs
-      |> Enum.filter(fn {_key, content} ->
+      |> Stream.filter(fn {_key, content} ->
         Enum.count(content) >= msm
       end)
       |> Enum.into(%{})
     end
   end
 
+  @spec all_tokens(Elasticlunr.Field.t()) :: %Stream{}
   def all_tokens(%__MODULE__{tf: tf, idf: idf, flnorm: flnorm, terms: terms}) do
     Map.keys(terms)
-    |> Enum.map(fn term ->
+    |> Stream.map(fn term ->
       tf = Map.get(tf, term, %{})
 
       %{
@@ -301,13 +302,13 @@ defmodule Elasticlunr.Field do
           0
       end
 
+    ids_length = Enum.count(ids)
+
     idf =
       terms
       |> Map.keys()
-      |> Enum.map(&to_token/1)
+      |> Stream.map(&to_token/1)
       |> Enum.reduce(idf, fn %Token{token: token}, idf ->
-        ids_length = Enum.count(ids)
-
         token_length =
           terms
           |> Map.get(token)
