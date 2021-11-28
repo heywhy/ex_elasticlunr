@@ -19,6 +19,6 @@ defmodule Elasticlunr.Dsl.MatchAllQuery do
   def score(%__MODULE__{boost: boost}, %Index{} = index, _options) do
     doc_ids = Index.all(index)
 
-    Enum.map(doc_ids, &%{ref: &1, boost: boost})
+    Stream.map(doc_ids, &%{ref: &1, boost: boost})
   end
 end

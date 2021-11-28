@@ -8,7 +8,8 @@ defmodule Elasticlunr.Dsl.Query do
           })
 
   @callback filter(module :: struct(), index :: Index.t(), options :: keyword()) :: list()
-  @callback score(module :: struct(), index :: Index.t(), options :: keyword()) :: score_results()
+  @callback score(module :: struct(), index :: Index.t(), options :: keyword()) ::
+              score_results() | %Stream{}
   @callback rewrite(module :: struct(), index :: Index.t()) :: struct()
   @callback parse(options :: map(), query_options :: map(), repo :: module()) ::
               struct()

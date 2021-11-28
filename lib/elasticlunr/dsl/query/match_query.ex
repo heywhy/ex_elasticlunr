@@ -45,12 +45,14 @@ defmodule Elasticlunr.Dsl.MatchQuery do
           [token]
       end
 
+    tokens_length = length(tokens)
+
     cond do
-      Enum.count(tokens) > 1 ->
+      tokens_length > 1 ->
         minimum_should_match =
           case operator == "and" && min_match == 0 do
             true ->
-              Enum.count(tokens)
+              tokens_length
 
             false ->
               min_match
@@ -65,7 +67,7 @@ defmodule Elasticlunr.Dsl.MatchQuery do
           minimum_should_match: minimum_should_match
         )
 
-      Enum.count(tokens) == 1 ->
+      tokens_length == 1 ->
         [token] = tokens
 
         TermsQuery.new(
