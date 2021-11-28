@@ -16,7 +16,7 @@ by adding `elasticlunr` to your list of dependencies in `mix.exs`:
 ```elixir
 def deps do
   [
-    {:elasticlunr, "~> 0.2"}
+    {:elasticlunr, "~> 0.4"}
   ]
 end
 ```
