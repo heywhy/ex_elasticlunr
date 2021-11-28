@@ -4,9 +4,7 @@ defmodule Elasticlunr.IndexManager do
   alias Elasticlunr.{Index, IndexRegistry, IndexSupervisor}
   alias Elasticlunr.Utils.Process
 
-  @type index_name :: atom() | binary()
-
-  @spec get(index_name()) :: Index.t() | :not_running
+  @spec get(binary()) :: Index.t() | :not_running
   def get(name) do
     case loaded?(name) do
       true -> name |> via |> GenServer.call(:get)
@@ -31,7 +29,7 @@ defmodule Elasticlunr.IndexManager do
     end
   end
 
-  @spec loaded?(index_name()) :: boolean()
+  @spec loaded?(binary()) :: boolean()
   def loaded?(name) do
     loaded_indices()
     |> Enum.any?(fn
@@ -43,7 +41,7 @@ defmodule Elasticlunr.IndexManager do
     end)
   end
 
-  @spec loaded_indices :: [index_name()]
+  @spec loaded_indices :: [binary()]
   def loaded_indices do
     Process.active_processes(IndexSupervisor, IndexRegistry, __MODULE__)
   end
@@ -67,7 +65,7 @@ defmodule Elasticlunr.IndexManager do
     }
   end
 
-  @spec via(index_name()) :: {:via, Registry, {Elasticlunr.IndexRegistry, atom()}}
+  @spec via(binary()) :: {:via, Registry, {Elasticlunr.IndexRegistry, atom()}}
   def via(name) do
     {:via, Registry, {IndexRegistry, name}}
   end
