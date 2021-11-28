@@ -76,16 +76,16 @@ defmodule Elasticlunr.Dsl.TermsQuery do
       end
 
     docs = Index.terms(index, query)
-    ids = Map.keys(docs)
 
     pick_score = fn a, b ->
       if(hd(a) > hd(b), do: a, else: b)
     end
 
-    Enum.reduce(ids, [], fn id, matched ->
+    Stream.map(docs, &elem(&1, 0))
+    |> Enum.reduce([], fn id, matched ->
       [score, doc] =
         Map.get(docs, id)
-        |> Enum.map(fn doc ->
+        |> Stream.map(fn doc ->
           [doc.tf * :math.pow(doc.idf, 2) * doc.norm, doc]
         end)
         |> Enum.reduce([0, nil], pick_score)

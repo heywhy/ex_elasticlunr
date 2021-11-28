@@ -113,9 +113,35 @@ defmodule Elasticlunr.Field do
     |> recalculate_idf()
   end
 
+  @spec set_token(t(), binary(), map()) :: t()
+  def set_token(%__MODULE__{} = field, term, documents) do
+    Enum.reduce(documents, field, fn {doc_id, opts}, field ->
+      ct = :math.pow(opts.tf, 2)
+
+      %{ids: ids, tf: tf, terms: terms} = field
+      term_map = Map.get(terms, term, %{})
+
+      term_map =
+        Map.put(term_map, doc_id, %{
+          total: trunc(ct),
+          positions: opts[:positions] || []
+        })
+
+      terms = Map.put(terms, term, term_map)
+
+      tf_map = Map.get(tf, term, %{})
+      tf_map = Map.put(tf_map, doc_id, opts.tf)
+
+      tf = Map.put(tf, term, tf_map)
+
+      %{field | terms: terms, tf: tf, ids: Map.put(ids, doc_id, true)}
+    end)
+    |> recalculate_idf()
+  end
+
   defp update_field_stats(field, id, tokens) do
     tokens
-    |> Enum.map(&to_token/1)
+    |> Stream.map(&to_token/1)
     |> Enum.reduce(field, fn token, field ->
       %Token{token: term} = token
       %{tf: tf, terms: terms} = field
@@ -230,7 +256,7 @@ defmodule Elasticlunr.Field do
     matching_docs =
       query
       |> Keyword.get(:terms)
-      |> Enum.map(fn
+      |> Stream.map(fn
         %Regex{} = re -> re
         val -> to_token(val)
       end)
@@ -239,7 +265,7 @@ defmodule Elasticlunr.Field do
           matched_terms =
             terms
             |> Map.keys()
-            |> Enum.filter(&Regex.match?(re, &1))
+            |> Stream.filter(&Regex.match?(re, &1))
 
           Enum.reduce(matched_terms, matching_docs, fn term, matching_docs ->
             ids = Map.get(terms, term) |> Map.keys()
@@ -266,11 +292,28 @@ defmodule Elasticlunr.Field do
       matching_docs
     else
       matching_docs
-      |> Enum.filter(fn {_key, content} ->
+      |> Stream.filter(fn {_key, content} ->
         Enum.count(content) >= msm
       end)
       |> Enum.into(%{})
     end
+  end
+
+  @spec all_tokens(Elasticlunr.Field.t()) :: %Stream{}
+  def all_tokens(%__MODULE__{tf: tf, idf: idf, flnorm: flnorm, terms: terms}) do
+    Map.keys(terms)
+    |> Stream.map(fn term ->
+      tf = Map.get(tf, term, %{})
+
+      %{
+        tf: tf,
+        term: term,
+        terms: Map.get(terms, term),
+        idf: Map.get(idf, term),
+        norm: flnorm,
+        documents: Map.keys(tf)
+      }
+    end)
   end
 
   defp recalculate_idf(%{idf: idf, ids: ids, terms: terms} = field) do
@@ -285,13 +328,13 @@ defmodule Elasticlunr.Field do
           0
       end
 
+    ids_length = Enum.count(ids)
+
     idf =
       terms
       |> Map.keys()
-      |> Enum.map(&to_token/1)
+      |> Stream.map(&to_token/1)
       |> Enum.reduce(idf, fn %Token{token: token}, idf ->
-        ids_length = Enum.count(ids)
-
         token_length =
           terms
           |> Map.get(token)

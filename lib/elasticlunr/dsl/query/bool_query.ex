@@ -166,8 +166,8 @@ defmodule Elasticlunr.Dsl.BoolQuery do
       end)
 
     docs
-    |> Map.values()
-    |> Enum.filter(fn doc -> doc.matched >= minimum_should_match && doc.score > 0 end)
+    |> Stream.map(&elem(&1, 1))
+    |> Stream.filter(fn doc -> doc.matched >= minimum_should_match && doc.score > 0 end)
   end
 
   defp filter_result(nil, _index), do: false
