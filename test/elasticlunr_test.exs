@@ -63,8 +63,8 @@ defmodule ElasticlunrTest do
   end
 
   describe "serializing indexes" do
-    test "writes to disk" do
-      index_name = :serialized_index
+    test "writes to storage" do
+      index_name = "serialized_index"
 
       documents =
         Stream.map(1..1_000, fn i ->
@@ -87,6 +87,12 @@ defmodule ElasticlunrTest do
       assert Elasticlunr.index(index_name)
       assert Elasticlunr.update_index(index_name, callback)
       assert :ok = Elasticlunr.flush_indexes()
+    end
+  end
+
+  describe "unserializing indexes" do
+    test "loads from storage" do
+      assert :ok = Elasticlunr.load_indexes()
     end
   end
 end

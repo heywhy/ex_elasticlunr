@@ -44,9 +44,11 @@ defmodule Elasticlunr.DiskStorageTest do
 
   describe "getting all serialized indexes" do
     test "loads and desirialize indexes" do
-      assert [%Index{name: "users"}] =
+      assert [%Index{name: "users"} = index] =
                Disk.load_all(directory: disk_storage_path())
                |> Enum.to_list()
+
+      assert [_] = Index.search(index, "rose")
     end
   end
 end
