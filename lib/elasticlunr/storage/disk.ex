@@ -22,4 +22,16 @@ defmodule Elasticlunr.Storage.Disk do
     File.stream!(file, ~w[compressed]a)
     |> Deserializer.deserialize()
   end
+
+  @impl true
+  def load_all(opts) do
+    root_path = config(opts, :directory, ".")
+    match = Path.join(root_path, "*.index")
+
+    Path.wildcard(match)
+    |> Stream.map(fn file ->
+      name = Path.basename(file, ".index")
+      read(name, opts)
+    end)
+  end
 end

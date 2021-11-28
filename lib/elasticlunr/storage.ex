@@ -1,6 +1,7 @@
 defmodule Elasticlunr.Storage do
   alias Elasticlunr.Index
 
+  @callback load_all(opts :: keyword()) :: Enum.t()
   @callback read(name :: Elasticlunr.index_name(), opts :: keyword()) :: Index.t()
   @callback write(index :: Index.t(), opts :: keyword()) :: :ok | {:error, any()}
 

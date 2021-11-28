@@ -3,6 +3,9 @@ defmodule Elasticlunr.DiskStorageTest do
 
   alias Elasticlunr.Index
   alias Elasticlunr.Storage.Disk
+  alias Elasticlunr.Test.Fixture
+
+  import Fixture
 
   describe "serializing an index" do
     test "writes to disk" do
@@ -36,6 +39,14 @@ defmodule Elasticlunr.DiskStorageTest do
       :ok = Disk.write(index)
 
       assert index == Disk.read(index.name)
+    end
+  end
+
+  describe "getting all serialized indexes" do
+    test "loads and desirialize indexes" do
+      assert [%Index{name: "users"}] =
+               Disk.load_all(directory: disk_storage_path())
+               |> Enum.to_list()
     end
   end
 end
