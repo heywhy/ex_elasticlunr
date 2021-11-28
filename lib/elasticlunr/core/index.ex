@@ -6,9 +6,7 @@ defmodule Elasticlunr.Index.IdPipeline do
   @behaviour Pipeline
 
   @impl true
-  def call(%Token{token: str}) do
-    [str]
-  end
+  def call(%Token{} = token), do: token
 end
 
 defmodule Elasticlunr.Index do
@@ -84,7 +82,7 @@ defmodule Elasticlunr.Index do
       raise "Unknown field #{name} in index"
     end
 
-    %{index | fields: Map.put(fields, name, field)}
+    update_documents_size(%{index | fields: Map.put(fields, name, field)})
   end
 
   @spec get_fields(t()) :: list(document_ref() | document_field())
@@ -279,8 +277,10 @@ defmodule Elasticlunr.Index do
     size =
       index
       |> get_fields()
-      |> Enum.map(&Map.get(fields, &1))
-      |> Enum.map(&Enum.count(&1.ids))
+      |> Enum.map(fn field ->
+        field = Map.get(fields, field)
+        Enum.count(field.ids)
+      end)
       |> Enum.reduce(0, fn size, acc ->
         case size > acc do
           true ->

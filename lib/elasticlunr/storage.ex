@@ -1,6 +1,7 @@
 defmodule Elasticlunr.Storage do
   alias Elasticlunr.Index
 
+  @callback read(name :: Elasticlunr.index_name()) :: Index.t()
   @callback write(name :: Elasticlunr.index_name(), index :: Index.t()) :: :ok | {:error, any()}
 
   defmacro __using__(name) do

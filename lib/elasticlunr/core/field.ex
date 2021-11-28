@@ -113,6 +113,32 @@ defmodule Elasticlunr.Field do
     |> recalculate_idf()
   end
 
+  @spec set_token(t(), binary(), map()) :: t()
+  def set_token(%__MODULE__{} = field, term, documents) do
+    Enum.reduce(documents, field, fn {doc_id, opts}, field ->
+      ct = :math.pow(opts.tf, 2)
+
+      %{ids: ids, tf: tf, terms: terms} = field
+      term_map = Map.get(terms, term, %{})
+
+      term_map =
+        Map.put(term_map, doc_id, %{
+          total: trunc(ct),
+          positions: opts[:positions] || []
+        })
+
+      terms = Map.put(terms, term, term_map)
+
+      tf_map = Map.get(tf, term, %{})
+      tf_map = Map.put(tf_map, doc_id, opts.tf)
+
+      tf = Map.put(tf, term, tf_map)
+
+      %{field | terms: terms, tf: tf, ids: Map.put(ids, doc_id, true)}
+    end)
+    |> recalculate_idf()
+  end
+
   defp update_field_stats(field, id, tokens) do
     tokens
     |> Stream.map(&to_token/1)
