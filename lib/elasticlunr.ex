@@ -33,12 +33,12 @@ defmodule Elasticlunr do
   @spec default_pipeline() :: Pipeline.t()
   def default_pipeline, do: Pipeline.new(Pipeline.default_runners())
 
-  @spec flush_indexes(module()) :: :ok | {:error, any()}
-  def flush_indexes(provider \\ Disk) do
+  @spec flush_indexes(module(), keyword()) :: :ok | {:error, any()}
+  def flush_indexes(provider \\ Disk, opts \\ []) do
     IndexManager.loaded_indices()
     |> Enum.reduce(:ok, fn index_name, _acc ->
       index = IndexManager.get(index_name)
-      :ok = provider.write(index_name, index)
+      :ok = provider.write(index, opts)
     end)
   end
 

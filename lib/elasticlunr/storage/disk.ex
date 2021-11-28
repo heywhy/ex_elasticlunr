@@ -1,11 +1,11 @@
 defmodule Elasticlunr.Storage.Disk do
-  use Elasticlunr.Storage, :disk
+  use Elasticlunr.Storage
 
-  alias Elasticlunr.{Deserializer, Serializer}
+  alias Elasticlunr.{Deserializer, Index, Serializer}
 
   @impl true
-  def write(name, index) do
-    root_path = config(:dir, ".")
+  def write(%Index{name: name} = index, opts \\ []) do
+    root_path = config(opts, :directory, ".")
     path = Path.join(root_path, "#{name}.index")
     data = Serializer.serialize(index)
 
@@ -15,8 +15,8 @@ defmodule Elasticlunr.Storage.Disk do
   end
 
   @impl true
-  def read(name) do
-    root_path = config(:dir, ".")
+  def read(name, opts \\ []) do
+    root_path = config(opts, :directory, ".")
     file = Path.join(root_path, "#{name}.index")
 
     File.stream!(file, ~w[compressed]a)

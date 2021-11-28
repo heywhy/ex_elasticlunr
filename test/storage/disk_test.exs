@@ -7,10 +7,10 @@ defmodule Elasticlunr.DiskStorageTest do
   describe "serializing an index" do
     test "writes to disk" do
       index = Index.new()
-      options = Application.get_env(:elasticlunr, :disk)
+      options = Application.get_env(:elasticlunr, Disk)
 
-      assert :ok = Disk.write(index.name, index)
-      assert file = Path.join(options[:dir], "#{index.name}.index")
+      assert :ok = Disk.write(index)
+      assert file = Path.join(options[:directory], "#{index.name}.index")
       assert File.exists?(file)
       assert {:ok, %File.Stat{size: size}} = File.stat(file)
       assert size > 0
@@ -33,7 +33,7 @@ defmodule Elasticlunr.DiskStorageTest do
         |> Index.add_field("last_name")
         |> Index.add_documents([document])
 
-      :ok = Disk.write(index.name, index)
+      :ok = Disk.write(index)
 
       assert index == Disk.read(index.name)
     end
