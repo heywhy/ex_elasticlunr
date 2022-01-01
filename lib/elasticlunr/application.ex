@@ -8,8 +8,6 @@ defmodule Elasticlunr.Application do
   @impl true
   def start(_type, _args) do
     children = [
-      {Registry, name: Elasticlunr.IndexRegistry, keys: :unique},
-      {DynamicSupervisor, name: Elasticlunr.IndexSupervisor, strategy: :one_for_one}
       # Starts a worker by calling: Elasticlunr.Worker.start_link(arg)
       # {Elasticlunr.Worker, arg}
     ]

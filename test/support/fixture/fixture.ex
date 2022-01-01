@@ -9,7 +9,4 @@ defmodule Elasticlunr.Test.Fixture do
       map
     end
   end
-
-  @spec disk_storage_path() :: binary()
-  def disk_storage_path, do: __DIR__
 end
