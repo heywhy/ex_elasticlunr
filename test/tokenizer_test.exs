@@ -8,10 +8,10 @@ defmodule Elasticlunr.TokenizerTest do
       str = "the man came home"
 
       tokenized_str = [
-        Token.new("the", %{start: 0, end: 2}),
-        Token.new("man", %{start: 4, end: 6}),
-        Token.new("came", %{start: 8, end: 11}),
-        Token.new("home", %{start: 13, end: 16})
+        Token.new("the", %{start: 0, end: 3}),
+        Token.new("man", %{start: 4, end: 3}),
+        Token.new("came", %{start: 8, end: 4}),
+        Token.new("home", %{start: 13, end: 4})
       ]
 
       assert ^tokenized_str = Tokenizer.tokenize(str)
