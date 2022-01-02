@@ -87,7 +87,7 @@ defmodule Elasticlunr.IndexTest do
       query = %{
         "bool" => %{
           "should" => %{
-            "match" => %{"address.city" => get_in(document, ["address", "city"])}
+            "match" => %{"address.city" => get_in(document, ~w[address city])}
           }
         }
       }

@@ -16,31 +16,36 @@ defmodule Elasticlunr.Tokenizer do
   defp split(str, separator) do
     str = String.trim(str)
 
-    separator
-    |> Regex.scan(str, return: :index)
-    |> run_split(str, 0, [])
+    slice_end = 0
+    slice_start = 0
+    str_length = String.length(str)
+
+    run_split(str, separator, slice_start, slice_end, str_length, [])
   end
 
-  defp run_split([], str, last_index, tokens) do
-    length = String.length(str) - 1
+  defp run_split(str, separator, slice_start, slice_end, str_length, tokens) when slice_end <= str_length do
+    char = String.at(str, slice_end)
+    slice_length = slice_end - slice_start
 
-    token =
-      str
-      |> String.slice(last_index..length)
-      |> to_token(last_index, length)
-
-    tokens ++ [token]
+    with true <- match_string?(char, separator) || slice_end == str_length,
+          true <- slice_length > 0 do
+      token_str = String.slice(str, slice_start..slice_end)
+      token = to_token(token_str, slice_start, slice_length)
+      tokens = [token] ++ tokens
+      slice_start = slice_end + 1
+      run_split(str, separator, slice_start, slice_end + 1, str_length, tokens)
+    else
+      false ->
+        run_split(str, separator, slice_start, slice_end + 1, str_length, tokens)
+    end
+  end
+  defp run_split(_str, _separator, _slice_start, _slice_end, _str_length, tokens) do
+    tokens
   end
 
-  defp run_split([head | tail], str, last_index, tokens) do
-    [{index, count}] = head
-    index = index - 1
-    sub_str = String.slice(str, last_index..index)
-    token = to_token(sub_str, last_index, index)
-    tokens = tokens ++ [token]
-    last_index = last_index + String.length(sub_str) + count
-
-    run_split(tail, str, last_index, tokens)
+  defp match_string?(nil, _separator), do: false
+  defp match_string?(char, separator) do
+    String.match?(char, separator)
   end
 
   defp to_token(str, start_index, end_index) do
