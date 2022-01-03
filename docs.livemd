@@ -1,71 +1,126 @@
 # Elasticlunr
 
-## Install
+## Description
+
+Elasticlunr is a small, full-text search library for use in the Elixir environment. It indexes JSON documents and provides a friendly search interface to retrieve documents.
+
+The library is built for web applications that do not require the deployment complexities of popular search engines while taking advantage of the Beam capabilities.
+
+Imagine how much is gained when the search functionality of your application resides in the same environment (Beam VM) as your business logic; search resolves faster, the number of services (Elasticsearch, Solr, and so on) to monitor reduces.
+
+## Getting Started
 
 ```elixir
-Mix.install([{:elasticlunr, "~> 0.3"}])
+Mix.install([{:elasticlunr, "~> 0.5"}])
 ```
 
-## Create Searchable Index
+## What's an Index?
+
+An index is a collection of structured data that is referred to when looking for results that are relevant to a specific query.
+
+In RDBMS, a table can be likened to an index, meaning that you can store, update, delete and search documents in an index. But the difference here is that an index has a pipeline that every JSON document passes through before it becomes searchable.
 
 ```elixir
-alias Elasticlunr.Index
+alias Elasticlunr.{Index, Pipeline}
 
+# the library comes with a default set of pipeline functions
+pipeline = Pipeline.new(Pipeline.default_runners())
+
+index = Index.new(pipeline: pipeline)
+```
+
+The above code block creates a new index with a pipeline of default functions that work with the English language.
+
+The new index does not define the expected structure of the JSON documents to be indexed. To fix this, let's assume we are building an index of blog posts, and each post consists of the `author`, `content`, `category`, and `title` attributes.
+
+```elixir
 index =
-  Elasticlunr.index(:livebook)
+  index
+  |> Index.add_field("title")
+  |> Index.add_field("author")
   |> Index.add_field("content")
+  |> Index.add_field("category")
 ```
 
-## Add Documents
+## Indexing Documents
+
+Following our example or use-case above, to make the blog posts searchable we need to add them to the index so that they can be analyzed and transformed appropriately.
 
 ```elixir
-index =
-  Index.add_documents(index, [
-    %{
-      "id" => 1,
-      "content" => "livebook is elixir's own jupyter. it's a very impressive impression."
-    },
-    %{
-      "id" => 2,
-      "content" =>
-        "there are lots of contributors to the elixir project and many cool projects using elixir, ex. livebook, elixir_nx and so on"
-    }
-  ])
+documents = [
+  %{
+    "id" => 1,
+    "author" => "Mark Ericksen",
+    "title" => "Saving and Restoring LiveView State using the Browser",
+    "category" => "elixir liveview browser",
+    "content" =>
+      "There are multiple ways to save and restore state for your LiveView processes. You can use an external cache like Redis, your database, or even the browser itself. Sometimes there are situations where you either can’t or don’t want to store the state on the server. In situations like that, you do have the option of storing the state in the user’s browser. This post explains how you use the browser to store state and how your LiveView process can get it back later. We’ll go through the code so you can add something similar to your own project. We cover what data to store, how to do it securely, and restoring the state on demand."
+  },
+  %{
+    "id" => 2,
+    "author" => "Mika Kalathil",
+    "title" => "Creating Reusable Ecto Code",
+    "category" => "elixir ecto sql",
+    "content" =>
+      "Creating a highly reusable Ecto API is one of the ways we can create long-term sustainable code for ourselves, while growing it with our application to allow for infinite combination possibilites and high code reusability. If we write our Ecto code correctly, we can not only have a very well defined split between query definition and combination/execution using our context but also have the ability to re-use the queries we design individually, together with others to create larger complex queries."
+  },
+  %{
+    "id" => 3,
+    "author" => "Mark Ericksen",
+    "title" => "ThinkingElixir 079: Collaborative Music in LiveView with Nathan Willson",
+    "category" => "elixir podcast liveview",
+    "content" =>
+      "In episode 79 of Thinking Elixir, we talk with Nathan Willson about GEMS, his collaborative music generator written in LiveView. He explains how it’s built, the JS sound library integrations, what could be done by Phoenix and what is done in the browser. Nathan shares how he deployed it globally to 10 regions using Fly.io. We go over some of the challenges he overcame creating an audio focused web application. It’s a fun open-source project that pushes the boundaries of what we think LiveView apps can do!"
+  },
+  %{
+    "id" => 4,
+    "title" => "ThinkingElixir 078: Logflare with Chase Granberry",
+    "author" => "Mark Ericksen",
+    "category" => "elixir podcast logging logflare",
+    "content" =>
+      "In episode 78 of Thinking Elixir, we talk with Chase Granberry about Logflare. We learn why Chase started the company, what Logflare does, how it’s built on Elixir, about their custom Elixir logger, where the data is stored, how it’s queried, and more! We talk about dealing with the constant stream of log data, how Logflare is collecting and displaying metrics, and talk more about Supabase acquiring the company!"
+  }
+]
+
+index = Index.add_documents(index, documents)
 ```
 
 ## Search Index
 
-The search results is an array that contains a map - the ref attribute
-refers the document id.
+The search results is a list of maps and each map contains specific keys, `matched`, `positions`, `ref`, and `score`. See the definitions below:
 
-<!-- livebook:{"livebook_object":"cell_input","name":"Search","type":"text","value":"livebook"} -->
+* **matched:** this field tells the number of attributes where the given query matches
+* **score:** the value shows how well the document ranks compared to other documents
+* **ref:** this is the document id
+* **positions:** this is a map that shows the positions of the matching words in the document
+
+<!-- livebook:{"livebook_object":"cell_input","name":"Search","type":"text","value":"elixir"} -->
 
 ```elixir
 search_query = IO.gets("Search")
 results = Index.search(index, search_query)
 ```
 
+**NB:** Don't forget to fiddle with the search input.
+
 ## Nested Document Attributes
 
-As seen in the earlier example all documents indexed where without nested attributes.
-But Imagine a situation where your datasource returns documents with nested attributes
-and you want search by these atributes - it's possible with elasticlunr by specifying
-the top-level attribute.
+As seen in the earlier example all documents indexed were without nested attributes. But Imagine a situation where your data source returns documents with nested attributes, and you want to search by these attributes - it's possible with Elasticlunr by specifying the top-level attribute.
 
-<!-- livebook:{"break_markdown":true} -->
-
-Let's say our datasource returns a list of users with their address which is an object and
-you want to index this information so that you can query them.
+Let's say our data source returns a list of users with their address which is an object and you want to index this information so that you can query them.
 
 ```elixir
-# here we build our users index
+# the library comes with a default set of pipeline functions
+pipeline = Pipeline.new(Pipeline.default_runners())
 
 users_index =
-  Elasticlunr.index(:users)
+  Index.new(pipeline: pipeline)
   |> Index.add_field("name")
   |> Index.add_field("address")
   |> Index.add_field("education")
 ```
+
+Automatically, Elasticlunr will flatten the nested attributes to the level that when using the advanced query DSL you can use dot notation to filter the search results. Now, let's add a few user objects to the index:
 
 ```elixir
 documents = [
@@ -119,9 +174,7 @@ documents = [
   }
 ]
 
-users_index =
-  users_index
-  |> Index.add_documents(documents)
+users_index = Index.add_documents(users_index, documents)
 ```
 
 <!-- livebook:{"livebook_object":"cell_input","name":"Search users","type":"text","value":"jason murry"} -->
@@ -131,27 +184,26 @@ search_query = IO.gets("Search users")
 Index.search(users_index, search_query)
 ```
 
-```elixir
-# here we are searching for users where name must match jaso* and address.line1
-# should match street
+## Index Manager
 
-Index.search(users_index, %{
-  "query" => %{
-    "bool" => %{
-      "must" => %{
-        "match" => %{
-          "name" => %{
-            "query" => "jas",
-            "expand" => true
-          }
-        }
-      },
-      "should" => %{
-        "match" => %{
-          "address.line1" => "street"
-        }
-      }
-    }
-  }
-})
+The manager includes different CRUD functions to help you manage your index after mutating the state. First of all, let's get indexes to manage by the manager:
+
+```elixir
+alias Elasticlunr.IndexManager
+
+IndexManager.loaded_indices()
 ```
+
+As seen above the list is empty. Now let's add an index:
+
+```elixir
+IndexManager.save(users_index)
+
+IndexManager.loaded_indices()
+|> Enum.any?(&(&1 == users_index.name))
+|> IO.inspect(label: :users_index_exists)
+
+IndexManager.loaded_indices()
+```
+
+The manager now has the `users_index` in memory for access.
