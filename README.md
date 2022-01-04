@@ -27,7 +27,7 @@ Documentation can be found at [hexdocs.pm](https://hexdocs.pm/elasticlunr.). See
 ## Features
 
 1. Query-Time Boosting, you don't need to set up boosting weight in the index building procedure, Query-Time Boosting makes it more flexible so you could try different boosting schemes
-2. More Rational Scoring Mechanism, Elasticlunr.js uses a similar scoring mechanism as Elasticsearch, and also this scoring mechanism is used by Lucene
+2. More Rational Scoring Mechanism, Elasticlunr uses a similar scoring mechanism as Elasticsearch, and also this scoring mechanism is used by Lucene
 3. Field-Search, you can choose which field to index and which field to search
 4. Boolean Model, you can set which field to search and the boolean model for each query token, such as "OR" and "AND"
 5. Combined Boolean Model, TF/IDF Model, and the Vector Space Model make the results ranking more reliable.

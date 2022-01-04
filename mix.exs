@@ -57,7 +57,7 @@ defmodule Elasticlunr.MixProject do
   end
 
   defp description do
-    "Elasticlunr is a lightweight full-text search engine. It's a port of Elasticlunr.js"
+    "Elasticlunr is a lightweight full-text search engine. It's a port of Elasticlunr.js with more improvements."
   end
 
   defp package do
