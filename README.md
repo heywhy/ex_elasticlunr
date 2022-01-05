@@ -22,7 +22,7 @@ def deps do
 end
 ```
 
-Documentation can be found at [hexdocs.pm](https://hexdocs.pm/elasticlunr.). See blog post [Introduction to Elasticlunr](https://atandarash.me/blog/introduction-to-elasticlunr) and [Livebook](#livebook) for examples.
+Documentation can be found at [hexdocs.pm](https://hexdocs.pm/elasticlunr). See blog post [Introduction to Elasticlunr](https://atandarash.me/blog/introduction-to-elasticlunr) and [Livebook](#livebook) for examples.
 
 ## Features
 
