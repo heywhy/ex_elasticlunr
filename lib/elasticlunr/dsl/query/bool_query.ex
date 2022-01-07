@@ -7,21 +7,23 @@ defmodule Elasticlunr.Dsl.BoolQuery do
   defstruct ~w[rewritten should must must_not filter minimum_should_match]a
 
   @type t :: %__MODULE__{
-          should: keyword(),
-          must: boolean(),
-          must_not: boolean(),
+          filter: Query.clause(),
+          should: Query.clause(),
+          must: nil | Query.clause(),
+          must_not: nil | Query.clause(),
           rewritten: boolean(),
           minimum_should_match: integer()
         }
 
+  @spec new(keyword) :: t()
   def new(opts) do
     attrs = %{
       should: Keyword.get(opts, :should, []),
-      must: Keyword.get(opts, :must, false),
-      must_not: Keyword.get(opts, :must_not, false),
+      must: Keyword.get(opts, :must),
+      must_not: Keyword.get(opts, :must_not),
       filter: Keyword.get(opts, :filter),
       rewritten: Keyword.get(opts, :rewritten, false),
-      minimum_should_match: Keyword.get(opts, :minimum_should_match, 1)
+      minimum_should_match: extract_minimum_should_match(opts)
     }
 
     struct!(__MODULE__, attrs)
@@ -45,8 +47,8 @@ defmodule Elasticlunr.Dsl.BoolQuery do
 
     must =
       case must do
-        false ->
-          false
+        nil ->
+          nil
 
         mod when is_struct(mod) ->
           QueryRepository.rewrite(mod, index)
@@ -56,7 +58,7 @@ defmodule Elasticlunr.Dsl.BoolQuery do
 
     filters =
       case must_not do
-        false ->
+        nil ->
           filters
 
         must_not when is_struct(must_not) ->
@@ -192,7 +194,7 @@ defmodule Elasticlunr.Dsl.BoolQuery do
     end)
   end
 
-  defp filter_must(false, filter_results, _index), do: filter_results
+  defp filter_must(nil, filter_results, _index), do: filter_results
 
   defp filter_must(must_query, filter_results, index) when is_struct(must_query) do
     q =
@@ -293,7 +295,7 @@ defmodule Elasticlunr.Dsl.BoolQuery do
       nil ->
         opts
 
-      value ->
+      value when is_integer(value) ->
         value <= Keyword.get(opts, :should) |> Enum.count()
     end
     |> case do
@@ -305,4 +307,19 @@ defmodule Elasticlunr.Dsl.BoolQuery do
         opts
     end
   end
+
+  defp extract_minimum_should_match(opts) do
+    default_value =
+      case not is_empty_clause?(opts[:should]) and
+             (is_empty_clause?(opts[:must]) or is_empty_clause?(opts[:filter])) do
+        true -> 1
+        false -> 0
+      end
+
+    Keyword.get(opts, :minimum_should_match, default_value)
+  end
+
+  defp is_empty_clause?(nil), do: true
+  defp is_empty_clause?(list) when is_list(list), do: Enum.empty?(list)
+  defp is_empty_clause?(%{}), do: false
 end

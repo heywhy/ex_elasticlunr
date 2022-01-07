@@ -1,6 +1,8 @@
 defmodule Elasticlunr.Dsl.Query do
   alias Elasticlunr.{Index, Dsl.QueryRepository}
 
+  @type clause :: map() | list(map())
+
   @type score_results ::
           list(%{
             score: integer(),

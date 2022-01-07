@@ -117,7 +117,7 @@ defmodule Elasticlunr.DslTest do
                QueryRepository.parse("bool", %{"must" => %{"terms" => %{"country" => "us"}}})
 
       assert %BoolQuery{
-               minimum_should_match: 1,
+               minimum_should_match: 0,
                must: %TermsQuery{field: "country", terms: ["us"]},
                must_not: %TermsQuery{field: "gender", terms: ["male"]},
                filter: [%MatchQuery{field: "balance", query: 1000}],
