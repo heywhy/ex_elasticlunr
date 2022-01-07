@@ -65,7 +65,7 @@ defmodule Elasticlunr.Dsl.BoolQuery do
             |> QueryRepository.rewrite(index)
             |> NotQuery.new()
 
-          filters ++ [query]
+          [query] ++ filters
       end
       |> Enum.map(&QueryRepository.rewrite(&1, index))
 
