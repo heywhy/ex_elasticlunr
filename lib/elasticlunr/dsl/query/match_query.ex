@@ -4,9 +4,19 @@ defmodule Elasticlunr.Dsl.MatchQuery do
   alias Elasticlunr.{Index}
   alias Elasticlunr.Dsl.{MatchAllQuery, Query, QueryRepository, TermsQuery}
 
-  defstruct ~w[expand field query boost fuzziness min_match operator]a
-  @type t :: %__MODULE__{boost: integer()}
+  defstruct ~w[expand field query boost fuzziness minimum_should_match operator]a
 
+  @type t :: %__MODULE__{
+          expand: boolean(),
+          boost: integer(),
+          field: Index.document_field(),
+          query: any(),
+          fuzziness: integer(),
+          operator: binary(),
+          minimum_should_match: pos_integer()
+        }
+
+  @spec new(keyword) :: t()
   def new(opts) do
     attrs = %{
       expand: Keyword.get(opts, :expand, false),
@@ -14,8 +24,8 @@ defmodule Elasticlunr.Dsl.MatchQuery do
       query: Keyword.get(opts, :query, ""),
       boost: Keyword.get(opts, :boost, 1),
       fuzziness: Keyword.get(opts, :fuzziness, 0),
-      min_match: Keyword.get(opts, :minimum_must_match, 1),
-      operator: Keyword.get(opts, :operator, "or")
+      operator: Keyword.get(opts, :operator, "or"),
+      minimum_should_match: Keyword.get(opts, :minimum_should_match, 1)
     }
 
     struct!(__MODULE__, attrs)
@@ -30,7 +40,7 @@ defmodule Elasticlunr.Dsl.MatchQuery do
           expand: expand,
           operator: operator,
           fuzziness: fuzziness,
-          min_match: min_match
+          minimum_should_match: minimum_should_match
         },
         %Index{} = index
       ) do
@@ -50,12 +60,12 @@ defmodule Elasticlunr.Dsl.MatchQuery do
     cond do
       tokens_length > 1 ->
         minimum_should_match =
-          case operator == "and" && min_match == 0 do
+          case operator == "and" && minimum_should_match == 0 do
             true ->
               tokens_length
 
             false ->
-              min_match
+              minimum_should_match
           end
 
         TermsQuery.new(
@@ -114,24 +124,13 @@ defmodule Elasticlunr.Dsl.MatchQuery do
 
         opts = to_match_params(params)
 
-        operator = Keyword.get(opts, :operator)
-
-        minimum_should_match =
-          case operator == "and" do
-            true ->
-              0
-
-            false ->
-              1
-          end
-
         __MODULE__.new(
           field: field,
-          operator: operator,
           query: Keyword.get(opts, :query),
           expand: Keyword.get(opts, :expand),
+          operator: Keyword.get(opts, :operator),
           fuzziness: Keyword.get(opts, :fuzziness),
-          minimum_must_match: minimum_should_match
+          minimum_should_match: Keyword.get(opts, :minimum_should_match)
         )
     end
   end
@@ -142,13 +141,26 @@ defmodule Elasticlunr.Dsl.MatchQuery do
     operator = Map.get(params, "operator", "or")
     expand = Map.get(params, "expand", false)
 
+    minimum_should_match = Map.get(params, "minimum_should_match", default_min_match(params))
+
     [
       query: query,
       expand: expand,
       operator: operator,
-      fuzziness: fuzziness
+      fuzziness: fuzziness,
+      minimum_should_match: minimum_should_match
     ]
   end
 
   defp to_match_params(params), do: to_match_params(%{"query" => params})
+
+  defp default_min_match(params) do
+    case Map.get(params, "operator") == "and" do
+      true ->
+        0
+
+      false ->
+        1
+    end
+  end
 end
