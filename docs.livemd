@@ -11,7 +11,7 @@ Imagine how much is gained when the search functionality of your application res
 ## Getting Started
 
 ```elixir
-Mix.install([{:elasticlunr, "~> 0.5"}])
+Mix.install([{:elasticlunr, "~> 0.5.8"}])
 ```
 
 ## What's an Index?
@@ -207,3 +207,160 @@ IndexManager.loaded_indices()
 ```
 
 The manager now has the `users_index` in memory for access.
+
+## Query DSL
+
+Like every other search engine, you can make more advanced search queries depending on your
+requirements, and I'm pleased to tell you that Elasticlunr has not left out such capabilities.
+So, in the proceeding parts of this docs, I will be highlighting the available query types
+provided by the library and how you can use them.
+
+It's important to note that Elasticlunr tries to replicate popular Query DSL (Domain Specific Language)
+with the same behavior as Elasticsearch, which means the learning curve reduces if you have
+experience using the search engine. For Elasticlunr, there are the `bool`, `match`, `match_all`,
+`not`, and `terms` query types you can use to retrieve insights about an index.
+
+## Bool
+
+The `bool` query is used with a combination of queries to retrieve documents matching the boolean
+combinations of clauses. Consider these clauses to be everything that comes after the `SELECT`
+statement in relational databases.
+
+<!-- livebook:{"break_markdown":true} -->
+
+The `bool` query is built using one or more clauses to achieve desired results, and each clause
+has its type, see below:
+
+Clause | Description
+---|---
+`must` | The clause must appear in the matching documents, and this affects the document's score.
+`must_not` | The clause must not appear in the matching document. Scoring is ignored because the clause is executed in the filter context.
+`filter` | Like `must`, the clause must appear in the matching documents but scoring is ignored for the query.
+`should` | The clause should appear in the matching document.
+
+It's important to note that only scores from the `must` and `should`  clauses contribute to the
+final score of the matching document.
+
+```elixir
+Index.search(index, %{
+  "query" => %{
+    "bool" => %{
+      "must" => %{
+        "terms" => %{"content" => "use"}
+      },
+      "should" => %{
+        "terms" => %{"category" => "elixir"}
+      },
+      "filter" => %{
+        "match" => %{
+          "id" => 3
+        }
+      },
+      "must_not" => %{
+        "match" => %{
+          "author" => "mika"
+        }
+      },
+      "minimum_should_match" => 1
+    }
+  }
+})
+```
+
+You can use the minimum_should_match parameter to specify the number or percentage of should
+clauses returned documents must match.
+If the bool query includes at least one should clause and no must or filter clauses, the default
+value is 1. Otherwise, the default value is 0.
+
+## Match
+
+The `match` query is the standard query used for full-text search, including support for fuzzy
+matching. The provided text is analyzed before matching it against documents.
+
+```elixir
+Index.search(index, %{
+  "query" => %{
+    "match" => %{
+      "content" => %{
+        "query" => "liveview browser"
+      }
+    }
+  }
+})
+```
+
+A `match` query accepts one or more top-level fields you wish to search, in the example above,
+it's the `content` field. Note that when you have more than one top-level fields, the `match`
+query is rewritten to a `bool` query internally by the library. Now, let's see what parameters
+are accepted by the `match` query below:
+
+Parameter | Description
+---|---
+`query` | String you wish to find in the provided field.
+`expand` | Increase token recall, see [token expansion](https://github.com/heywhy/ex_elasticlunr#token-expansion).
+`fuzziness` | Maximum edit distance allowed for matching.
+`boost` | Floating point number used to decrease or increase the relevance scores of a query. Defaults to 1.0.
+`operator` | The boolean operator used to interpret the `query` value. Available values for the `operator` option are `or` and `and`. Defaults to `or`.
+`minimum_should_match` | Minimum number of clauses that a document must match for it to be returned.
+
+## Match All
+
+The most simple query, which matches all documents, gives them a score of 1.0 each.
+
+Parameter | Description
+---|---
+`boost` | Floating point number used to decrease or increase the relevance scores of a query. Defaults to 1.0.
+
+```elixir
+Index.search(index, %{
+  "query" => %{
+    "match_all" => %{}
+  }
+})
+```
+
+## Not
+
+The `not` query inverts the result of the nested query giving the matched documents a score of
+1.0 each.
+
+```elixir
+Index.search(index, %{
+  "query" => %{
+    "not" => %{
+      "match" => %{
+        "content" => %{
+          "query" => "elixir"
+        }
+      }
+    }
+  }
+})
+```
+
+## Terms
+
+The query return documents that contain the exact terms in a given field. The `terms` query should
+be used to find documents based on a precise value such as a price, a product ID, or a username.
+
+```elixir
+Index.search(index, %{
+  "query" => %{
+    "terms" => %{
+      "content" => %{
+        "value" => "think"
+      }
+    }
+  }
+})
+```
+
+A `terms` query accepts one or more top-level fields you wish to search, in the example above,
+it's the `content` field. Note that when you have more than one top-level fields, the `terms`
+query is rewritten to a `bool` query internally by the library. Now, let's see what parameters
+are accepted by the `terms` query below:
+
+Parameter | Description
+---|---
+`value` | A term you wish to find in the provided field. The term must match exactly the field value to return a document.
+`boost` | Floating point number used to decrease or increase the relevance scores of a query. Defaults to 1.0.
