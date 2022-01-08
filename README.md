@@ -32,6 +32,10 @@ Documentation can be found at [hexdocs.pm](https://hexdocs.pm/elasticlunr). See 
 4. Boolean Model, you can set which field to search and the boolean model for each query token, such as "OR" and "AND"
 5. Combined Boolean Model, TF/IDF Model, and the Vector Space Model make the results ranking more reliable.
 
+## Token Expansion
+
+Sometimes users want to expand a query token to increase RECALL. For example, user query token is "micro", and assume "microwave" and "microscope" are in the index, if the user chooses to expand the query token "micro" to increase RECALL, both "microwave" and "microscope" will be returned and search in the index. The query results from expanded tokens are penalized because they are not the same as the query token.
+
 ## Livebook
 
 The repository includes a livebook file that you can run. You can click the button below to run it using [livebook.dev](https://livebook.dev)!
