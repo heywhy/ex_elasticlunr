@@ -128,7 +128,7 @@ defmodule Elasticlunr.Dsl.TermsQuery do
 
   defp get_terms(params) when is_map(params) do
     params
-    |> Map.get("query")
+    |> Map.get("value")
     |> to_list()
   end
 
@@ -142,7 +142,7 @@ defmodule Elasticlunr.Dsl.TermsQuery do
     |> update_options(params, :boost)
   end
 
-  defp to_terms_params(params), do: to_terms_params(%{"query" => params})
+  defp to_terms_params(params), do: to_terms_params(%{"value" => params})
 
   defp update_options(opts, params, key) do
     case Map.get(params, to_string(key)) do

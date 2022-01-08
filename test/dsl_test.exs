@@ -68,6 +68,11 @@ defmodule Elasticlunr.DslTest do
       assert %TermsQuery{field: "name", terms: ["nelson"]} =
                QueryRepository.parse("terms", %{"name" => "nelson"})
 
+      assert %TermsQuery{field: "name", terms: ["kim"]} =
+               QueryRepository.parse("terms", %{
+                 "name" => %{"value" => "kim"}
+               })
+
       assert %BoolQuery{
                should: [
                  %TermsQuery{field: "country", terms: ["us"], boost: 1},
