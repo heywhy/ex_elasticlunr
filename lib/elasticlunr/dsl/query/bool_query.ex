@@ -6,11 +6,13 @@ defmodule Elasticlunr.Dsl.BoolQuery do
 
   defstruct ~w[rewritten should must must_not filter minimum_should_match]a
 
+  @type clause :: struct() | list(struct())
+
   @type t :: %__MODULE__{
-          filter: Query.clause(),
-          should: Query.clause(),
-          must: nil | Query.clause(),
-          must_not: nil | Query.clause(),
+          filter: clause(),
+          should: clause(),
+          must: nil | struct(),
+          must_not: nil | struct(),
           rewritten: boolean(),
           minimum_should_match: integer()
         }
