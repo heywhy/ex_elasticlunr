@@ -14,7 +14,7 @@ defmodule Elasticlunr.IndexManagerTest do
       index = Index.new()
 
       assert {:ok, ^index} = IndexManager.save(index)
-      assert {:already_started, _} = IndexManager.save(index)
+      assert {:error, {:already_started, _}} = IndexManager.save(index)
     end
 
     test "updates existing index" do
