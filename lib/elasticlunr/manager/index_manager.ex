@@ -24,9 +24,6 @@ defmodule Elasticlunr.IndexManager do
     with {:ok, _} <- start(index),
          :ok <- Storage.write(index) do
       {:ok, index}
-    else
-      err ->
-        err
     end
   end
 
@@ -93,7 +90,7 @@ defmodule Elasticlunr.IndexManager do
     }
   end
 
-  @spec via(binary()) :: {:via, Registry, {Elasticlunr.IndexRegistry, atom()}}
+  @spec via(binary()) :: {:via, Registry, {IndexRegistry, atom()}}
   def via(name) do
     {:via, Registry, {IndexRegistry, name}}
   end
