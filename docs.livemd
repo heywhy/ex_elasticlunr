@@ -11,7 +11,7 @@ Imagine how much is gained when the search functionality of your application res
 ## Getting Started
 
 ```elixir
-Mix.install([{:elasticlunr, "~> 0.5.8"}])
+Mix.install([{:elasticlunr, "~> 0.6"}])
 ```
 
 ## What's an Index?

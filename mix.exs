@@ -6,7 +6,7 @@ defmodule Elasticlunr.MixProject do
   def project do
     [
       app: :elasticlunr,
-      version: "0.5.8",
+      version: "0.6.0",
       elixir: "~> 1.11",
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,

@@ -17,7 +17,7 @@ The library can be installed by adding `elasticlunr` to your list of dependencie
 ```elixir
 def deps do
   [
-    {:elasticlunr, "~> 0.5"}
+    {:elasticlunr, "~> 0.6"}
   ]
 end
 ```
