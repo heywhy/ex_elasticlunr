@@ -25,11 +25,7 @@ defmodule Elasticlunr.Storage.Disk do
 
   @impl true
   def load_all do
-    root_path = config(:directory, ".")
-    match = Path.join(root_path, "*.index")
-
-    Path.wildcard(match)
-    |> Stream.map(fn file ->
+    Stream.map(files(), fn file ->
       name = Path.basename(file, ".index")
       read(name)
     end)
@@ -40,12 +36,14 @@ defmodule Elasticlunr.Storage.Disk do
     root_path = config(:directory, ".")
     file = Path.join(root_path, "#{name}.index")
 
-    case File.rm(file) do
-      :ok ->
-        :ok
+    File.rm(file)
+  end
 
-      err ->
-        err
-    end
+  @spec files() :: list(binary())
+  def files do
+    root_path = config(:directory, ".")
+    match = Path.join(root_path, "*.index")
+
+    Path.wildcard(match)
   end
 end

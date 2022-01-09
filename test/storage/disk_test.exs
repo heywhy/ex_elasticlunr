@@ -13,8 +13,7 @@ defmodule Elasticlunr.Storage.DiskTest do
     Application.put_env(@otp_app, Disk, directory: storage_path)
 
     on_exit(fn ->
-      Disk.load_all()
-      |> Enum.map(& &1.name)
+      Disk.files()
       |> Enum.each(&Disk.delete/1)
 
       Application.delete_env(@otp_app, Disk)
@@ -69,7 +68,7 @@ defmodule Elasticlunr.Storage.DiskTest do
   describe "getting all serialized indexes" do
     setup [:fixture_storage]
 
-    test "loads and desirialize indexes" do
+    test "loads and deserialize indexes" do
       assert [%Index{name: "users"} = index] =
                Disk.load_all()
                |> Enum.to_list()

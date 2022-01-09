@@ -2,7 +2,7 @@ defmodule Elasticlunr.Storage do
   alias Elasticlunr.Index
   alias Elasticlunr.Storage.Blackhole
 
-  @spec all() :: list(Index.t())
+  @spec all() :: Enum.t()
   def all do
     provider().load_all()
   end
