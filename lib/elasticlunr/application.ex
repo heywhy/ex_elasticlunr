@@ -5,6 +5,8 @@ defmodule Elasticlunr.Application do
 
   use Application
 
+  alias Elasticlunr.IndexManager
+
   @impl true
   def start(_type, _args) do
     children = [
@@ -17,6 +19,14 @@ defmodule Elasticlunr.Application do
     # See https://hexdocs.pm/elixir/Supervisor.html
     # for other strategies and supported options
     opts = [strategy: :one_for_one, name: Elasticlunr.Supervisor]
-    Supervisor.start_link(children, opts)
+
+    case Supervisor.start_link(children, opts) do
+      {:ok, _} = result ->
+        :ok = IndexManager.preload()
+        result
+
+      err ->
+        err
+    end
   end
 end
