@@ -1,8 +1,15 @@
 defmodule Elasticlunr.IndexManager do
   use GenServer
 
-  alias Elasticlunr.{Index, IndexRegistry, IndexSupervisor}
+  alias Elasticlunr.{Index, IndexRegistry, IndexSupervisor, Storage}
   alias Elasticlunr.Utils.Process
+
+  @spec preload() :: :ok
+  def preload do
+    Storage.all()
+    |> Stream.each(&start/1)
+    |> Stream.run()
+  end
 
   @spec get(binary()) :: Index.t() | :not_running
   def get(name) do
@@ -12,31 +19,36 @@ defmodule Elasticlunr.IndexManager do
     end
   end
 
-  @spec save(Index.t()) :: {:ok, Index.t()} | {:already_started, pid()}
+  @spec save(Index.t()) :: {:ok, Index.t()} | {:error, any()}
   def save(%Index{} = index) do
-    case DynamicSupervisor.start_child(IndexSupervisor, {__MODULE__, index}) do
-      {:ok, _} ->
-        {:ok, index}
-
-      {:error, reason} ->
-        reason
+    with {:ok, _} <- start(index),
+         :ok <- Storage.write(index) do
+      {:ok, index}
+    else
+      err ->
+        err
     end
   end
 
   @spec update(Index.t()) :: Index.t() | :not_running
   def update(%Index{name: name} = index) do
-    case loaded?(name) do
-      true ->
-        name |> via |> GenServer.call({:update, index})
-
+    with true <- loaded?(name),
+         index <- name |> via |> GenServer.call({:update, index}),
+         :ok <- Storage.write(index) do
+      index
+    else
       false ->
         :not_running
+
+      err ->
+        err
     end
   end
 
   @spec remove(Index.t()) :: :ok | :not_running
   def remove(%Index{name: name}) do
     with [{pid, _}] <- Registry.lookup(IndexRegistry, name),
+         :ok <- Storage.delete(name),
          :ok <- DynamicSupervisor.terminate_child(IndexSupervisor, pid) do
       :ok
     else
@@ -92,5 +104,9 @@ defmodule Elasticlunr.IndexManager do
 
   def handle_call({:update, index}, _from, _state) do
     {:reply, index, index}
+  end
+
+  defp start(index) do
+    DynamicSupervisor.start_child(IndexSupervisor, {__MODULE__, index})
   end
 end
