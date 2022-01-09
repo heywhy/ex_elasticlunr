@@ -45,5 +45,6 @@ defmodule Elasticlunr.Storage.Disk do
     match = Path.join(root_path, "*.index")
 
     Path.wildcard(match)
+    |> Enum.map(&Path.expand/1)
   end
 end

@@ -13,8 +13,7 @@ defmodule Elasticlunr.Storage.DiskTest do
     Application.put_env(@otp_app, Disk, directory: storage_path)
 
     on_exit(fn ->
-      Disk.files()
-      |> Enum.each(&Disk.delete/1)
+      Enum.each(Disk.files(), &File.rm!/1)
 
       Application.delete_env(@otp_app, Disk)
     end)
