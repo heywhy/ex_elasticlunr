@@ -87,3 +87,11 @@ defimpl Elasticlunr.Deserializer, for: Stream do
     Parser.process(data)
   end
 end
+
+defimpl Elasticlunr.Deserializer, for: File.Stream do
+  alias Elasticlunr.Deserializer.Parser
+
+  def deserialize(data) do
+    Parser.process(data)
+  end
+end
