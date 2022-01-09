@@ -1,5 +1,5 @@
 defmodule Elasticlunr.Field do
-  alias Elasticlunr.{Index, Pipeline, Token, Utils}
+  alias Elasticlunr.{Pipeline, Token, Utils}
 
   @fields ~w[pipeline query_pipeline store store_positions flnorm tf idf ids documents terms]a
 
@@ -21,7 +21,8 @@ defmodule Elasticlunr.Field do
           ids: map()
         }
 
-  @type document :: %{id: Index.document_ref(), content: binary()}
+  @type document_ref :: atom() | binary()
+  @type document :: %{id: document_ref(), content: binary()}
   @type token_info :: %{
           term: term,
           tf: map(),
@@ -48,7 +49,7 @@ defmodule Elasticlunr.Field do
     struct!(__MODULE__, attrs)
   end
 
-  @spec all(t()) :: list(Index.document_ref())
+  @spec all(t()) :: list(document_ref())
   def all(%__MODULE__{ids: ids}), do: Map.keys(ids)
 
   @spec term_frequency(t(), binary()) :: map()
@@ -191,7 +192,7 @@ defmodule Elasticlunr.Field do
     |> add(documents)
   end
 
-  @spec remove(t(), list(Index.document_ref())) :: t()
+  @spec remove(t(), list(document_ref())) :: t()
   def remove(%__MODULE__{terms: terms} = field, document_ids) do
     trim_field = fn field, key ->
       %{tf: tf, idf: idf, terms: terms} = field

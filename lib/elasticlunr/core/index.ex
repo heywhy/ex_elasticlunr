@@ -18,13 +18,12 @@ defmodule Elasticlunr.Index do
   @enforce_keys @fields
   defstruct @fields
 
-  @type document_ref :: atom() | binary()
   @type document_field :: atom() | binary()
 
   @type t :: %__MODULE__{
           fields: map(),
           documents_size: integer(),
-          ref: document_ref(),
+          ref: Field.document_ref(),
           pipeline: Pipeline.t(),
           name: atom() | binary(),
           store_positions: boolean(),
@@ -85,7 +84,7 @@ defmodule Elasticlunr.Index do
     update_documents_size(%{index | fields: Map.put(fields, name, field)})
   end
 
-  @spec get_fields(t()) :: list(document_ref() | document_field())
+  @spec get_fields(t()) :: list(Field.document_ref() | document_field())
   def get_fields(%__MODULE__{fields: fields}), do: Map.keys(fields)
 
   @spec get_field(t(), document_field()) :: Field.t()
@@ -143,7 +142,7 @@ defmodule Elasticlunr.Index do
     update_documents_size(%{index | fields: fields})
   end
 
-  @spec remove_documents(t(), list(document_ref())) :: t()
+  @spec remove_documents(t(), list(Field.document_ref())) :: t()
   def remove_documents(%__MODULE__{fields: fields} = index, document_ids) do
     fields =
       Enum.reduce(fields, fields, fn {key, field}, fields ->
@@ -171,7 +170,7 @@ defmodule Elasticlunr.Index do
     |> Field.terms(query)
   end
 
-  @spec all(t()) :: list(document_ref())
+  @spec all(t()) :: list(Field.document_ref())
   def all(%__MODULE__{ref: ref, fields: fields}) do
     fields
     |> Map.get(ref)
