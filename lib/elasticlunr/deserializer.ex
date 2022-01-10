@@ -1,5 +1,5 @@
 defprotocol Elasticlunr.Deserializer do
-  @spec deserialize(Enum.t() | %Stream{}) :: Elasticlunr.Index.t()
+  @spec deserialize(Enum.t()) :: Elasticlunr.Index.t()
   def deserialize(data)
 end
 
