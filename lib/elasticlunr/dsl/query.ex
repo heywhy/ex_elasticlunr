@@ -1,10 +1,10 @@
 defmodule Elasticlunr.Dsl.Query do
-  alias Elasticlunr.{Index, Dsl.QueryRepository}
+  alias Elasticlunr.{Field, Index, Dsl.QueryRepository}
 
   @type score_results ::
           list(%{
             score: integer(),
-            ref: Index.document_ref()
+            ref: Field.document_ref()
           })
 
   @callback filter(module :: struct(), index :: Index.t(), options :: keyword()) :: list()
