@@ -1,6 +1,10 @@
 if Code.ensure_loaded?(ExAws.S3) do
   defmodule Elasticlunr.Storage.S3 do
-    @doc """
+    @moduledoc """
+    This provider writes to indexes to an s3 project. To use, you need
+    to include necessary s3 dependencies, see [repository](https://github.com/ex-aws/ex_aws_s3).
+
+    ```elixir
     config :elasticlunr,
       storage: Elasticlunr.Storage.S3
 
@@ -11,6 +15,7 @@ if Code.ensure_loaded?(ExAws.S3) do
       scheme: "http://", # optional
       host: "192.168.0.164", # optional
       port: 9000 # optional
+    ```
     """
     use Elasticlunr.Storage
 

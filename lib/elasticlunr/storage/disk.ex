@@ -1,10 +1,14 @@
 defmodule Elasticlunr.Storage.Disk do
-  @doc """
+  @moduledoc """
+  This storage provider writes data to the local disk of the running application.
+
+  ```elixir
   config :elasticlunr,
     storage: Elasticlunr.Storage.Disk
 
   config :elasticlunr, Elasticlunr.Storage.Disk,
     directory: "/path/to/project/storage"
+  ```
   """
   use Elasticlunr.Storage
 

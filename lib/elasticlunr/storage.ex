@@ -1,7 +1,11 @@
 defmodule Elasticlunr.Storage do
-  @doc """
+  @moduledoc """
+  This is the storage interface that's used by the index manager.
+
+  ```elixir
   config :elasticlunr,
-    storage: StorageProvider
+    storage: Elasticlunr.Storage.Blackhole # this is the default provider
+  ```
   """
   alias Elasticlunr.Index
   alias Elasticlunr.Storage.Blackhole
