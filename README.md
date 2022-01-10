@@ -57,7 +57,7 @@ config :elasticlunr,
   storage: Elasticlunr.Storage.S3
 ```
 
-Reference available providers to see example configuration.
+Note that all indexes in storage are preloaded on application startup. To see the available provider configuration, you should reference it module.
 
 ## License
 
