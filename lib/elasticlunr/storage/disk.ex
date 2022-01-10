@@ -1,4 +1,11 @@
 defmodule Elasticlunr.Storage.Disk do
+  @doc """
+  config :elasticlunr,
+    storage: Elasticlunr.Storage.Disk
+
+  config :elasticlunr, Elasticlunr.Storage.Disk,
+    directory: "/path/to/project/storage"
+  """
   use Elasticlunr.Storage
 
   alias Elasticlunr.{Deserializer, Index, Serializer}
