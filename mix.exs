@@ -29,7 +29,7 @@ defmodule Elasticlunr.MixProject do
   # Run "mix help compile.app" to learn about applications.
   def application do
     [
-      extra_applications: [:logger, :crypto],
+      extra_applications: [:logger, :crypto] ++ extra_apps(Mix.env()),
       mod: {Elasticlunr.Application, []}
     ]
   end
@@ -37,6 +37,9 @@ defmodule Elasticlunr.MixProject do
   # Specifies which paths to compile per environment.
   defp elixirc_paths(:test), do: ["lib", "test/support"]
   defp elixirc_paths(_), do: ["lib"]
+
+  def extra_apps(:prod), do: []
+  def extra_apps(_), do: ~w[ex_aws ex_aws_s3 hackney sweet_xml]a
 
   # Run "mix help deps" to learn about dependencies.
   defp deps do
@@ -48,10 +51,10 @@ defmodule Elasticlunr.MixProject do
       {:ex_doc, "~> 0.25", only: :dev, runtime: false},
       {:faker, "~> 0.16", only: :test},
       {:mox, "~> 1.0", only: :test},
-      {:ex_aws, "~> 2.0", only: [:dev, :test]},
-      {:ex_aws_s3, "~> 2.0", only: [:dev, :test]},
-      {:hackney, "~> 1.9", only: [:dev, :test]},
-      {:sweet_xml, "~> 0.6", only: [:dev, :test]}
+      {:ex_aws, "~> 2.0", optional: true, only: [:dev, :test]},
+      {:ex_aws_s3, "~> 2.0", optional: true, only: [:dev, :test]},
+      {:hackney, "~> 1.9", optional: true, only: [:dev, :test]},
+      {:sweet_xml, "~> 0.6", optional: true, only: [:dev, :test]}
     ]
   end
 

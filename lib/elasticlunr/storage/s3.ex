@@ -1,4 +1,4 @@
-with {:module, _module} <- Code.ensure_compiled(ExAws.S3) do
+if Code.ensure_loaded?(ExAws.S3) do
   defmodule Elasticlunr.Storage.S3 do
     @moduledoc """
     This provider writes to indexes to an s3 project. To use, you need
