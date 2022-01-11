@@ -18,9 +18,7 @@ defmodule Elasticlunr.Storage.Disk do
     path = Path.join(root_path, "#{name}.index")
     data = Serializer.serialize(index)
 
-    data
-    |> Stream.into(File.stream!(path, ~w[compressed]a), &"#{&1}\n")
-    |> Stream.run()
+    write_serialized_index_to_file(path, data)
   end
 
   @impl true
@@ -55,5 +53,12 @@ defmodule Elasticlunr.Storage.Disk do
 
     Path.wildcard(match)
     |> Enum.map(&Path.expand/1)
+  end
+
+  @spec write_serialized_index_to_file(binary(), Enum.t()) :: :ok
+  def write_serialized_index_to_file(path, data) do
+    data
+    |> Stream.into(File.stream!(path, ~w[compressed]a), &"#{&1}\n")
+    |> Stream.run()
   end
 end
