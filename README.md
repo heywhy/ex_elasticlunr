@@ -48,7 +48,7 @@ Elasticlunr allows you to write your indexes to whatever storage provider you wa
 
 * [Blackhole](https://github.com/heywhy/ex_elasticlunr/blob/master/lib/elasticlunr/storage/blackhole.ex)
 * [Disk](https://github.com/heywhy/ex_elasticlunr/blob/master/lib/elasticlunr/storage/disk.ex)
-* [S3](https://github.com/heywhy/ex_elasticlunr/blob/master/lib/elasticlunr/storage/s3.ex)
+* [S3](https://github.com/heywhy/ex_elasticlunr_s3)
 
 To configure what provider to use:
 

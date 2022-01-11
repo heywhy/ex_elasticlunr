@@ -2,7 +2,6 @@ defmodule Elasticlunr.Storage.Blackhole do
   @moduledoc """
   As the name implies, nothing is written nowhere.
   """
-
   use Elasticlunr.Storage
 
   @impl true

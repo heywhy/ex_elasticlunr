@@ -4,8 +4,7 @@ defimpl Elasticlunr.Serializer, for: Elasticlunr.Pipeline do
   def serialize(%Pipeline{callback: callback}, opts) do
     cache = Keyword.get(opts, :pipeline, %{})
 
-    callback
-    |> Enum.map_join(",", &Map.get(cache, &1, &1))
+    Enum.map_join(callback, ",", &Map.get(cache, &1, &1))
   end
 end
 
