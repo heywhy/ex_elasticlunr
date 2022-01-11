@@ -1,4 +1,11 @@
 defmodule Elasticlunr.Storage do
+  @moduledoc """
+  This is the storage interface that's used by the index manager.
+  ```elixir
+  config :elasticlunr,
+    storage: Elasticlunr.Storage.Blackhole # this is the default provider
+  ```
+  """
   alias Elasticlunr.Index
   alias Elasticlunr.Storage.Blackhole
 
@@ -29,10 +36,10 @@ defmodule Elasticlunr.Storage do
       @behaviour Elasticlunr.Storage.Provider
 
       defp config(key, default \\ nil) do
-        :elasticlunr
-        |> Application.get_env(__MODULE__, [])
-        |> Keyword.get(key, default)
+        Keyword.get(config_all(), key, default)
       end
+
+      defp config_all, do: Application.get_env(:elasticlunr, __MODULE__, [])
     end
   end
 end
