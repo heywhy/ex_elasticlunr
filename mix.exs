@@ -6,7 +6,7 @@ defmodule Elasticlunr.MixProject do
   def project do
     [
       app: :elasticlunr,
-      version: "0.6.2",
+      version: "0.6.3",
       elixir: "~> 1.11",
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
@@ -68,7 +68,7 @@ defmodule Elasticlunr.MixProject do
       licenses: ["MIT License"],
       links: %{
         "GitHub" => @source_url,
-        "Docs" => "https://hexdocs.pm/ex_elasticlunr"
+        "Docs" => "https://hexdocs.pm/elasticlunr"
       }
     ]
   end
