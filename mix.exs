@@ -51,10 +51,10 @@ defmodule Elasticlunr.MixProject do
       {:ex_doc, "~> 0.25", only: :dev, runtime: false},
       {:faker, "~> 0.16", only: :test},
       {:mox, "~> 1.0", only: :test},
-      {:ex_aws, "~> 2.0", optional: true, only: [:dev, :test]},
-      {:ex_aws_s3, "~> 2.0", optional: true, only: [:dev, :test]},
-      {:hackney, "~> 1.9", optional: true, only: [:dev, :test]},
-      {:sweet_xml, "~> 0.6", optional: true, only: [:dev, :test]}
+      {:ex_aws, ">= 2.0.0 and < 3.0.0", optional: true, only: [:dev, :test]},
+      {:ex_aws_s3, ">= 2.0.0 and < 3.0.0", optional: true, only: [:dev, :test]},
+      {:hackney, ">= 1.9.0 and < 2.0.0", optional: true, only: [:dev, :test]},
+      {:sweet_xml, ">= 0.6.0 and < 1.0.0", optional: true, only: [:dev, :test]}
     ]
   end
 
