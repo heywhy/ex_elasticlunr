@@ -12,7 +12,7 @@ defmodule Elasticlunr.Storage.S3 do
     access_key_id: "minioadmin",
     secret_access_key: "minioadmin",
     scheme: "http://", # optional
-    host: "192.168.0.164", # optional
+    host: "127.0.0.1", # optional
     port: 9000 # optional
   ```
   """
