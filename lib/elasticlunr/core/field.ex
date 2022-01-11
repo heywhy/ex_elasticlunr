@@ -300,7 +300,7 @@ defmodule Elasticlunr.Field do
     end
   end
 
-  @spec all_tokens(Elasticlunr.Field.t()) :: %Stream{}
+  @spec all_tokens(Elasticlunr.Field.t()) :: Enum.t()
   def all_tokens(%__MODULE__{tf: tf, idf: idf, flnorm: flnorm, terms: terms}) do
     Map.keys(terms)
     |> Stream.map(fn term ->
