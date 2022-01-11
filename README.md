@@ -44,7 +44,7 @@ The repository includes a livebook file that you can run. You can click the butt
 
 ## Storage
 
-Elasticlunr allows you to write your indexes to whatever storage provider you want, see available providers below:
+Elasticlunr allows you to write your indexes to whatever storage provider you want. You don't need to acess the `Elasticlunr.Storage` module directly, it is used by the `Elasticlunr.IndexManager`. See available providers below:
 
 * [Blackhole](https://github.com/heywhy/ex_elasticlunr/blob/master/lib/elasticlunr/storage/blackhole.ex)
 * [Disk](https://github.com/heywhy/ex_elasticlunr/blob/master/lib/elasticlunr/storage/disk.ex)
