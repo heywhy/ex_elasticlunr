@@ -42,6 +42,23 @@ The repository includes a livebook file that you can run. You can click the butt
 
 [![Run in Livebook](https://livebook.dev/badge/v1/blue.svg)](https://livebook.dev/run?url=https%3A%2F%2Fgithub.com%2Fheywhy%2Fex_elasticlunr%2Fblob%2Fmaster%2Fdocs.livemd)
 
+## Storage
+
+Elasticlunr allows you to write your indexes to whatever storage provider you want. You don't need to acess the `Elasticlunr.Storage` module directly, it is used by the `Elasticlunr.IndexManager`. See available providers below:
+
+* [Blackhole](https://github.com/heywhy/ex_elasticlunr/blob/master/lib/elasticlunr/storage/blackhole.ex)
+* [Disk](https://github.com/heywhy/ex_elasticlunr/blob/master/lib/elasticlunr/storage/disk.ex)
+* [S3](https://github.com/heywhy/ex_elasticlunr_s3)
+
+To configure what provider to use:
+
+```elixir
+config :elasticlunr,
+  storage: Elasticlunr.Storage.S3
+```
+
+Note that all indexes in storage are preloaded on application startup. To see the available provider configuration, you should reference it module.
+
 ## License
 
 Elasticlunr is released under the MIT License - see the [LICENSE](https://github.com/heywhy/ex_elasticlunr/blob/master/LICENSE) file.
