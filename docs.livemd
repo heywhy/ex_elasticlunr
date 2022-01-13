@@ -11,7 +11,10 @@ Imagine how much is gained when the search functionality of your application res
 ## Getting Started
 
 ```elixir
-Mix.install([{:elasticlunr, "~> 0.6"}])
+Mix.install([
+  {:kino, "~> 0.4"},
+  {:elasticlunr, "~> 0.6"}
+])
 ```
 
 ## What's an Index?
@@ -94,10 +97,12 @@ The search results is a list of maps and each map contains specific keys, `match
 * **ref:** this is the document id
 * **positions:** this is a map that shows the positions of the matching words in the document
 
-<!-- livebook:{"livebook_object":"cell_input","name":"Search","type":"text","value":"elixir"} -->
+```elixir
+search_query = Kino.Input.text("Search", default: "elixir")
+```
 
 ```elixir
-search_query = IO.gets("Search")
+search_query = Kino.Input.read(search_query)
 results = Index.search(index, search_query)
 ```
 
@@ -177,10 +182,12 @@ documents = [
 users_index = Index.add_documents(users_index, documents)
 ```
 
-<!-- livebook:{"livebook_object":"cell_input","name":"Search users","type":"text","value":"jason murry"} -->
+```elixir
+search_query = Kino.Input.text("Search users", default: "jason murry")
+```
 
 ```elixir
-search_query = IO.gets("Search users")
+search_query = Kino.Input.read(search_query)
 Index.search(users_index, search_query)
 ```
 
