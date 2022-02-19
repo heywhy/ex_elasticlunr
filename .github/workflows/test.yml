@@ -9,19 +9,21 @@ env:
 jobs:
   test:
     runs-on: ubuntu-latest
+    name: OTP ${{matrix.otp}} / Elixir ${{matrix.elixir}}
     strategy:
       matrix:
-        elixir:
-          - 1.12-slim   # otp 24
-          - 1.11-slim   # otp 23
-    container:
-      image: elixir:${{ matrix.elixir }}
+        otp: [24, 23]
+        elixir: [1.12, 1.11]
     steps:
-    - uses: actions/checkout@v2
-    - name: Install Dependencies
-      run: |
-        mix local.rebar --force
-        mix local.hex --force
-        mix deps.get
-    - name: Run Tests
-      run: mix coveralls.github
+      - uses: actions/checkout@v2
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: ${{matrix.otp}}
+          elixir-version: ${{matrix.elixir}}
+      - name: Install Dependencies
+        run: |
+          mix local.rebar --force
+          mix local.hex --force
+          mix deps.get
+      - name: Run Tests
+        run: mix coveralls.github
