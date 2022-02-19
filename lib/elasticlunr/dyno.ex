@@ -9,7 +9,7 @@ defmodule Elasticlunr.Dyno do
     GenServer.call(via(name), :get)
   end
 
-  @spec update(Index.t()) :: Index.t()
+  @spec update(Index.t()) :: {:ok, Index.t()} | {:error, any()}
   def update(%Index{name: name} = index) do
     GenServer.call(via(name), {:update, index})
   end
@@ -21,7 +21,11 @@ defmodule Elasticlunr.Dyno do
 
   @spec start(Index.t()) :: {:ok, pid()} | {:error, any()}
   def start(index) do
-    DynamicSupervisor.start_child(IndexSupervisor, {__MODULE__, index})
+    # credo:disable-for-next-line
+    with {:ok, _} <- DynamicSupervisor.start_child(IndexSupervisor, {__MODULE__, index}),
+         {:ok, index} <- update(index) do
+      {:ok, index}
+    end
   end
 
   @spec stop(Index.t()) :: :ok | {:error, :not_found}
@@ -38,23 +42,23 @@ defmodule Elasticlunr.Dyno do
     end
   end
 
-  @spec init(Index.t()) :: {:ok, map()}
-  def init(%Index{} = index) do
-    table = table_name(index)
+  @spec init(String.t()) :: {:ok, map()}
+  def init(name) do
+    table = String.to_atom("elasticlunr_#{name}")
     ^table = :ets.new(table, ~w[bag private compressed named_table]a)
 
-    {:ok, %{index: index, table: table}}
+    {:ok, %{index: nil, table: table}}
   end
 
-  def start_link(%Index{name: name} = index) do
-    GenServer.start_link(__MODULE__, index, name: via(name), hibernate_after: 5_000)
+  def start_link(name) do
+    GenServer.start_link(__MODULE__, name, name: via(name), hibernate_after: 5_000)
   end
 
   @spec child_spec(Index.t()) :: map()
-  def child_spec(%Index{name: id} = index) do
+  def child_spec(%Index{name: id}) do
     %{
       id: {__MODULE__, id},
-      start: {__MODULE__, :start_link, [index]},
+      start: {__MODULE__, :start_link, [id]},
       restart: :transient
     }
   end
@@ -69,8 +73,6 @@ defmodule Elasticlunr.Dyno do
   end
 
   def handle_call({:update, index}, _from, state) do
-    {:reply, index, %{state | index: index}}
+    {:reply, {:ok, index}, %{state | index: index}}
   end
-
-  defp table_name(%{name: name}), do: String.to_atom("elasticlunr_#{name}")
 end

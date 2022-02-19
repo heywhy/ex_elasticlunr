@@ -10,32 +10,26 @@ defmodule Elasticlunr.IndexManager do
 
   @spec get(binary()) :: Index.t() | :not_running
   def get(name) do
-    case loaded?(name) do
+    case running?(name) do
       true -> Dyno.get(name)
       false -> :not_running
     end
   end
 
   @spec save(Index.t()) :: {:ok, Index.t()} | {:error, any()}
-  def save(%Index{} = index) do
-    with {:ok, _} <- Dyno.start(index),
+  def save(%Index{name: name} = index) do
+    persist_fn =
+      case running?(name) do
+        false ->
+          &Dyno.start/1
+
+        true ->
+          &Dyno.update/1
+      end
+
+    with {:ok, index} <- persist_fn.(index),
          :ok <- Storage.write(index) do
       {:ok, index}
-    end
-  end
-
-  @spec update(Index.t()) :: Index.t() | :not_running
-  def update(%Index{name: name} = index) do
-    with true <- loaded?(name),
-         index <- Dyno.update(index),
-         :ok <- Storage.write(index) do
-      index
-    else
-      false ->
-        :not_running
-
-      err ->
-        err
     end
   end
 
@@ -53,8 +47,8 @@ defmodule Elasticlunr.IndexManager do
     end
   end
 
-  @spec loaded?(binary()) :: boolean()
-  def loaded?(name) do
+  @spec running?(binary()) :: boolean()
+  def running?(name) do
     Enum.any?(Dyno.running(), fn
       ^name ->
         true
