@@ -7,20 +7,20 @@ defmodule Elasticlunr.IndexManagerTest do
     test "saves an index" do
       index = Index.new()
 
-      assert {:ok, ^index} = IndexManager.save(index)
+      assert {:ok, %Index{ops: []}} = IndexManager.save(index)
     end
 
     test "updates existing index" do
       index = Index.new()
 
-      assert {:ok, ^index} = IndexManager.save(index)
+      assert {:ok, %Index{ops: []} = index} = IndexManager.save(index)
       assert {:ok, ^index} = IndexManager.save(index)
     end
 
     test "removes an index" do
       index = Index.new()
 
-      assert {:ok, ^index} = IndexManager.save(index)
+      assert {:ok, index} = IndexManager.save(index)
       assert :ok = IndexManager.remove(index)
       assert :not_running = IndexManager.get(index.name)
     end

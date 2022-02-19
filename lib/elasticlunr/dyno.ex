@@ -73,6 +73,7 @@ defmodule Elasticlunr.Dyno do
   end
 
   def handle_call({:update, index}, _from, state) do
+    index = %{index | ops: []}
     {:reply, {:ok, index}, %{state | index: index}}
   end
 end
