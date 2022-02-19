@@ -1,11 +1,10 @@
 defmodule Elasticlunr.IndexManager do
-  alias Elasticlunr.{Dyno, Index, IndexRegistry, IndexSupervisor, Storage}
-  alias Elasticlunr.Utils.Process
+  alias Elasticlunr.{Dyno, Index, Storage}
 
   @spec preload() :: :ok
   def preload do
     Storage.all()
-    |> Stream.each(&start/1)
+    |> Stream.each(&Dyno.start/1)
     |> Stream.run()
   end
 
@@ -19,7 +18,7 @@ defmodule Elasticlunr.IndexManager do
 
   @spec save(Index.t()) :: {:ok, Index.t()} | {:error, any()}
   def save(%Index{} = index) do
-    with {:ok, _} <- start(index),
+    with {:ok, _} <- Dyno.start(index),
          :ok <- Storage.write(index) do
       {:ok, index}
     end
@@ -41,35 +40,27 @@ defmodule Elasticlunr.IndexManager do
   end
 
   @spec remove(Index.t()) :: :ok | :not_running
-  def remove(%Index{name: name}) do
-    with [{pid, _}] <- Registry.lookup(IndexRegistry, name),
-         :ok <- Storage.delete(name),
-         :ok <- DynamicSupervisor.terminate_child(IndexSupervisor, pid) do
+  def remove(%Index{name: name} = index) do
+    with :ok <- Dyno.stop(index),
+         :ok <- Storage.delete(name) do
       :ok
     else
-      _ ->
+      {:error, :not_found} ->
         :not_running
+
+      err ->
+        err
     end
   end
 
   @spec loaded?(binary()) :: boolean()
   def loaded?(name) do
-    loaded_indices()
-    |> Enum.any?(fn
+    Enum.any?(Dyno.running(), fn
       ^name ->
         true
 
       _ ->
         false
     end)
-  end
-
-  @spec loaded_indices :: [binary()]
-  def loaded_indices do
-    Process.active_processes(IndexSupervisor, IndexRegistry, Dyno)
-  end
-
-  defp start(index) do
-    DynamicSupervisor.start_child(IndexSupervisor, {Dyno, index})
   end
 end
