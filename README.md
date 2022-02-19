@@ -1,6 +1,6 @@
 # Elasticlunr
 
-[![Test](https://github.com/heywhy/ex_elasticlunr/actions/workflows/test.yml/badge.svg?branch=master)](https://github.com/heywhy/ex_elasticlunr/actions)
+[![Test](https://github.com/heywhy/ex_elasticlunr/actions/workflows/test.yml/badge.svg?branch=master)](https://github.com/heywhy/ex_elasticlunr/actions) [![Coverage Status](https://coveralls.io/repos/github/heywhy/ex_elasticlunr_s3/badge.svg?branch=master)](https://coveralls.io/github/heywhy/ex_elasticlunr_s3?branch=master)
 
 Elasticlunr is a small, full-text search library for use in the Elixir environment. It indexes JSON documents and provides a friendly search interface to retrieve documents.
 
