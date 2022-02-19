@@ -1,17 +1,20 @@
 defmodule Elasticlunr.IndexTest do
-  use ExUnit.Case
+  use Elasticlunr.TestCase
 
-  alias Elasticlunr.{Field, Index, Pipeline, Token}
+  alias Elasticlunr.{Field, Index, IndexManager, Operation, Pipeline, Token}
   alias Faker.Address.En, as: Address
 
   describe "creating an index" do
     test "creates a new instance" do
       assert %Index{name: name} = Index.new()
       assert is_binary(name)
-      assert %Index{name: :test_index, ref: "id", fields: %{}} = Index.new(name: :test_index)
+      assert %Index{name: "test_index", ref: "id", fields: %{}} = Index.new(name: "test_index")
 
-      assert %Index{name: :test_index, ref: "name", fields: %{}} =
-               Index.new(name: :test_index, ref: "name")
+      assert %Index{name: "test_index", ref: "name", fields: %{}, ops: ops} =
+               Index.new(name: "test_index", ref: "name")
+
+      assert [%Operation{type: :initialize, params: params}] = ops
+      assert Keyword.get(params, :name) == "test_index"
     end
 
     test "creates a new instance and populate fields" do
@@ -27,15 +30,21 @@ defmodule Elasticlunr.IndexTest do
       assert index = Index.add_field(index, "name")
       assert %Index{fields: %{"name" => %Field{}}} = index
 
-      assert %Index{fields: %{"name" => %Field{}, "bio" => %Field{}}} =
+      assert %Index{fields: %{"name" => %Field{}, "bio" => %Field{}}, ops: ops} =
                Index.add_field(index, "bio")
+
+      assert length(Enum.filter(ops, &(&1.type == :add_field))) == 2
     end
 
     test "save document" do
       index = Index.add_field(Index.new(), "name")
 
       assert %Index{fields: %{"name" => %Field{store: true}}} = index
-      assert %Index{fields: %{"name" => %Field{store: false}}} = Index.save_document(index, false)
+
+      assert %Index{fields: %{"name" => %Field{store: false}}, ops: ops} =
+               Index.save_document(index, false)
+
+      assert [_, _, %Operation{type: :save_document, params: false}] = ops
     end
   end
 
@@ -53,15 +62,16 @@ defmodule Elasticlunr.IndexTest do
                  }
                ])
 
-      assert %Index{documents_size: 1} = index
-
-      assert %Index{documents_size: 2} =
+      assert index =
                Index.add_documents(index, [
                  %{
                    "id" => 29,
                    "bio" => Faker.Lorem.paragraph()
                  }
                ])
+
+      assert {:ok, %Index{ops: []}} = IndexManager.save(index)
+      assert %Index{documents_size: 2} = IndexManager.get(index.name)
     end
 
     test "adds documents and flatten nested attributes" do
