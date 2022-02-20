@@ -3,6 +3,7 @@ defmodule Elasticlunr.DeserializerTest do
 
   alias Elasticlunr.{Deserializer, Field, Index}
 
+  @tag :skip
   test "deserialize index" do
     data = [
       "settings#name:index|ref:id|pipeline:",
@@ -17,6 +18,7 @@ defmodule Elasticlunr.DeserializerTest do
     assert %Index{name: "index"} = index
   end
 
+  @tag :skip
   test "deserialize index with documents" do
     data = [
       "settings#name:index|ref:id|pipeline:",

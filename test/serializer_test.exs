@@ -3,6 +3,7 @@ defmodule Elasticlunr.SerializerTest do
 
   alias Elasticlunr.{Index, Serializer}
 
+  @tag :skip
   test "serialize index without documents" do
     index = Index.new(name: "index")
 
@@ -17,6 +18,7 @@ defmodule Elasticlunr.SerializerTest do
     assert structure == data
   end
 
+  @tag :skip
   test "serialize index with documents" do
     index =
       Index.new(name: "index")
