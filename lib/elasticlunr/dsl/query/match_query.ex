@@ -44,16 +44,7 @@ defmodule Elasticlunr.Dsl.MatchQuery do
         },
         %Index{} = index
       ) do
-    tokens =
-      index
-      |> Index.analyze(field, query, is_query: true)
-      |> case do
-        tokens when is_list(tokens) ->
-          tokens
-
-        token ->
-          [token]
-      end
+    tokens = Index.analyze(index, field, query, is_query: true)
 
     tokens_length = length(tokens)
 
@@ -78,12 +69,10 @@ defmodule Elasticlunr.Dsl.MatchQuery do
         )
 
       tokens_length == 1 ->
-        [token] = tokens
-
         TermsQuery.new(
           field: field,
           expand: expand,
-          terms: [token],
+          terms: tokens,
           fuzziness: fuzziness,
           boost: boost
         )
