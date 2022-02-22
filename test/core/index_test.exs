@@ -37,6 +37,30 @@ defmodule Elasticlunr.IndexTest do
       assert %Index{fields: %{"name" => %Field{store: true}}} = index
       assert %Index{fields: %{"name" => %Field{store: false}}} = Index.save_document(index, false)
     end
+
+    test "updates a field" do
+      index = Index.new()
+      assert %Index{fields: %{}} = index
+      assert index = Index.add_field(index, "name")
+      assert field = Index.get_field(index, "name")
+      assert %Field{query_pipeline: nil} = field
+
+      pipeline = Pipeline.new()
+
+      assert %Field{query_pipeline: ^pipeline} =
+               index
+               |> Index.update_field("name", %{field | query_pipeline: pipeline})
+               |> Index.get_field("name")
+    end
+
+    test "fails to update missing field" do
+      index = Index.new()
+      assert %Index{fields: %{}} = index
+
+      assert_raise RuntimeError, "Unknown field address in index", fn ->
+        Index.update_field(index, "address", Field.new([]))
+      end
+    end
   end
 
   describe "fiddling with an index" do

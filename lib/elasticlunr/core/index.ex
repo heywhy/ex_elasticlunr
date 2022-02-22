@@ -113,54 +113,16 @@ defmodule Elasticlunr.Index do
 
   @spec add_documents(t(), list(map())) :: t()
   def add_documents(%__MODULE__{fields: fields, ref: ref} = index, documents) do
-    :ok =
-      documents
-      |> Flow.from_enumerable()
-      |> Flow.map(fn document ->
-        document = flatten_document(document)
-        add_document(fields, ref, document)
-      end)
-      |> Flow.run()
+    :ok = persist(fields, ref, documents, &Field.add/2)
 
     update_documents_size(index)
   end
 
-  defp add_document(fields, ref, document) do
-    Enum.each(fields, fn {attribute, field} ->
-      if document[attribute] do
-        data = [
-          %{id: document[ref], content: document[attribute]}
-        ]
-
-        Field.add(field, data)
-      end
-    end)
-  end
-
   @spec update_documents(t(), list(map())) :: t()
   def update_documents(%__MODULE__{ref: ref, fields: fields} = index, documents) do
-    transform_document = fn {key, content}, {document, fields} ->
-      case Map.get(fields, key) do
-        nil ->
-          {document, fields}
+    :ok = persist(fields, ref, documents, &Field.update/2)
 
-        %Field{} = field ->
-          id = Map.get(document, ref)
-          field = Field.update(field, [%{id: id, content: content}])
-          fields = Map.put(fields, key, field)
-
-          {document, fields}
-      end
-    end
-
-    fields =
-      Enum.reduce(documents, fields, fn document, fields ->
-        document
-        |> Enum.reduce({document, fields}, transform_document)
-        |> elem(1)
-      end)
-
-    update_documents_size(%{index | fields: fields})
+    update_documents_size(index)
   end
 
   @spec remove_documents(t(), list(Field.document_ref())) :: t()
@@ -314,6 +276,28 @@ defmodule Elasticlunr.Index do
 
       {key, value}, transformed ->
         Map.put(transformed, "#{prefix}#{key}", value)
+    end)
+  end
+
+  defp persist(fields, ref, documents, persist_fn) do
+    documents
+    |> Flow.from_enumerable()
+    |> Flow.map(fn document ->
+      document = flatten_document(document)
+      save(fields, ref, document, persist_fn)
+    end)
+    |> Flow.run()
+  end
+
+  defp save(fields, ref, document, callback) do
+    Enum.each(fields, fn {attribute, field} ->
+      if document[attribute] do
+        data = [
+          %{id: document[ref], content: document[attribute]}
+        ]
+
+        callback.(field, data)
+      end
     end)
   end
 end
