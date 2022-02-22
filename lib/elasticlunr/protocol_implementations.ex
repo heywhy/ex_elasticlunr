@@ -45,16 +45,10 @@ defimpl Elasticlunr.Serializer, for: Elasticlunr.Index do
         Serializer.serialize(field, name: name, pipeline: pipeline_map)
       end)
 
-    fields_documents =
-      Stream.map(fields, fn {name, %Field{documents: documents}} ->
-        {:ok, data} = Jason.encode(documents)
-        "documents##{name}|#{data}"
-      end)
-
     tokens =
       fields
       |> Stream.map(fn {name, field} ->
-        Field.all_tokens(field)
+        Field.tokens(field)
         |> Stream.map(fn token ->
           {:ok, data} = Jason.encode(token)
           "token#field:#{name}|#{data}"
@@ -62,7 +56,7 @@ defimpl Elasticlunr.Serializer, for: Elasticlunr.Index do
       end)
       |> Stream.flat_map(& &1)
 
-    [settings, fields_settings, fields_documents, tokens]
+    [settings, fields_settings, tokens]
     |> Stream.flat_map(fn
       list when is_list(list) -> list
       value when is_binary(value) -> [value]

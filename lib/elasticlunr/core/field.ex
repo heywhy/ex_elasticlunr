@@ -1,7 +1,7 @@
 defmodule Elasticlunr.Field do
   alias Elasticlunr.{DB, Pipeline, Token, Utils}
 
-  @fields ~w[db name pipeline query_pipeline store store_positions flnorm tf idf ids documents terms]a
+  @fields ~w[db name pipeline query_pipeline store store_positions]a
 
   @enforce_keys @fields
   defstruct @fields
@@ -14,13 +14,7 @@ defmodule Elasticlunr.Field do
           pipeline: Pipeline.t() | nil,
           query_pipeline: Pipeline.t() | nil,
           store: boolean(),
-          store_positions: boolean(),
-          flnorm: flnorm(),
-          tf: map(),
-          idf: map(),
-          terms: map(),
-          documents: map(),
-          ids: map()
+          store_positions: boolean()
         }
 
   @type document_ref :: atom() | binary()
@@ -35,26 +29,20 @@ defmodule Elasticlunr.Field do
 
   @spec new(keyword) :: t()
   def new(opts) do
-    attrs = %{
-      ids: %{},
-      tf: %{},
-      idf: %{},
-      flnorm: 1,
-      terms: %{},
-      documents: %{},
+    attrs = [
       db: Keyword.get(opts, :db),
       name: Keyword.get(opts, :name),
       pipeline: Keyword.get(opts, :pipeline),
       store: Keyword.get(opts, :store_documents, false),
       query_pipeline: Keyword.get(opts, :query_pipeline),
       store_positions: Keyword.get(opts, :store_positions, false)
-    }
+    ]
 
     struct!(__MODULE__, attrs)
   end
 
-  @spec all(t()) :: list(document_ref())
-  def all(%__MODULE__{db: db, name: name}) do
+  @spec documents(t()) :: list(document_ref())
+  def documents(%__MODULE__{db: db, name: name}) do
     case DB.match_object(db, {{:field_ids, name, :_}}) do
       [] ->
         []
@@ -78,14 +66,9 @@ defmodule Elasticlunr.Field do
       nil ->
         nil
 
-      value ->
-        %{
-          idf: value,
-          term: term,
-          tf: tf_lookup(field, term),
-          flnorm: flnorm_lookup(field),
-          documents: matched_documents_for_term(field, term)
-        }
+      _ ->
+        flnorm = flnorm_lookup(field)
+        to_field_token(field, term, flnorm)
     end
   end
 
@@ -190,20 +173,20 @@ defmodule Elasticlunr.Field do
   end
 
   @spec analyze(t(), any(), keyword) :: list(Token.t())
-  def analyze(%__MODULE__{pipeline: pipeline, query_pipeline: query_pipeline}, str, options) do
+  def analyze(%__MODULE__{pipeline: pipeline, query_pipeline: query_pipeline}, content, options) do
     case Keyword.get(options, :is_query, false) && not is_nil(query_pipeline) do
       true ->
-        Pipeline.run(query_pipeline, str)
+        Pipeline.run(query_pipeline, content)
 
       false ->
-        Pipeline.run(pipeline, str)
+        Pipeline.run(pipeline, content)
     end
   end
 
   @spec terms(t(), keyword()) :: any()
   def terms(%__MODULE__{} = field, query) do
-    fuzz = Keyword.get(query, :fuzziness) || 0
-    msm = Keyword.get(query, :minimum_should_match) || 1
+    fuzz = Keyword.get(query, :fuzziness, 0)
+    msm = Keyword.get(query, :minimum_should_match, 1)
 
     terms = terms_lookup(field)
 
@@ -214,13 +197,10 @@ defmodule Elasticlunr.Field do
       end)
       |> Enum.reduce(%{}, fn
         %Regex{} = re, matching_docs ->
-          matched_terms =
-            terms
-            |> Map.keys()
-            |> Stream.filter(&Regex.match?(re, &1))
+          matched_terms = Stream.filter(terms, &Regex.match?(re, elem(&1, 0)))
 
-          Enum.reduce(matched_terms, matching_docs, fn term, matching_docs ->
-            ids = Map.get(terms, term) |> Map.keys()
+          Enum.reduce(matched_terms, matching_docs, fn {term, _, _}, matching_docs ->
+            ids = matching_ids(field, term)
 
             filter_ids(field, ids, term, matching_docs, query)
           end)
@@ -229,10 +209,7 @@ defmodule Elasticlunr.Field do
           matching_docs =
             case fuzz == 0 && length(field, :term, term) > 0 do
               true ->
-                ids =
-                  terms
-                  |> Stream.filter(&(elem(&1, 0) == term))
-                  |> Stream.map(&elem(&1, 1))
+                ids = matching_ids(field, term)
 
                 filter_ids(field, ids, term, matching_docs, query)
 
@@ -254,20 +231,13 @@ defmodule Elasticlunr.Field do
     end
   end
 
-  @spec all_tokens(Elasticlunr.Field.t()) :: Enum.t()
-  def all_tokens(%__MODULE__{tf: tf, idf: idf, flnorm: flnorm, terms: terms}) do
-    Map.keys(terms)
-    |> Stream.map(fn term ->
-      tf = Map.get(tf, term, %{})
+  @spec tokens(Elasticlunr.Field.t()) :: Enumerable.t()
+  def tokens(%__MODULE__{} = field) do
+    flnorm = flnorm_lookup(field)
 
-      %{
-        tf: tf,
-        term: term,
-        terms: Map.get(terms, term),
-        idf: Map.get(idf, term),
-        norm: flnorm,
-        documents: Map.keys(tf)
-      }
+    unique_terms_lookup(field)
+    |> Stream.map(fn {term, _, _} ->
+      to_field_token(field, term, flnorm)
     end)
   end
 
@@ -337,6 +307,17 @@ defmodule Elasticlunr.Field do
     end
   end
 
+  defp terms_lookup(%{db: db, name: name}, term) do
+    case DB.match_object(db, {{:field_term, name, term, :_}, :_}) do
+      [] ->
+        []
+
+      terms ->
+        terms
+        |> Stream.map(fn {{:field_term, _, term, id}, attrs} -> {term, id, attrs} end)
+    end
+  end
+
   defp tf_lookup(%{db: db, name: name}, term) do
     case DB.match_object(db, {{:field_tf, name, term, :_}, :_}) do
       [] ->
@@ -380,10 +361,13 @@ defmodule Elasticlunr.Field do
     end
   end
 
+  defp unique_terms_lookup(field) do
+    terms_lookup(field)
+    |> Stream.uniq_by(&elem(&1, 0))
+  end
+
   defp recalculate_idf(field) do
-    terms =
-      terms_lookup(field)
-      |> Stream.uniq_by(&elem(&1, 0))
+    terms = unique_terms_lookup(field)
 
     terms_length = Enum.count(terms)
 
@@ -439,12 +423,12 @@ defmodule Elasticlunr.Field do
     end)
   end
 
-  defp match_with_fuzz(%{terms: terms} = field, term, fuzz, query, matching_docs) when fuzz > 0 do
-    terms
-    |> Map.keys()
-    |> Enum.reduce(matching_docs, fn key, matching_docs ->
+  defp match_with_fuzz(field, term, fuzz, query, matching_docs) when fuzz > 0 do
+    field
+    |> unique_terms_lookup()
+    |> Enum.reduce(matching_docs, fn {key, _id, _attr}, matching_docs ->
       if Utils.levenshtein_distance(key, term) <= fuzz do
-        ids = Map.keys(Map.get(terms, key))
+        ids = matching_ids(field, term)
         filter_ids(field, ids, key, matching_docs, query)
       else
         matching_docs
@@ -453,6 +437,11 @@ defmodule Elasticlunr.Field do
   end
 
   defp match_with_fuzz(_field, _term, _fuzz, _query, matching_docs), do: matching_docs
+
+  defp matching_ids(field, term) do
+    terms_lookup(field, term)
+    |> Stream.map(&elem(&1, 1))
+  end
 
   defp get_content(_field, _id) do
     nil
@@ -475,4 +464,14 @@ defmodule Elasticlunr.Field do
 
   defp to_token(%Token{} = token), do: token
   defp to_token(token), do: Token.new(token)
+
+  defp to_field_token(field, term, flnorm) do
+    %{
+      term: term,
+      norm: flnorm,
+      tf: length(field, :tf, term),
+      idf: idf_lookup(field, term),
+      documents: matched_documents_for_term(field, term)
+    }
+  end
 end

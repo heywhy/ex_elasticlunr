@@ -37,7 +37,7 @@ defmodule Elasticlunr.DeserializerTest do
 
     assert ~w[body id] = Index.get_fields(index)
     assert field = Index.get_field(index, "body")
-    assert Field.all_tokens(field) |> Enum.count() == 2
+    assert Field.tokens(field) |> Enum.count() == 2
   end
 
   defp to_stream(data) do

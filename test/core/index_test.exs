@@ -118,10 +118,9 @@ defmodule Elasticlunr.IndexTest do
 
       index = Index.add_documents(index, [document])
 
-      assert %Index{fields: %{"address.city" => %Field{ids: %{20 => _}}}, documents_size: 1} =
-               index
+      assert %Index{fields: %{"address.city" => %Field{}}, documents_size: 1} = index
 
-      assert %Index{fields: %{"address.city" => %Field{ids: %{}}}, documents_size: 0} =
+      assert %Index{fields: %{"address.city" => %Field{}}, documents_size: 0} =
                Index.remove_documents(index, [20])
     end
 
