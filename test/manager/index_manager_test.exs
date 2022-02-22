@@ -43,5 +43,13 @@ defmodule Elasticlunr.IndexManagerTest do
 
       assert :not_running = IndexManager.remove(index)
     end
+
+    test "return a running instance" do
+      index = Index.new()
+
+      {:ok, _} = IndexManager.save(index)
+      assert ^index = IndexManager.get(index.name)
+      assert :not_running = IndexManager.get("unknown-index")
+    end
   end
 end
