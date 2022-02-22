@@ -91,32 +91,6 @@ defmodule Elasticlunr.Field do
     recalculate_idf(field)
   end
 
-  @spec set_token(t(), binary(), map()) :: t()
-  def set_token(%__MODULE__{} = field, term, documents) do
-    Enum.reduce(documents, field, fn {doc_id, opts}, field ->
-      ct = :math.pow(opts.tf, 2)
-
-      %{ids: ids, tf: tf, terms: terms} = field
-      term_map = Map.get(terms, term, %{})
-
-      term_map =
-        Map.put(term_map, doc_id, %{
-          total: trunc(ct),
-          positions: opts[:positions] || []
-        })
-
-      terms = Map.put(terms, term, term_map)
-
-      tf_map = Map.get(tf, term, %{})
-      tf_map = Map.put(tf_map, doc_id, opts.tf)
-
-      tf = Map.put(tf, term, tf_map)
-
-      %{field | terms: terms, tf: tf, ids: Map.put(ids, doc_id, true)}
-    end)
-    |> recalculate_idf()
-  end
-
   @spec length(t(), atom()) :: pos_integer()
   def length(%__MODULE__{db: db, name: name}, :ids) do
     fun = [{{{:field_ids, :"$1", :_}}, [{:==, :"$1", name}], [true]}]
@@ -276,14 +250,9 @@ defmodule Elasticlunr.Field do
   end
 
   defp matched_documents_for_term(%{db: db, name: name}, term) do
-    case DB.match_object(db, {{:field_term, name, term, :_}, :_}) do
-      [] ->
-        []
-
-      matched ->
-        matched
-        |> Stream.map(fn {{:field_term, _, _, id}, _} -> id end)
-    end
+    db
+    |> DB.match_object({{:field_term, name, term, :_}, :_})
+    |> Stream.map(fn {{:field_term, _, _, id}, _} -> id end)
   end
 
   defp term_lookup(%{db: db, name: name}, term, id) do
@@ -297,26 +266,18 @@ defmodule Elasticlunr.Field do
   end
 
   defp terms_lookup(%{db: db, name: name}) do
-    case DB.match_object(db, {{:field_term, name, :_, :_}, :_}) do
-      [] ->
-        []
-
-      terms ->
-        terms
-        |> Stream.map(fn {{:field_term, _, term, id}, attrs} -> {term, id, attrs} end)
-    end
+    db
+    |> DB.match_object({{:field_term, name, :_, :_}, :_})
+    |> Stream.map(&termify/1)
   end
 
   defp terms_lookup(%{db: db, name: name}, term) do
-    case DB.match_object(db, {{:field_term, name, term, :_}, :_}) do
-      [] ->
-        []
-
-      terms ->
-        terms
-        |> Stream.map(fn {{:field_term, _, term, id}, attrs} -> {term, id, attrs} end)
-    end
+    db
+    |> DB.match_object({{:field_term, name, term, :_}, :_})
+    |> Stream.map(&termify/1)
   end
+
+  defp termify({{:field_term, _, term, id}, attrs}), do: {term, id, attrs}
 
   defp tf_lookup(%{db: db, name: name}, term) do
     case DB.match_object(db, {{:field_tf, name, term, :_}, :_}) do
