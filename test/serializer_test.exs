@@ -3,14 +3,13 @@ defmodule Elasticlunr.SerializerTest do
 
   alias Elasticlunr.{Index, Serializer}
 
-  @tag :skip
   test "serialize index without documents" do
     index = Index.new(name: "index")
 
     structure = [
       "settings#name:index|ref:id|pipeline:",
-      "field#name:id|pipeline:Elixir.Elasticlunr.Index.IdPipeline|store_documents:false|store_positions:false",
-      "documents#id|{}"
+      "db#name:elasticlunr_index|options:compressed,named_table,set,public",
+      "field#name:id|pipeline:Elixir.Elasticlunr.Index.IdPipeline|store_documents:false|store_positions:false"
     ]
 
     data = Serializer.serialize(index) |> Enum.into([])
@@ -18,7 +17,6 @@ defmodule Elasticlunr.SerializerTest do
     assert structure == data
   end
 
-  @tag :skip
   test "serialize index with documents" do
     index =
       Index.new(name: "index")
@@ -27,13 +25,9 @@ defmodule Elasticlunr.SerializerTest do
 
     structure = [
       "settings#name:index|ref:id|pipeline:",
+      "db#name:elasticlunr_index|options:compressed,named_table,set,public",
       "field#name:body|pipeline:|store_documents:true|store_positions:true",
-      "field#name:id|pipeline:Elixir.Elasticlunr.Index.IdPipeline|store_documents:false|store_positions:false",
-      "documents#body|{\"1\":\"hello world\"}",
-      "documents#id|{}",
-      "token#field:body|{\"documents\":[1],\"idf\":0.6989700043360187,\"norm\":0.7071067811865475,\"term\":\"hello\",\"terms\":{\"1\":{\"positions\":[[0,5]],\"total\":1}},\"tf\":{\"1\":1.0}}",
-      "token#field:body|{\"documents\":[1],\"idf\":0.6989700043360187,\"norm\":0.7071067811865475,\"term\":\"world\",\"terms\":{\"1\":{\"positions\":[[6,5]],\"total\":1}},\"tf\":{\"1\":1.0}}",
-      "token#field:id|{\"documents\":[1],\"idf\":0.6989700043360187,\"norm\":1.0,\"term\":\"1\",\"terms\":{\"1\":{\"positions\":[[0,1]],\"total\":1}},\"tf\":{\"1\":1.0}}"
+      "field#name:id|pipeline:Elixir.Elasticlunr.Index.IdPipeline|store_documents:false|store_positions:false"
     ]
 
     data = Serializer.serialize(index) |> Enum.into([])

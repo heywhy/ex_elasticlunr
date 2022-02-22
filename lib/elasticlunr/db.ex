@@ -1,8 +1,9 @@
 defmodule Elasticlunr.DB do
-  defstruct [:name]
+  defstruct [:name, :options]
 
   @type t :: %__MODULE__{
-          name: atom()
+          name: atom(),
+          options: list(atom())
         }
 
   @spec init(atom(), list()) :: t()
@@ -12,8 +13,9 @@ defmodule Elasticlunr.DB do
     end
 
     default = ~w[compressed named_table]a
-    name = :ets.new(name, Enum.uniq(default ++ opts))
-    struct!(__MODULE__, name: name)
+    options = Enum.uniq(default ++ opts)
+    name = :ets.new(name, options)
+    struct!(__MODULE__, name: name, options: options)
   end
 
   @spec all(t()) :: list(term())
@@ -22,7 +24,7 @@ defmodule Elasticlunr.DB do
   @spec delete(t(), term()) :: boolean()
   def delete(%__MODULE__{name: name}, pattern), do: :ets.delete(name, pattern)
 
-  @spec delete(t(), term()) :: boolean()
+  @spec destroy(t()) :: boolean()
   def destroy(%__MODULE__{name: name}) do
     if Enum.member?(:ets.all(), name) do
       :ets.delete(name)
