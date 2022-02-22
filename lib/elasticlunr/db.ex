@@ -8,18 +8,15 @@ defmodule Elasticlunr.DB do
 
   @spec init(atom(), list()) :: t()
   def init(name, opts \\ []) when is_atom(name) do
-    if Enum.member?(:ets.all(), name) do
-      :ets.delete(name)
-    end
-
     default = ~w[compressed named_table]a
     options = Enum.uniq(default ++ opts)
-    name = :ets.new(name, options)
+
+    unless Enum.member?(:ets.all(), name) do
+      :ets.new(name, options)
+    end
+
     struct!(__MODULE__, name: name, options: options)
   end
-
-  @spec all(t()) :: list(term())
-  def all(%__MODULE__{name: name}), do: :ets.tab2list(name)
 
   @spec delete(t(), term()) :: boolean()
   def delete(%__MODULE__{name: name}, pattern), do: :ets.delete(name, pattern)
