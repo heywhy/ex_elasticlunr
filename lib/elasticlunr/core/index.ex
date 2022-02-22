@@ -195,6 +195,22 @@ defmodule Elasticlunr.Index do
     |> Field.documents()
   end
 
+  @spec update_documents_size(t()) :: t()
+  def update_documents_size(%__MODULE__{fields: fields} = index) do
+    size =
+      Enum.reduce(fields, 0, fn {_, field}, acc ->
+        size = Field.length(field, :ids)
+
+        if size > acc do
+          size
+        else
+          acc
+        end
+      end)
+
+    %{index | documents_size: size}
+  end
+
   @spec search(t(), search_query(), map() | nil) :: list(search_result())
   def search(index, query, opts \\ nil)
   def search(%__MODULE__{}, nil, _opts), do: []
@@ -288,21 +304,6 @@ defmodule Elasticlunr.Index do
 
   defp elasticsearch(_index, _query) do
     raise "Root object must have a query element"
-  end
-
-  defp update_documents_size(%__MODULE__{fields: fields} = index) do
-    size =
-      Enum.reduce(fields, 0, fn {_, field}, acc ->
-        size = Field.length(field, :ids)
-
-        if size > acc do
-          size
-        else
-          acc
-        end
-      end)
-
-    %{index | documents_size: size}
   end
 
   defp flatten_document(document, prefix \\ "") do

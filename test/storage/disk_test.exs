@@ -30,7 +30,6 @@ defmodule Elasticlunr.Storage.DiskTest do
   end
 
   describe "serializing an index" do
-    @tag :skip
     test "writes to disk" do
       index = Index.new()
       options = Application.get_env(@otp_app, Disk)
@@ -44,7 +43,6 @@ defmodule Elasticlunr.Storage.DiskTest do
   end
 
   describe "unserializing an index" do
-    @tag :skip
     test "reads from disk" do
       pipeline = Pipeline.new(Pipeline.default_runners())
 
@@ -69,7 +67,6 @@ defmodule Elasticlunr.Storage.DiskTest do
   describe "getting all serialized indexes" do
     setup [:fixture_storage]
 
-    @tag :skip
     test "loads and deserialize indexes" do
       assert [%Index{name: "users"} = index] =
                Disk.load_all()
@@ -80,7 +77,6 @@ defmodule Elasticlunr.Storage.DiskTest do
   end
 
   describe "deleting index from storage" do
-    @tag :skip
     test "works successfully" do
       index = Index.new()
       options = Application.get_env(@otp_app, Disk)
@@ -91,7 +87,6 @@ defmodule Elasticlunr.Storage.DiskTest do
       refute File.exists?(file)
     end
 
-    @tag :skip
     test "fails for missing index" do
       assert {:error, :enoent} = Disk.delete("missing")
     end

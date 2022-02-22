@@ -21,6 +21,13 @@ defmodule Elasticlunr.Deserializer.Parser do
           index
       end
     end)
+    |> case do
+      {%Index{} = index, _} ->
+        index
+
+      result ->
+        result
+    end
   end
 
   defp parse(command, acc, [opts]), do: parse(command, acc, opts)
@@ -54,8 +61,11 @@ defmodule Elasticlunr.Deserializer.Parser do
           option
       end)
 
-    Index.add_field(index, opts[:name], opts)
+    index = Index.add_field(index, opts[:name], opts)
+    {index, extra}
   end
+
+  defp parse(_, acc, _), do: acc
 
   defp parse_pipeline(option, cache \\ %{}) do
     callbacks =

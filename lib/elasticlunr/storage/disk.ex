@@ -10,46 +10,70 @@ defmodule Elasticlunr.Storage.Disk do
   """
   use Elasticlunr.Storage
 
-  alias Elasticlunr.{Deserializer, Index, Serializer}
+  alias Elasticlunr.{DB, Deserializer, Index, Serializer}
+
+  require Logger
+
+  @data_file_ext "data"
+  @index_file_ext "index"
+
+  @extensions [@data_file_ext, @index_file_ext]
 
   @impl true
-  def write(%Index{name: name} = index) do
-    root_path = config(:directory, ".")
-    path = Path.join(root_path, "#{name}.index")
+  def write(%Index{db: db, name: name} = index) do
+    directory = config(:directory, ".")
     data = Serializer.serialize(index)
 
-    write_serialized_index_to_file(path, data)
+    with %{data: data_file, index: index_file} <- filenames(directory, name),
+         :ok <- DB.to_disk(db, data_file) do
+      write_serialized_index_to_file(index_file, data)
+    end
   end
 
   @impl true
   def read(name) do
-    root_path = config(:directory, ".")
-    file = Path.join(root_path, "#{name}.index")
+    directory = config(:directory, ".")
+    %{data: data_file, index: index_file} = filenames(directory, name)
 
-    File.stream!(file, ~w[compressed]a)
-    |> Deserializer.deserialize()
+    index =
+      File.stream!(index_file, ~w[compressed]a)
+      |> Deserializer.deserialize()
+
+    with %Index{db: db} <- index,
+         {:ok, db} <- DB.from(db, data_file) do
+      Index.update_documents_size(%{index | db: db})
+    else
+      false ->
+        Logger.info("[elasticlunr] unable to data for index #{index.name}")
+        index
+    end
   end
 
   @impl true
   def load_all do
-    Stream.map(files(), fn file ->
-      name = Path.basename(file, ".index")
+    files()
+    |> Stream.filter(&String.ends_with?(&1, @index_file_ext))
+    |> Stream.map(fn file ->
+      name = without_ext(file, @index_file_ext)
       read(name)
     end)
   end
 
   @impl true
   def delete(name) do
-    root_path = config(:directory, ".")
-    file = Path.join(root_path, "#{name}.index")
+    directory = config(:directory, ".")
+    %{data: data_file, index: index_file} = filenames(directory, name)
 
-    File.rm(file)
+    with :ok <- File.rm(index_file) do
+      File.rm(data_file)
+    end
   end
 
   @spec files() :: list(binary())
   def files do
-    root_path = config(:directory, ".")
-    match = Path.join(root_path, "*.index")
+    directory = config(:directory, ".")
+    extensions = Enum.map_join(@extensions, ",", & &1)
+    match = Path.join(directory, "*.{#{extensions}}")
 
     Path.wildcard(match)
     |> Enum.map(&Path.expand/1)
@@ -61,4 +85,13 @@ defmodule Elasticlunr.Storage.Disk do
     |> Stream.into(File.stream!(path, ~w[compressed]a), &"#{&1}\n")
     |> Stream.run()
   end
+
+  defp filenames(directory, name) do
+    %{
+      index: Path.join(directory, "#{name}.#{@index_file_ext}"),
+      data: Path.join(directory, "#{name}.#{@data_file_ext}") |> String.to_charlist()
+    }
+  end
+
+  defp without_ext(file, ext), do: Path.basename(file, ".#{ext}")
 end
