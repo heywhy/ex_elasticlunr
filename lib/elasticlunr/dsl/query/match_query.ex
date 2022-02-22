@@ -113,7 +113,7 @@ defmodule Elasticlunr.Dsl.MatchQuery do
 
         opts = to_match_params(params)
 
-        __MODULE__.new(
+        new(
           field: field,
           query: Keyword.get(opts, :query),
           expand: Keyword.get(opts, :expand),

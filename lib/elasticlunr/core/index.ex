@@ -126,7 +126,7 @@ defmodule Elasticlunr.Index do
   end
 
   defp add_document(fields, ref, document) do
-    Enum.map(fields, fn {attribute, field} ->
+    Enum.each(fields, fn {attribute, field} ->
       if document[attribute] do
         data = [
           %{id: document[ref], content: document[attribute]}

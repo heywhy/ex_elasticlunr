@@ -77,7 +77,7 @@ defmodule Elasticlunr.Dsl.TermsQuery do
 
     docs = Index.terms(index, query)
 
-    pick_score = fn a, b ->
+    pick_highest_score = fn a, b ->
       if(hd(a) > hd(b), do: a, else: b)
     end
 
@@ -88,7 +88,7 @@ defmodule Elasticlunr.Dsl.TermsQuery do
         |> Stream.map(fn doc ->
           [doc.tf * :math.pow(doc.idf, 2) * doc.norm, doc]
         end)
-        |> Enum.reduce([0, nil], pick_score)
+        |> Enum.reduce([0, nil], pick_highest_score)
 
       ob = %{
         ref: id,
