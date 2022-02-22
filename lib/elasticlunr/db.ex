@@ -22,6 +22,15 @@ defmodule Elasticlunr.DB do
   @spec delete(t(), term()) :: boolean()
   def delete(%__MODULE__{name: name}, pattern), do: :ets.delete(name, pattern)
 
+  @spec delete(t(), term()) :: boolean()
+  def destroy(%__MODULE__{name: name}) do
+    if Enum.member?(:ets.all(), name) do
+      :ets.delete(name)
+    else
+      true
+    end
+  end
+
   @spec insert(t(), term()) :: boolean()
   def insert(%__MODULE__{name: name}, data), do: :ets.insert(name, data)
 
