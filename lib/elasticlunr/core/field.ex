@@ -84,7 +84,7 @@ defmodule Elasticlunr.Field do
           term: term,
           tf: tf_lookup(field, term),
           flnorm: flnorm_lookup(field),
-          documents: matched_documents(field, term)
+          documents: matched_documents_for_term(field, term)
         }
     end
   end
@@ -143,7 +143,7 @@ defmodule Elasticlunr.Field do
   @spec length(t(), atom(), String.t()) :: pos_integer()
   def length(%__MODULE__{} = field, :term, term) do
     fun = [
-      {{{:field_idf, :"$1", :"$2"}, :_},
+      {{{:field_term, :"$1", :"$2", :_}, :_},
        [{:andalso, {:==, :"$1", field.name}, {:==, :"$2", term}}], [true]}
     ]
 
@@ -305,7 +305,7 @@ defmodule Elasticlunr.Field do
     DB.select_count(db, fun) > 0
   end
 
-  defp matched_documents(%{db: db, name: name}, term) do
+  defp matched_documents_for_term(%{db: db, name: name}, term) do
     case DB.match_object(db, {{:field_term, name, term, :_}, :_}) do
       [] ->
         []
@@ -370,8 +370,21 @@ defmodule Elasticlunr.Field do
     end
   end
 
+  defp flnorm_lookup(%{db: db, name: name}) do
+    case DB.lookup(db, {:field_flnorm, name}) do
+      [] ->
+        1
+
+      [{{:field_flnorm, _}, value}] ->
+        value
+    end
+  end
+
   defp recalculate_idf(field) do
-    terms = terms_lookup(field)
+    terms =
+      terms_lookup(field)
+      |> Stream.uniq_by(&elem(&1, 0))
+
     terms_length = Enum.count(terms)
 
     ids_length = length(field, :ids)
@@ -399,16 +412,6 @@ defmodule Elasticlunr.Field do
 
     true = DB.insert(field.db, {{:field_flnorm, field.name}, flnorm})
     field
-  end
-
-  defp flnorm_lookup(%{db: db, name: name}) do
-    case DB.lookup(db, {:field_flnorm, name}) do
-      [] ->
-        1
-
-      [{{:field_flnorm, _}, value}] ->
-        value
-    end
   end
 
   defp filter_ids(field, ids, term, matching_docs, query) do
