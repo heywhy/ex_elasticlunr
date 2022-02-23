@@ -280,13 +280,11 @@ defmodule Elasticlunr.Index do
   end
 
   defp persist(fields, ref, documents, persist_fn) do
-    documents
-    |> Flow.from_enumerable()
-    |> Flow.map(fn document ->
+    Task.async_stream(documents, fn document ->
       document = flatten_document(document)
       save(fields, ref, document, persist_fn)
     end)
-    |> Flow.run()
+    |> Stream.run()
   end
 
   defp save(fields, ref, document, callback) do

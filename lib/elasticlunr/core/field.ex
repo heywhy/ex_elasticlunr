@@ -345,15 +345,13 @@ defmodule Elasticlunr.Field do
 
     :ok =
       terms
-      |> Flow.from_enumerable()
-      |> Flow.map(fn {term, _id, _attrs} ->
+      |> Task.async_stream(fn {term, _id, _attrs} ->
         count = length(field, :term, term) + 1
         value = 1 + :math.log10(ids_length / count)
 
         true = DB.insert(field.db, {{:field_idf, field.name, term}, value})
       end)
-      |> Flow.partition()
-      |> Flow.run()
+      |> Stream.run()
 
     true = DB.insert(field.db, {{:field_flnorm, field.name}, flnorm})
     field
