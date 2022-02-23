@@ -25,7 +25,7 @@ defmodule Elasticlunr.Storage.Disk do
     data = Serializer.serialize(index)
 
     with %{data: data_file, index: index_file} <- filenames(directory, name),
-         :ok <- DB.to_disk(db, data_file) do
+         :ok <- DB.to(db, file: data_file) do
       write_serialized_index_to_file(index_file, data)
     end
   end
@@ -40,7 +40,7 @@ defmodule Elasticlunr.Storage.Disk do
       |> Deserializer.deserialize()
 
     with %Index{db: db} <- index,
-         {:ok, db} <- DB.from(db, data_file) do
+         {:ok, db} <- DB.from(db, file: data_file) do
       Index.update_documents_size(%{index | db: db})
     else
       false ->

@@ -45,8 +45,8 @@ defmodule Elasticlunr.DB do
   @spec select_count(t(), term()) :: pos_integer()
   def select_count(%__MODULE__{name: name}, spec), do: :ets.select_count(name, spec)
 
-  @spec from(t(), charlist()) :: {:ok, t()}
-  def from(%__MODULE__{name: name} = db, file) do
+  @spec from(t(), keyword()) :: {:ok, t()}
+  def from(%__MODULE__{name: name} = db, file: file) do
     with true <- File.exists?(file),
          {:ok, ^name} <- :dets.open_file(name, file: file),
          true <- :ets.from_dets(name, name) do
@@ -54,8 +54,8 @@ defmodule Elasticlunr.DB do
     end
   end
 
-  @spec to_disk(t(), charlist()) :: :ok
-  def to_disk(%__MODULE__{name: name}, file) do
+  @spec to(t(), keyword()) :: :ok
+  def to(%__MODULE__{name: name}, file: file) do
     unless Enum.member?(:dets.all(), name) do
       :dets.open_file(name, ram_file: true, file: file)
     end
