@@ -242,11 +242,13 @@ defmodule Elasticlunr.Field do
   end
 
   defp id_exists?(%{db: db, name: name}, id) do
-    fun = [
-      {{{:field_ids, :"$1", :"$2"}}, [{:andalso, {:==, :"$1", name}, {:==, :"$2", id}}], [true]}
-    ]
+    case DB.lookup(db, {:field_ids, name, id}) do
+      [] ->
+        false
 
-    DB.select_count(db, fun) > 0
+      _ ->
+        true
+    end
   end
 
   defp matched_documents_for_term(%{db: db, name: name}, term) do
