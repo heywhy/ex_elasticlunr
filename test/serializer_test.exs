@@ -8,7 +8,7 @@ defmodule Elasticlunr.SerializerTest do
 
     structure = [
       "settings#name:index|ref:id|pipeline:",
-      "db#name:elasticlunr_index|options:compressed,named_table,set,public",
+      "db#name:elasticlunr_index|options:compressed,named_table,ordered_set,public",
       "field#name:id|pipeline:Elixir.Elasticlunr.Index.IdPipeline|store_documents:false|store_positions:false"
     ]
 
@@ -25,7 +25,7 @@ defmodule Elasticlunr.SerializerTest do
 
     structure = [
       "settings#name:index|ref:id|pipeline:",
-      "db#name:elasticlunr_index|options:compressed,named_table,set,public",
+      "db#name:elasticlunr_index|options:compressed,named_table,ordered_set,public",
       "field#name:body|pipeline:|store_documents:true|store_positions:true",
       "field#name:id|pipeline:Elixir.Elasticlunr.Index.IdPipeline|store_documents:false|store_positions:false"
     ]

@@ -41,7 +41,7 @@ defmodule Elasticlunr.Index do
 
     name = Keyword.get_lazy(opts, :name, &UUID.uuid4/0)
     db_name = String.to_atom("elasticlunr_#{name}")
-    db = DB.init(db_name, ~w[set public]a)
+    db = DB.init(db_name, ~w[ordered_set public]a)
 
     id_field = Field.new(db: db, name: ref, pipeline: Pipeline.new([IdPipeline]))
     fields = Map.put(%{}, to_string(ref), id_field)
