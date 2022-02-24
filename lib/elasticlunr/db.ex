@@ -36,6 +36,9 @@ defmodule Elasticlunr.DB do
   @spec lookup(t(), term()) :: list(term())
   def lookup(%__MODULE__{name: name}, key), do: :ets.lookup(name, key)
 
+  @spec member?(t(), term()) :: boolean()
+  def member?(%__MODULE__{name: name}, key), do: :ets.member(name, key)
+
   @spec match_delete(t(), term()) :: boolean()
   def match_delete(%__MODULE__{name: name}, pattern), do: :ets.match_delete(name, pattern)
 

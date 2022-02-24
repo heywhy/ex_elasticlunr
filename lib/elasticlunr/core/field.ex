@@ -58,7 +58,9 @@ defmodule Elasticlunr.Field do
   end
 
   @spec has_token(t(), binary()) :: boolean()
-  def has_token(%__MODULE__{} = field, term), do: length(field, :idf, term) > 0
+  def has_token(%__MODULE__{} = field, term) do
+    DB.member?(field.db, {:field_idf, field.name, term})
+  end
 
   @spec get_token(t(), binary()) :: token_info() | nil
   def get_token(%__MODULE__{} = field, term) do
@@ -80,7 +82,7 @@ defmodule Elasticlunr.Field do
   @spec add(t(), list(document())) :: t()
   def add(%__MODULE__{pipeline: pipeline} = field, documents) do
     Enum.each(documents, fn %{id: id, content: content} ->
-      unless id_exists?(field, id) do
+      unless DB.member?(field.db, {:field_ids, field.name, id}) do
         tokens = Pipeline.run(pipeline, content)
 
         add_id(field, id)
@@ -93,36 +95,33 @@ defmodule Elasticlunr.Field do
 
   @spec length(t(), atom()) :: pos_integer()
   def length(%__MODULE__{db: db, name: name}, :ids) do
-    fun = [{{{:field_ids, :"$1", :_}}, [{:==, :"$1", name}], [true]}]
+    fun = [{{{:field_ids, name, :_}}, [], [true]}]
     DB.select_count(db, fun)
   end
 
   @spec length(t(), atom(), String.t()) :: pos_integer()
-  def length(%__MODULE__{} = field, :term, term) do
+  def length(%__MODULE__{db: db, name: name}, :term, term) do
     fun = [
-      {{{:field_term, :"$1", :"$2", :_}, :_},
-       [{:andalso, {:==, :"$1", field.name}, {:==, :"$2", term}}], [true]}
+      {{{:field_term, name, term, :_}, :_}, [], [true]}
     ]
 
-    DB.select_count(field.db, fun)
+    DB.select_count(db, fun)
   end
 
-  def length(%__MODULE__{} = field, :tf, term) do
+  def length(%__MODULE__{db: db, name: name}, :tf, term) do
     fun = [
-      {{{:field_tf, :"$1", :"$2", :_}, :_},
-       [{:andalso, {:==, :"$1", field.name}, {:==, :"$2", term}}], [true]}
+      {{{:field_tf, name, term, :_}, :_}, [], [true]}
     ]
 
-    DB.select_count(field.db, fun)
+    DB.select_count(db, fun)
   end
 
-  def length(%__MODULE__{} = field, :idf, term) do
+  def length(%__MODULE__{db: db, name: name}, :idf, term) do
     fun = [
-      {{{:field_idf, :"$1", :"$2"}, :_},
-       [{:andalso, {:==, :"$1", field.name}, {:==, :"$2", term}}], [true]}
+      {{{:field_idf, name, term}, :_}, [], [true]}
     ]
 
-    DB.select_count(field.db, fun)
+    DB.select_count(db, fun)
   end
 
   @spec update(t(), list(document())) :: t()
@@ -239,16 +238,6 @@ defmodule Elasticlunr.Field do
 
   defp add_id(%{db: db, name: name}, id) do
     true = DB.insert(db, {{:field_ids, name, id}})
-  end
-
-  defp id_exists?(%{db: db, name: name}, id) do
-    case DB.lookup(db, {:field_ids, name, id}) do
-      [] ->
-        false
-
-      _ ->
-        true
-    end
   end
 
   defp matched_documents_for_term(%{db: db, name: name}, term) do
