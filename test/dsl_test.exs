@@ -2,7 +2,7 @@ defmodule Elasticlunr.DslTest do
   use ExUnit.Case
 
   alias Elasticlunr.{Index, Pipeline, Token}
-  alias Elasticlunr.Dsl.{BoolQuery, MatchAllQuery, MatchQuery, TermsQuery}
+  alias Elasticlunr.Dsl.{BoolQuery, MatchAllQuery, MatchQuery, NotQuery, TermsQuery}
   alias Elasticlunr.Dsl.QueryRepository
 
   setup context do
@@ -218,6 +218,36 @@ defmodule Elasticlunr.DslTest do
       assert results = MatchQuery.score(query, index, [])
       assert Enum.count(results) == 1
       assert [%{ref: 1}] = results
+    end
+  end
+
+  describe "not" do
+    test "parses correctly" do
+      assert %NotQuery{inner_query: %BoolQuery{}} = QueryRepository.parse("not", %{"bool" => %{}})
+
+      assert %NotQuery{inner_query: %BoolQuery{}} =
+               QueryRepository.parse("not", %{
+                 "bool" => %{
+                   "should" => [
+                     %{"match" => %{"name" => "john"}}
+                   ]
+                 }
+               })
+    end
+
+    test "applies inner query", %{index: index} do
+      query =
+        NotQuery.new(
+          BoolQuery.new(
+            should: [
+              MatchQuery.new(field: "content", query: "quick"),
+              MatchQuery.new(field: "content", query: "lorem")
+            ]
+          )
+        )
+
+      assert results = NotQuery.score(query, index, [])
+      assert Enum.count(results) == 2
     end
   end
 end

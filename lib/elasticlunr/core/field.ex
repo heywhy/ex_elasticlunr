@@ -1,7 +1,7 @@
 defmodule Elasticlunr.Field do
-  alias Elasticlunr.{Pipeline, Token, Utils}
+  alias Elasticlunr.{DB, Pipeline, Token, Utils}
 
-  @fields ~w[pipeline query_pipeline store store_positions flnorm tf idf ids documents terms]a
+  @fields ~w[db name pipeline query_pipeline store store_positions]a
 
   @enforce_keys @fields
   defstruct @fields
@@ -9,16 +9,12 @@ defmodule Elasticlunr.Field do
   @type flnorm :: integer() | float()
 
   @type t :: %__MODULE__{
+          db: DB.t(),
+          name: String.t(),
           pipeline: Pipeline.t() | nil,
           query_pipeline: Pipeline.t() | nil,
           store: boolean(),
-          store_positions: boolean(),
-          flnorm: flnorm(),
-          tf: map(),
-          idf: map(),
-          terms: map(),
-          documents: map(),
-          ids: map()
+          store_positions: boolean()
         }
 
   @type document_ref :: atom() | binary()
@@ -33,53 +29,48 @@ defmodule Elasticlunr.Field do
 
   @spec new(keyword) :: t()
   def new(opts) do
-    attrs = %{
-      ids: %{},
-      tf: %{},
-      idf: %{},
-      flnorm: 1,
-      terms: %{},
-      documents: %{},
+    attrs = [
+      db: Keyword.get(opts, :db),
+      name: Keyword.get(opts, :name),
       pipeline: Keyword.get(opts, :pipeline),
       store: Keyword.get(opts, :store_documents, false),
       query_pipeline: Keyword.get(opts, :query_pipeline),
       store_positions: Keyword.get(opts, :store_positions, false)
-    }
+    ]
 
     struct!(__MODULE__, attrs)
   end
 
-  @spec all(t()) :: list(document_ref())
-  def all(%__MODULE__{ids: ids}), do: Map.keys(ids)
+  @spec documents(t()) :: list(document_ref())
+  def documents(%__MODULE__{db: db, name: name}) do
+    case DB.match_object(db, {{:field_ids, name, :_}}) do
+      [] ->
+        []
 
-  @spec term_frequency(t(), binary()) :: map()
-  def term_frequency(%__MODULE__{tf: tf}, term), do: Map.get(tf, term)
-
-  @spec has_token(t(), binary()) :: boolean()
-  def has_token(%__MODULE__{idf: idf}, term) do
-    case Map.get(idf, term) do
-      nil ->
-        false
-
-      count ->
-        count > 0
+      ids ->
+        Stream.map(ids, fn {{:field_ids, _, id}} -> id end)
     end
   end
 
+  @spec term_frequency(t(), binary()) :: map()
+  def term_frequency(%__MODULE__{} = field, term) do
+    tf_lookup(field, term)
+  end
+
+  @spec has_token(t(), binary()) :: boolean()
+  def has_token(%__MODULE__{} = field, term) do
+    DB.member?(field.db, {:field_idf, field.name, term})
+  end
+
   @spec get_token(t(), binary()) :: token_info() | nil
-  def get_token(%__MODULE__{idf: idf, tf: tf, flnorm: flnorm}, term) do
-    case Map.get(idf, term) do
+  def get_token(%__MODULE__{} = field, term) do
+    case idf_lookup(field, term) do
       nil ->
         nil
 
       _ ->
-        %{
-          term: term,
-          flnorm: flnorm,
-          tf: Map.get(tf, term),
-          idf: Map.get(idf, term),
-          documents: Map.get(tf, term, %{}) |> Map.keys()
-        }
+        flnorm = flnorm_lookup(field)
+        to_field_token(field, term, flnorm)
     end
   end
 
@@ -89,98 +80,48 @@ defmodule Elasticlunr.Field do
   end
 
   @spec add(t(), list(document())) :: t()
-  def add(%__MODULE__{ids: ids, store: store, pipeline: pipeline} = field, documents) do
-    Enum.reduce(documents, field, fn %{id: id, content: content}, field ->
-      if Map.has_key?(ids, id) do
-        raise "Document id #{id} already exists in the index"
+  def add(%__MODULE__{pipeline: pipeline} = field, documents) do
+    Enum.each(documents, fn %{id: id, content: content} ->
+      unless DB.member?(field.db, {:field_ids, field.name, id}) do
+        tokens = Pipeline.run(pipeline, content)
+
+        add_id(field, id)
+        update_field_stats(field, id, tokens)
       end
-
-      field =
-        case store do
-          false ->
-            field
-
-          true ->
-            %{documents: documents} = field
-            %{field | documents: Map.put(documents, id, content)}
-        end
-
-      %{ids: ids} = field
-      field = %{field | ids: Map.put(ids, id, true)}
-      tokens = Pipeline.run(pipeline, content)
-
-      update_field_stats(field, id, tokens)
     end)
-    |> recalculate_idf()
+
+    recalculate_idf(field)
   end
 
-  @spec set_token(t(), binary(), map()) :: t()
-  def set_token(%__MODULE__{} = field, term, documents) do
-    Enum.reduce(documents, field, fn {doc_id, opts}, field ->
-      ct = :math.pow(opts.tf, 2)
-
-      %{ids: ids, tf: tf, terms: terms} = field
-      term_map = Map.get(terms, term, %{})
-
-      term_map =
-        Map.put(term_map, doc_id, %{
-          total: trunc(ct),
-          positions: opts[:positions] || []
-        })
-
-      terms = Map.put(terms, term, term_map)
-
-      tf_map = Map.get(tf, term, %{})
-      tf_map = Map.put(tf_map, doc_id, opts.tf)
-
-      tf = Map.put(tf, term, tf_map)
-
-      %{field | terms: terms, tf: tf, ids: Map.put(ids, doc_id, true)}
-    end)
-    |> recalculate_idf()
+  @spec length(t(), atom()) :: pos_integer()
+  def length(%__MODULE__{db: db, name: name}, :ids) do
+    fun = [{{{:field_ids, name, :_}}, [], [true]}]
+    DB.select_count(db, fun)
   end
 
-  defp update_field_stats(field, id, tokens) do
-    tokens
-    |> Stream.map(&to_token/1)
-    |> Enum.reduce(field, fn token, field ->
-      %Token{token: term} = token
-      %{tf: tf, terms: terms} = field
+  @spec length(t(), atom(), String.t()) :: pos_integer()
+  def length(%__MODULE__{db: db, name: name}, :term, term) do
+    fun = [
+      {{{:field_term, name, term, :_}, :_}, [], [true]}
+    ]
 
-      terms = Map.put_new(terms, term, %{})
+    DB.select_count(db, fun)
+  end
 
-      term_attrs =
-        terms
-        |> Map.get(term)
-        |> Map.put_new(id, %{
-          total: 0,
-          positions: []
-        })
+  def length(%__MODULE__{db: db, name: name}, :tf, term) do
+    fun = [
+      {{{:field_tf, name, term, :_}, :_}, [], [true]}
+    ]
 
-      attr = Map.get(term_attrs, id)
-      %{total: total, positions: positions} = attr
+    DB.select_count(db, fun)
+  end
 
-      positions =
-        case Token.get_position(token) do
-          nil ->
-            positions
+  def length(%__MODULE__{db: db, name: name}, :idf, term) do
+    fun = [
+      {{{:field_idf, name, term}, :_}, [], [true]}
+    ]
 
-          position ->
-            positions ++ [position]
-        end
-
-      total = total + 1
-      term_attrs = Map.put(term_attrs, id, %{attr | positions: positions, total: total})
-
-      terms = Map.put(terms, term, term_attrs)
-
-      tf =
-        tf
-        |> Map.put_new(term, %{})
-        |> put_in([term, id], :math.sqrt(total))
-
-      %{field | tf: tf, terms: terms}
-    end)
+    DB.select_count(db, fun)
   end
 
   @spec update(t(), list(document())) :: t()
@@ -193,92 +134,55 @@ defmodule Elasticlunr.Field do
   end
 
   @spec remove(t(), list(document_ref())) :: t()
-  def remove(%__MODULE__{terms: terms} = field, document_ids) do
-    trim_field = fn field, key ->
-      %{tf: tf, idf: idf, terms: terms} = field
-
-      if Enum.empty?(terms[key]) do
-        %{
-          field
-          | tf: Map.delete(tf, key),
-            idf: Map.delete(idf, key),
-            terms: Map.delete(terms, key)
-        }
-      else
-        field
-      end
-    end
-
-    clean_up_terms = fn {key, value}, id, field ->
-      case Map.get(value, id) do
-        nil ->
-          field
-
-        _ ->
-          %{tf: tf, terms: terms} = field
-
-          tf_value = Map.get(tf, key)
-          terms = Map.put(terms, key, Map.delete(value, id))
-          tf = Map.put(tf, key, Map.delete(tf_value, id))
-          field = %{field | tf: tf, terms: terms}
-
-          trim_field.(field, key)
-      end
-    end
-
-    document_ids
-    |> Enum.reduce(field, fn document_id, %{ids: ids, documents: documents} = field ->
-      documents = Map.delete(documents, document_id)
-      ids = Map.delete(ids, document_id)
-
-      Enum.reduce(terms, %{field | ids: ids, documents: documents}, fn term, field ->
-        clean_up_terms.(term, document_id, field)
-      end)
+  def remove(%__MODULE__{db: db, name: name} = field, document_ids) do
+    Enum.each(document_ids, fn id ->
+      true = DB.match_delete(db, {{:field_term, name, :_, id}, :_})
+      true = DB.match_delete(db, {{:field_tf, name, :_, id}, :_})
+      true = DB.match_delete(db, {{:field_idf, name, :_}, :_})
+      true = DB.delete(db, {:field_ids, name, id})
     end)
-    |> recalculate_idf()
+
+    recalculate_idf(field)
   end
 
-  @spec analyze(t(), any(), keyword) :: Token.t() | list(Token.t())
-  def analyze(%__MODULE__{pipeline: pipeline, query_pipeline: query_pipeline}, str, options) do
+  @spec analyze(t(), any(), keyword) :: list(Token.t())
+  def analyze(%__MODULE__{pipeline: pipeline, query_pipeline: query_pipeline}, content, options) do
     case Keyword.get(options, :is_query, false) && not is_nil(query_pipeline) do
       true ->
-        Pipeline.run(query_pipeline, str)
+        Pipeline.run(query_pipeline, content)
 
       false ->
-        Pipeline.run(pipeline, str)
+        Pipeline.run(pipeline, content)
     end
   end
 
   @spec terms(t(), keyword()) :: any()
-  def terms(%__MODULE__{terms: terms} = field, query) do
-    fuzz = Keyword.get(query, :fuzziness) || 0
-    msm = Keyword.get(query, :minimum_should_match) || 1
+  def terms(%__MODULE__{} = field, query) do
+    fuzz = Keyword.get(query, :fuzziness, 0)
+    msm = Keyword.get(query, :minimum_should_match, 1)
+
+    terms = terms_lookup(field)
 
     matching_docs =
-      query
-      |> Keyword.get(:terms)
-      |> Stream.map(fn
+      Stream.map(query[:terms], fn
         %Regex{} = re -> re
         val -> to_token(val)
       end)
       |> Enum.reduce(%{}, fn
         %Regex{} = re, matching_docs ->
-          matched_terms =
-            terms
-            |> Map.keys()
-            |> Stream.filter(&Regex.match?(re, &1))
+          matched_terms = Stream.filter(terms, &Regex.match?(re, elem(&1, 0)))
 
-          Enum.reduce(matched_terms, matching_docs, fn term, matching_docs ->
-            ids = Map.get(terms, term) |> Map.keys()
+          Enum.reduce(matched_terms, matching_docs, fn {term, _, _}, matching_docs ->
+            ids = matching_ids(field, term)
 
             filter_ids(field, ids, term, matching_docs, query)
           end)
 
         %Token{token: term}, matching_docs ->
           matching_docs =
-            case fuzz == 0 && Map.has_key?(terms, term) do
+            case fuzz == 0 && length(field, :term, term) > 0 do
               true ->
-                ids = Map.keys(Map.get(terms, term))
+                ids = matching_ids(field, term)
 
                 filter_ids(field, ids, term, matching_docs, query)
 
@@ -300,25 +204,126 @@ defmodule Elasticlunr.Field do
     end
   end
 
-  @spec all_tokens(Elasticlunr.Field.t()) :: Enum.t()
-  def all_tokens(%__MODULE__{tf: tf, idf: idf, flnorm: flnorm, terms: terms}) do
-    Map.keys(terms)
-    |> Stream.map(fn term ->
-      tf = Map.get(tf, term, %{})
+  @spec tokens(Elasticlunr.Field.t()) :: Enumerable.t()
+  def tokens(%__MODULE__{} = field) do
+    flnorm = flnorm_lookup(field)
 
-      %{
-        tf: tf,
-        term: term,
-        terms: Map.get(terms, term),
-        idf: Map.get(idf, term),
-        norm: flnorm,
-        documents: Map.keys(tf)
-      }
+    unique_terms_lookup(field)
+    |> Stream.map(fn {term, _, _} ->
+      to_field_token(field, term, flnorm)
     end)
   end
 
-  defp recalculate_idf(%{idf: idf, ids: ids, terms: terms} = field) do
+  defp update_field_stats(%{db: db, name: name} = field, id, tokens) do
+    Enum.each(tokens, fn token ->
+      %Token{token: term} = token
+
+      term_attrs = term_lookup(field, term, id)
+
+      term_attrs =
+        case Token.get_position(token) do
+          nil ->
+            term_attrs
+
+          position ->
+            %{term_attrs | positions: term_attrs.positions ++ [position]}
+        end
+
+      term_attrs = %{term_attrs | total: term_attrs.total + 1}
+
+      true = DB.insert(db, {{:field_term, name, term, id}, term_attrs})
+      true = DB.insert(db, {{:field_tf, name, term, id}, :math.sqrt(term_attrs.total)})
+    end)
+  end
+
+  defp add_id(%{db: db, name: name}, id) do
+    true = DB.insert(db, {{:field_ids, name, id}})
+  end
+
+  defp matched_documents_for_term(%{db: db, name: name}, term) do
+    db
+    |> DB.match_object({{:field_term, name, term, :_}, :_})
+    |> Stream.map(fn {{:field_term, _, _, id}, _} -> id end)
+  end
+
+  defp term_lookup(%{db: db, name: name}, term, id) do
+    case DB.match_object(db, {{:field_term, name, term, id}, :_}) do
+      [] ->
+        %{total: 0, positions: []}
+
+      [{_, attrs}] ->
+        attrs
+    end
+  end
+
+  defp terms_lookup(%{db: db, name: name}) do
+    db
+    |> DB.match_object({{:field_term, name, :_, :_}, :_})
+    |> Stream.map(&termify/1)
+  end
+
+  defp terms_lookup(%{db: db, name: name}, term) do
+    db
+    |> DB.match_object({{:field_term, name, term, :_}, :_})
+    |> Stream.map(&termify/1)
+  end
+
+  defp termify({{:field_term, _, term, id}, attrs}), do: {term, id, attrs}
+
+  defp tf_lookup(%{db: db, name: name}, term) do
+    case DB.match_object(db, {{:field_tf, name, term, :_}, :_}) do
+      [] ->
+        nil
+
+      terms ->
+        terms
+        |> Stream.map(fn {{:field_tf, _, _, id}, count} ->
+          {id, count}
+        end)
+    end
+  end
+
+  defp tf_lookup(%{db: db, name: name}, term, id) do
+    case DB.match_object(db, {{:field_tf, name, term, id}, :_}) do
+      [] ->
+        nil
+
+      [{{:field_tf, _, _, id}, count}] ->
+        {id, count}
+    end
+  end
+
+  defp idf_lookup(%{db: db, name: name}, term) do
+    case DB.match_object(db, {{:field_idf, name, term}, :_}) do
+      [] ->
+        nil
+
+      [{{:field_idf, _, _}, value}] ->
+        value
+    end
+  end
+
+  defp flnorm_lookup(%{db: db, name: name}) do
+    case DB.lookup(db, {:field_flnorm, name}) do
+      [] ->
+        1
+
+      [{{:field_flnorm, _}, value}] ->
+        value
+    end
+  end
+
+  defp unique_terms_lookup(field) do
+    terms_lookup(field)
+    |> Stream.uniq_by(&elem(&1, 0))
+  end
+
+  defp recalculate_idf(field) do
+    terms = unique_terms_lookup(field)
+
     terms_length = Enum.count(terms)
+
+    ids_length = length(field, :ids)
 
     flnorm =
       case terms_length > 0 do
@@ -329,24 +334,18 @@ defmodule Elasticlunr.Field do
           0
       end
 
-    ids_length = Enum.count(ids)
-
-    idf =
+    :ok =
       terms
-      |> Map.keys()
-      |> Stream.map(&to_token/1)
-      |> Enum.reduce(idf, fn %Token{token: token}, idf ->
-        token_length =
-          terms
-          |> Map.get(token)
-          |> Enum.count()
-          |> Kernel.+(1)
+      |> Task.async_stream(fn {term, _id, _attrs} ->
+        count = length(field, :term, term) + 1
+        value = 1 + :math.log10(ids_length / count)
 
-        value = 1 + :math.log10(ids_length / token_length)
-        Map.put(idf, token, value)
+        true = DB.insert(field.db, {{:field_idf, field.name, term}, value})
       end)
+      |> Stream.run()
 
-    %{field | idf: idf, flnorm: flnorm}
+    true = DB.insert(field.db, {{:field_flnorm, field.name}, flnorm})
+    field
   end
 
   defp filter_ids(field, ids, term, matching_docs, query) do
@@ -354,7 +353,7 @@ defmodule Elasticlunr.Field do
 
     case docs do
       docs when is_list(docs) ->
-        Enum.filter(ids, &(&1 in docs))
+        Stream.filter(ids, &(&1 in docs))
 
       _ ->
         ids
@@ -374,12 +373,12 @@ defmodule Elasticlunr.Field do
     end)
   end
 
-  defp match_with_fuzz(%{terms: terms} = field, term, fuzz, query, matching_docs) when fuzz > 0 do
-    terms
-    |> Map.keys()
-    |> Enum.reduce(matching_docs, fn key, matching_docs ->
+  defp match_with_fuzz(field, term, fuzz, query, matching_docs) when fuzz > 0 do
+    field
+    |> unique_terms_lookup()
+    |> Enum.reduce(matching_docs, fn {key, _id, _attr}, matching_docs ->
       if Utils.levenshtein_distance(key, term) <= fuzz do
-        ids = Map.keys(Map.get(terms, key))
+        ids = matching_ids(field, term)
         filter_ids(field, ids, key, matching_docs, query)
       else
         matching_docs
@@ -389,34 +388,40 @@ defmodule Elasticlunr.Field do
 
   defp match_with_fuzz(_field, _term, _fuzz, _query, matching_docs), do: matching_docs
 
-  defp extract_matched(
-         %{idf: idf, tf: tf, terms: terms, flnorm: flnorm, store: store, documents: documents},
-         term,
-         id
-       ) do
-    positions = get_in(terms, [term, id, :positions])
-    tf = get_in(tf, [term, id])
-    idf = Map.get(idf, term)
+  defp matching_ids(field, term) do
+    terms_lookup(field, term)
+    |> Stream.map(&elem(&1, 1))
+  end
 
-    content =
-      case store && Map.has_key?(documents, id) do
-        true ->
-          Map.get(documents, id)
+  defp get_content(_field, _id) do
+    nil
+  end
 
-        false ->
-          nil
-      end
+  defp extract_matched(field, term, id) do
+    attrs = term_lookup(field, term, id)
+    positions = Map.get(attrs, :positions)
+    {^id, tf} = tf_lookup(field, term, id)
 
     %{
       tf: tf,
       ref: id,
-      idf: idf,
-      norm: flnorm,
-      content: content,
-      positions: positions
+      positions: positions,
+      norm: flnorm_lookup(field),
+      idf: idf_lookup(field, term),
+      content: get_content(field, id)
     }
   end
 
   defp to_token(%Token{} = token), do: token
   defp to_token(token), do: Token.new(token)
+
+  defp to_field_token(field, term, flnorm) do
+    %{
+      term: term,
+      norm: flnorm,
+      tf: length(field, :tf, term),
+      idf: idf_lookup(field, term),
+      documents: matched_documents_for_term(field, term)
+    }
+  end
 end

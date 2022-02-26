@@ -26,43 +26,36 @@ defimpl Elasticlunr.Serializer, for: Elasticlunr.Field do
   end
 end
 
-defimpl Elasticlunr.Serializer, for: Elasticlunr.Index do
-  alias Elasticlunr.{Field, Index, Pipeline, Serializer}
+defimpl Elasticlunr.Serializer, for: Elasticlunr.DB do
+  alias Elasticlunr.DB
 
-  def serialize(%Index{fields: fields, name: name, pipeline: pipeline, ref: ref}, _opts) do
-    %Pipeline{callback: callback} = pipeline
-    pipeline = Serializer.serialize(pipeline)
+  def serialize(%DB{name: name, options: options}, _opts) do
+    options = Enum.map_join(options, ",", &to_string(&1))
+
+    "db#name:#{name}|options:#{options}"
+  end
+end
+
+defimpl Elasticlunr.Serializer, for: Elasticlunr.Index do
+  alias Elasticlunr.{Index, Serializer}
+
+  def serialize(%Index{db: db, fields: fields, name: name, pipeline: pipeline, ref: ref}, _opts) do
+    pipeline_opt = Serializer.serialize(pipeline)
+    db_settings = Serializer.serialize(db)
 
     {_, pipeline_map} =
-      Enum.reduce(callback, {0, %{}}, fn callback, {index, map} ->
+      Enum.reduce(pipeline.callback, {0, %{}}, fn callback, {index, map} ->
         {index + 1, Map.put(map, callback, index)}
       end)
 
-    settings = "settings#name:#{name}|ref:#{ref}|pipeline:#{pipeline}"
+    settings = "settings#name:#{name}|ref:#{ref}|pipeline:#{pipeline_opt}"
 
     fields_settings =
       Stream.map(fields, fn {name, field} ->
         Serializer.serialize(field, name: name, pipeline: pipeline_map)
       end)
 
-    fields_documents =
-      Stream.map(fields, fn {name, %Field{documents: documents}} ->
-        {:ok, data} = Jason.encode(documents)
-        "documents##{name}|#{data}"
-      end)
-
-    tokens =
-      fields
-      |> Stream.map(fn {name, field} ->
-        Field.all_tokens(field)
-        |> Stream.map(fn token ->
-          {:ok, data} = Jason.encode(token)
-          "token#field:#{name}|#{data}"
-        end)
-      end)
-      |> Stream.flat_map(& &1)
-
-    [settings, fields_settings, fields_documents, tokens]
+    [settings, db_settings, fields_settings]
     |> Stream.flat_map(fn
       list when is_list(list) -> list
       value when is_binary(value) -> [value]

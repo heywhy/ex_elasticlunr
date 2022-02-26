@@ -10,17 +10,18 @@ defmodule Elasticlunr.Index.IdPipeline do
 end
 
 defmodule Elasticlunr.Index do
-  alias Elasticlunr.{Field, Pipeline, Token}
+  alias Elasticlunr.{DB, Field, Pipeline}
   alias Elasticlunr.Index.IdPipeline
   alias Elasticlunr.Dsl.{Query, QueryRepository}
 
-  @fields ~w[fields name ref pipeline documents_size store_positions store_documents]a
+  @fields ~w[db fields name ref pipeline documents_size store_positions store_documents]a
   @enforce_keys @fields
   defstruct @fields
 
   @type document_field :: atom() | binary()
 
   @type t :: %__MODULE__{
+          db: DB.t(),
           fields: map(),
           documents_size: integer(),
           ref: Field.document_ref(),
@@ -38,15 +39,20 @@ defmodule Elasticlunr.Index do
     ref = Keyword.get(opts, :ref, "id")
     pipeline = Keyword.get_lazy(opts, :pipeline, &Pipeline.new/0)
 
-    id_field = Field.new(pipeline: Pipeline.new([IdPipeline]))
+    name = Keyword.get_lazy(opts, :name, &UUID.uuid4/0)
+    db_name = String.to_atom("elasticlunr_#{name}")
+    db = DB.init(db_name, ~w[ordered_set public]a)
+
+    id_field = Field.new(db: db, name: ref, pipeline: Pipeline.new([IdPipeline]))
     fields = Map.put(%{}, to_string(ref), id_field)
 
     attrs = %{
+      db: db,
       documents_size: 0,
       ref: ref,
       fields: fields,
       pipeline: pipeline,
-      name: Keyword.get_lazy(opts, :name, &UUID.uuid4/0),
+      name: name,
       store_documents: Keyword.get(opts, :store_documents, true),
       store_positions: Keyword.get(opts, :store_positions, true)
     }
@@ -57,6 +63,7 @@ defmodule Elasticlunr.Index do
   @spec add_field(t(), document_field(), keyword()) :: t()
   def add_field(
         %__MODULE__{
+          db: db,
           fields: fields,
           pipeline: pipeline,
           store_positions: store_positions,
@@ -68,6 +75,8 @@ defmodule Elasticlunr.Index do
       when is_binary(field) do
     opts =
       opts
+      |> Keyword.put(:db, db)
+      |> Keyword.put(:name, field)
       |> Keyword.put_new(:pipeline, pipeline)
       |> Keyword.put_new(:store_documents, store_documents)
       |> Keyword.put_new(:store_positions, store_positions)
@@ -103,65 +112,36 @@ defmodule Elasticlunr.Index do
   end
 
   @spec add_documents(t(), list(map())) :: t()
-  def add_documents(%__MODULE__{} = index, documents) do
-    docs_length = length(documents)
-
-    [index] =
-      transform_documents(index, documents)
-      |> Stream.with_index(1)
-      |> Stream.drop_while(fn {_, index} -> index < docs_length end)
-      |> Stream.map(&elem(&1, 0))
-      |> Enum.to_list()
+  def add_documents(%__MODULE__{fields: fields, ref: ref} = index, documents) do
+    :ok = persist(fields, ref, documents, &Field.add/2)
 
     update_documents_size(index)
   end
 
   @spec update_documents(t(), list(map())) :: t()
   def update_documents(%__MODULE__{ref: ref, fields: fields} = index, documents) do
-    transform_document = fn {key, content}, {document, fields} ->
-      case Map.get(fields, key) do
-        nil ->
-          {document, fields}
+    :ok = persist(fields, ref, documents, &Field.update/2)
 
-        %Field{} = field ->
-          id = Map.get(document, ref)
-          field = Field.update(field, [%{id: id, content: content}])
-          fields = Map.put(fields, key, field)
-
-          {document, fields}
-      end
-    end
-
-    fields =
-      Enum.reduce(documents, fields, fn document, fields ->
-        document
-        |> Enum.reduce({document, fields}, transform_document)
-        |> elem(1)
-      end)
-
-    update_documents_size(%{index | fields: fields})
+    update_documents_size(index)
   end
 
   @spec remove_documents(t(), list(Field.document_ref())) :: t()
   def remove_documents(%__MODULE__{fields: fields} = index, document_ids) do
-    fields =
-      Enum.reduce(fields, fields, fn {key, field}, fields ->
-        field = Field.remove(field, document_ids)
+    Enum.each(fields, fn {_, field} ->
+      Field.remove(field, document_ids)
+    end)
 
-        Map.put(fields, key, field)
-      end)
-
-    update_documents_size(%{index | fields: fields})
+    update_documents_size(index)
   end
 
-  @spec analyze(t(), document_field(), any(), keyword()) :: Token.t() | list(Token.t())
+  @spec analyze(t(), document_field(), any(), keyword()) :: Enumerable.t()
   def analyze(%__MODULE__{fields: fields}, field, content, options) do
     fields
     |> Map.get(field)
     |> Field.analyze(content, options)
   end
 
-  @spec terms(t(), keyword()) :: any()
+  @spec terms(t(), keyword()) :: Enumerable.t()
   def terms(%__MODULE__{fields: fields}, query) do
     field = Keyword.get(query, :field)
 
@@ -174,7 +154,23 @@ defmodule Elasticlunr.Index do
   def all(%__MODULE__{ref: ref, fields: fields}) do
     fields
     |> Map.get(ref)
-    |> Field.all()
+    |> Field.documents()
+  end
+
+  @spec update_documents_size(t()) :: t()
+  def update_documents_size(%__MODULE__{fields: fields} = index) do
+    size =
+      Enum.reduce(fields, 0, fn {_, field}, acc ->
+        size = Field.length(field, :ids)
+
+        if size > acc do
+          size
+        else
+          acc
+        end
+      end)
+
+    %{index | documents_size: size}
   end
 
   @spec search(t(), search_query(), map() | nil) :: list(search_result())
@@ -272,64 +268,6 @@ defmodule Elasticlunr.Index do
     raise "Root object must have a query element"
   end
 
-  defp update_documents_size(%__MODULE__{fields: fields} = index) do
-    size =
-      index
-      |> get_fields()
-      |> Enum.map(fn field ->
-        field = Map.get(fields, field)
-        Enum.count(field.ids)
-      end)
-      |> Enum.reduce(0, fn size, acc ->
-        case size > acc do
-          true ->
-            size
-
-          false ->
-            acc
-        end
-      end)
-
-    %{index | documents_size: size}
-  end
-
-  defp transform_documents(%{ref: ref} = index, documents) do
-    add_or_ignore_field = fn index, key, fields ->
-      case Map.get(fields, key) do
-        nil ->
-          add_field(index, key)
-
-        %Field{} ->
-          index
-      end
-    end
-
-    documents
-    |> Stream.map(&flatten_document/1)
-    |> Stream.scan(index, fn document, index ->
-      %{fields: fields} = index
-
-      recognized_keys =
-        Map.keys(document)
-        |> Stream.filter(fn attribute ->
-          [field | _tail] = String.split(attribute, ".")
-          Map.has_key?(fields, field)
-        end)
-
-      Enum.reduce(recognized_keys, index, fn key, index ->
-        index = add_or_ignore_field.(index, key, fields)
-        field = get_field(index, key)
-        field = Field.add(field, [%{id: Map.get(document, ref), content: Map.get(document, key)}])
-
-        patch_field(index, key, field)
-      end)
-    end)
-  end
-
-  defp patch_field(%{fields: fields} = index, key, %Field{} = field) do
-    %{index | fields: Map.put(fields, key, field)}
-  end
-
   defp flatten_document(document, prefix \\ "") do
     Enum.reduce(document, %{}, fn
       {key, value}, transformed when is_map(value) ->
@@ -338,6 +276,26 @@ defmodule Elasticlunr.Index do
 
       {key, value}, transformed ->
         Map.put(transformed, "#{prefix}#{key}", value)
+    end)
+  end
+
+  defp persist(fields, ref, documents, persist_fn) do
+    Task.async_stream(documents, fn document ->
+      document = flatten_document(document)
+      save(fields, ref, document, persist_fn)
+    end)
+    |> Stream.run()
+  end
+
+  defp save(fields, ref, document, callback) do
+    Enum.each(fields, fn {attribute, field} ->
+      if document[attribute] do
+        data = [
+          %{id: document[ref], content: document[attribute]}
+        ]
+
+        callback.(field, data)
+      end
     end)
   end
 end

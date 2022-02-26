@@ -4,7 +4,7 @@ defprotocol Elasticlunr.Deserializer do
 end
 
 defmodule Elasticlunr.Deserializer.Parser do
-  alias Elasticlunr.{Field, Index, Pipeline}
+  alias Elasticlunr.{Index, Pipeline}
 
   @spec process(Enum.t()) :: Index.t()
   def process(data) do
@@ -21,6 +21,13 @@ defmodule Elasticlunr.Deserializer.Parser do
           index
       end
     end)
+    |> case do
+      {%Index{} = index, _} ->
+        index
+
+      result ->
+        result
+    end
   end
 
   defp parse(command, acc, [opts]), do: parse(command, acc, opts)
@@ -40,6 +47,8 @@ defmodule Elasticlunr.Deserializer.Parser do
     {Index.new(opts), %{pipeline: pipeline_map}}
   end
 
+  defp parse("db", acc, _), do: acc
+
   defp parse("field", {index, extra}, opts) do
     opts = to_options(opts)
 
@@ -56,53 +65,7 @@ defmodule Elasticlunr.Deserializer.Parser do
     {index, extra}
   end
 
-  defp parse("documents", {index, _}, opts), do: parse("documents", index, opts)
-
-  defp parse("documents", index, data) do
-    [name | tail] = String.split(data, "|")
-    [encoded_data] = tail
-    field = Index.get_field(index, name)
-    {:ok, documents} = Jason.decode(encoded_data)
-
-    Index.update_field(index, name, %{field | documents: documents})
-  end
-
-  defp parse("token", index, "field:" <> data) do
-    [name | tail] = String.split(data, "|")
-    [encoded_data] = tail
-    {:ok, token} = Jason.decode(encoded_data)
-
-    %{"term" => term, "terms" => terms, "tf" => tf} = token
-
-    re =
-      Enum.reduce(tf, %{}, fn {doc_id, tf}, acc ->
-        Map.put(acc, doc_id, %{tf: tf})
-      end)
-
-    re =
-      Enum.reduce(terms, re, fn {doc_id, info}, acc ->
-        val = Map.get(acc, doc_id, %{})
-
-        val =
-          case Map.get(info, "positions") do
-            nil ->
-              val
-
-            positions when is_list(positions) ->
-              # credo:disable-for-next-line
-              positions = Enum.map(positions, fn [start | [endp]] -> {start, endp} end)
-
-              Map.put(val, :positions, positions)
-          end
-
-        Map.put(acc, doc_id, val)
-      end)
-
-    field = Index.get_field(index, name)
-    field = Field.set_token(field, term, re)
-
-    Index.update_field(index, name, field)
-  end
+  defp parse(_, acc, _), do: acc
 
   defp parse_pipeline(option, cache \\ %{}) do
     callbacks =
