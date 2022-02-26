@@ -7,7 +7,7 @@ defmodule Elasticlunr.SerializerTest do
     index = Index.new(name: "index")
 
     structure = [
-      "settings#name:index|ref:id|pipeline:",
+      "settings#name:index|ref:id|pipeline:|on_conflict:index",
       "db#name:elasticlunr_index|options:compressed,named_table,ordered_set,public",
       "field#name:id|pipeline:Elixir.Elasticlunr.Index.IdPipeline|store_documents:false|store_positions:false"
     ]
@@ -24,7 +24,7 @@ defmodule Elasticlunr.SerializerTest do
       |> Index.add_documents([%{"id" => 1, "body" => "hello world"}])
 
     structure = [
-      "settings#name:index|ref:id|pipeline:",
+      "settings#name:index|ref:id|pipeline:|on_conflict:index",
       "db#name:elasticlunr_index|options:compressed,named_table,ordered_set,public",
       "field#name:body|pipeline:|store_documents:true|store_positions:true",
       "field#name:id|pipeline:Elixir.Elasticlunr.Index.IdPipeline|store_documents:false|store_positions:false"

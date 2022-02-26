@@ -6,7 +6,7 @@ end
 defmodule Elasticlunr.Deserializer.Parser do
   alias Elasticlunr.{Index, Pipeline}
 
-  @spec process(Enum.t()) :: Index.t()
+  @spec process(Enumerable.t()) :: Index.t()
   def process(data) do
     Enum.reduce(data, nil, fn line, acc ->
       [command | opts] =
@@ -42,7 +42,10 @@ defmodule Elasticlunr.Deserializer.Parser do
         {index + 1, Map.put(map, to_string(index), String.to_atom(callback))}
       end)
 
-    opts = Keyword.replace(opts, :pipeline, parse_pipeline(opts[:pipeline]))
+    opts =
+      opts
+      |> Keyword.replace(:pipeline, parse_pipeline(opts[:pipeline]))
+      |> Keyword.replace(:on_conflict, String.to_atom(opts[:on_conflict]))
 
     {Index.new(opts), %{pipeline: pipeline_map}}
   end
