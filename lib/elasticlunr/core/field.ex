@@ -1,7 +1,7 @@
 defmodule Elasticlunr.Field do
   alias Elasticlunr.{Pipeline, Token, Utils}
 
-  @fields ~w[pipeline query_pipeline store store_positions flnorm tf idf ids documents terms]a
+  @fields ~w[pipeline query_pipeline store store_positions flnorm tf idf ids documents terms on_conflict]a
 
   @enforce_keys @fields
   defstruct @fields
@@ -18,7 +18,8 @@ defmodule Elasticlunr.Field do
           idf: map(),
           terms: map(),
           documents: map(),
-          ids: map()
+          ids: map(),
+          on_conflict: atom()
         }
 
   @type document_ref :: atom() | binary()
@@ -41,6 +42,7 @@ defmodule Elasticlunr.Field do
       terms: %{},
       documents: %{},
       pipeline: Keyword.get(opts, :pipeline),
+      on_conflict: Keyword.get(opts, :on_conflict),
       store: Keyword.get(opts, :store_documents, false),
       query_pipeline: Keyword.get(opts, :query_pipeline),
       store_positions: Keyword.get(opts, :store_positions, false)
@@ -92,24 +94,24 @@ defmodule Elasticlunr.Field do
   def add(%__MODULE__{ids: ids, store: store, pipeline: pipeline} = field, documents) do
     Enum.reduce(documents, field, fn %{id: id, content: content}, field ->
       if Map.has_key?(ids, id) do
-        raise "Document id #{id} already exists in the index"
+        handle_conflict(field, %{id: id, content: content})
+      else
+        field =
+          case store do
+            false ->
+              field
+
+            true ->
+              %{documents: documents} = field
+              %{field | documents: Map.put(documents, id, content)}
+          end
+
+        %{ids: ids} = field
+        field = %{field | ids: Map.put(ids, id, true)}
+        tokens = Pipeline.run(pipeline, content)
+
+        update_field_stats(field, id, tokens)
       end
-
-      field =
-        case store do
-          false ->
-            field
-
-          true ->
-            %{documents: documents} = field
-            %{field | documents: Map.put(documents, id, content)}
-        end
-
-      %{ids: ids} = field
-      field = %{field | ids: Map.put(ids, id, true)}
-      tokens = Pipeline.run(pipeline, content)
-
-      update_field_stats(field, id, tokens)
     end)
     |> recalculate_idf()
   end
@@ -316,6 +318,16 @@ defmodule Elasticlunr.Field do
       }
     end)
   end
+
+  defp handle_conflict(%{on_conflict: :index} = field, document) do
+    update(field, [document])
+  end
+
+  defp handle_conflict(%{on_conflict: :error}, %{id: id}) do
+    raise "Document id #{id} already exists in the index"
+  end
+
+  defp handle_conflict(%{on_conflict: :ignore} = field, _document), do: field
 
   defp recalculate_idf(%{idf: idf, ids: ids, terms: terms} = field) do
     terms_length = Enum.count(terms)

@@ -29,7 +29,16 @@ end
 defimpl Elasticlunr.Serializer, for: Elasticlunr.Index do
   alias Elasticlunr.{Field, Index, Pipeline, Serializer}
 
-  def serialize(%Index{fields: fields, name: name, pipeline: pipeline, ref: ref}, _opts) do
+  def serialize(
+        %Index{
+          fields: fields,
+          name: name,
+          on_conflict: on_conflict,
+          pipeline: pipeline,
+          ref: ref
+        },
+        _opts
+      ) do
     %Pipeline{callback: callback} = pipeline
     pipeline = Serializer.serialize(pipeline)
 
@@ -38,7 +47,7 @@ defimpl Elasticlunr.Serializer, for: Elasticlunr.Index do
         {index + 1, Map.put(map, callback, index)}
       end)
 
-    settings = "settings#name:#{name}|ref:#{ref}|pipeline:#{pipeline}"
+    settings = "settings#name:#{name}|ref:#{ref}|pipeline:#{pipeline}|on_conflict:#{on_conflict}"
 
     fields_settings =
       Stream.map(fields, fn {name, field} ->

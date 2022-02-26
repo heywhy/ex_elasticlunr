@@ -146,7 +146,7 @@ defmodule Elasticlunr.IndexTest do
     end
 
     test "fails when adding duplicate document" do
-      index = Index.add_field(Index.new(), "bio")
+      index = Index.add_field(Index.new(on_conflict: :error), "bio")
 
       document = %{
         "id" => 10,

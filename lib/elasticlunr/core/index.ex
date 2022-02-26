@@ -14,7 +14,7 @@ defmodule Elasticlunr.Index do
   alias Elasticlunr.Index.IdPipeline
   alias Elasticlunr.Dsl.{Query, QueryRepository}
 
-  @fields ~w[fields name ref pipeline documents_size store_positions store_documents]a
+  @fields ~w[fields name ref pipeline documents_size store_positions store_documents on_conflict]a
   @enforce_keys @fields
   defstruct @fields
 
@@ -22,6 +22,7 @@ defmodule Elasticlunr.Index do
 
   @type t :: %__MODULE__{
           fields: map(),
+          on_conflict: atom(),
           documents_size: integer(),
           ref: Field.document_ref(),
           pipeline: Pipeline.t(),
@@ -38,20 +39,26 @@ defmodule Elasticlunr.Index do
     ref = Keyword.get(opts, :ref, "id")
     pipeline = Keyword.get_lazy(opts, :pipeline, &Pipeline.new/0)
 
-    id_field = Field.new(pipeline: Pipeline.new([IdPipeline]))
-    fields = Map.put(%{}, to_string(ref), id_field)
+    id_opts = [
+      store_documents: false,
+      store_positions: false,
+      pipeline: Pipeline.new([IdPipeline])
+    ]
 
     attrs = %{
       documents_size: 0,
       ref: ref,
-      fields: fields,
+      fields: %{},
       pipeline: pipeline,
       name: Keyword.get_lazy(opts, :name, &UUID.uuid4/0),
+      on_conflict: Keyword.get(opts, :on_conflict, :index),
       store_documents: Keyword.get(opts, :store_documents, true),
       store_positions: Keyword.get(opts, :store_positions, true)
     }
 
-    struct!(__MODULE__, attrs)
+    __MODULE__
+    |> struct!(attrs)
+    |> add_field(to_string(ref), id_opts)
   end
 
   @spec add_field(t(), document_field(), keyword()) :: t()
@@ -59,6 +66,7 @@ defmodule Elasticlunr.Index do
         %__MODULE__{
           fields: fields,
           pipeline: pipeline,
+          on_conflict: on_conflict,
           store_positions: store_positions,
           store_documents: store_documents
         } = index,
@@ -69,6 +77,7 @@ defmodule Elasticlunr.Index do
     opts =
       opts
       |> Keyword.put_new(:pipeline, pipeline)
+      |> Keyword.put_new(:on_conflict, on_conflict)
       |> Keyword.put_new(:store_documents, store_documents)
       |> Keyword.put_new(:store_positions, store_positions)
 

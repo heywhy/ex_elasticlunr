@@ -26,7 +26,9 @@ defmodule Elasticlunr.Deserializer.Parser do
   defp parse(command, acc, [opts]), do: parse(command, acc, opts)
 
   defp parse("settings", nil, opts) do
-    opts = to_options(opts)
+    opts =
+      to_options(opts)
+      |> Keyword.put_new(:on_conflict, "index")
 
     {_, pipeline_map} =
       opts[:pipeline]
@@ -35,7 +37,10 @@ defmodule Elasticlunr.Deserializer.Parser do
         {index + 1, Map.put(map, to_string(index), String.to_atom(callback))}
       end)
 
-    opts = Keyword.replace(opts, :pipeline, parse_pipeline(opts[:pipeline]))
+    opts =
+      opts
+      |> Keyword.replace(:pipeline, parse_pipeline(opts[:pipeline]))
+      |> Keyword.replace(:on_conflict, String.to_atom(opts[:on_conflict]))
 
     {Index.new(opts), %{pipeline: pipeline_map}}
   end
