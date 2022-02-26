@@ -79,14 +79,18 @@ defmodule Elasticlunr.Field do
     %{field | query_pipeline: pipeline}
   end
 
-  @spec add(t(), list(document())) :: t()
-  def add(%__MODULE__{pipeline: pipeline} = field, documents) do
-    Enum.each(documents, fn %{id: id, content: content} ->
-      unless DB.member?(field.db, {:field_ids, field.name, id}) do
-        tokens = Pipeline.run(pipeline, content)
+  @spec add(t(), list(document()), keyword()) :: t()
+  def add(%__MODULE__{pipeline: pipeline} = field, documents, opts \\ []) do
+    conflict_action = Keyword.get(opts, :on_conflict)
 
-        add_id(field, id)
+    Enum.each(documents, fn %{id: id, content: content} ->
+      with false <- DB.member?(field.db, {:field_ids, field.name, id}),
+           tokens <- Pipeline.run(pipeline, content),
+           true <- add_id(field, id) do
         update_field_stats(field, id, tokens)
+      else
+        true ->
+          handle_conflict(conflict_action, field, %{id: id, content: content})
       end
     end)
 
@@ -213,6 +217,12 @@ defmodule Elasticlunr.Field do
       to_field_token(field, term, flnorm)
     end)
   end
+
+  defp handle_conflict(:index, field, document) do
+    update(field, [document])
+  end
+
+  defp handle_conflict(:ignore, field, _document), do: field
 
   defp update_field_stats(%{db: db, name: name} = field, id, tokens) do
     Enum.each(tokens, fn token ->

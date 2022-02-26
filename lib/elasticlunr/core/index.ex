@@ -14,7 +14,7 @@ defmodule Elasticlunr.Index do
   alias Elasticlunr.Index.IdPipeline
   alias Elasticlunr.Dsl.{Query, QueryRepository}
 
-  @fields ~w[db fields name ref pipeline documents_size store_positions store_documents]a
+  @fields ~w[db fields name ref pipeline documents_size store_positions store_documents on_conflict]a
   @enforce_keys @fields
   defstruct @fields
 
@@ -53,6 +53,7 @@ defmodule Elasticlunr.Index do
       fields: fields,
       pipeline: pipeline,
       name: name,
+      on_conflict: Keyword.get(opts, :on_conflict, :index),
       store_documents: Keyword.get(opts, :store_documents, true),
       store_positions: Keyword.get(opts, :store_positions, true)
     }
@@ -111,9 +112,14 @@ defmodule Elasticlunr.Index do
     %{index | fields: fields}
   end
 
-  @spec add_documents(t(), list(map())) :: t()
-  def add_documents(%__MODULE__{fields: fields, ref: ref} = index, documents) do
-    :ok = persist(fields, ref, documents, &Field.add/2)
+  @spec add_documents(t(), list(map()), keyword()) :: t()
+  def add_documents(
+        %__MODULE__{fields: fields, on_conflict: on_conflict, ref: ref} = index,
+        documents,
+        opts \\ []
+      ) do
+    opts = Keyword.put_new(opts, :on_conflict, on_conflict)
+    :ok = persist(fields, ref, documents, &Field.add(&1, &2, opts))
 
     update_documents_size(index)
   end
@@ -280,10 +286,16 @@ defmodule Elasticlunr.Index do
   end
 
   defp persist(fields, ref, documents, persist_fn) do
-    Task.async_stream(documents, fn document ->
-      document = flatten_document(document)
-      save(fields, ref, document, persist_fn)
-    end)
+    tasks_opt = [ordered: false]
+
+    Task.async_stream(
+      documents,
+      fn document ->
+        document = flatten_document(document)
+        save(fields, ref, document, persist_fn)
+      end,
+      tasks_opt
+    )
     |> Stream.run()
   end
 
