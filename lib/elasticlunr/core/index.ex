@@ -66,7 +66,6 @@ defmodule Elasticlunr.Index do
         %__MODULE__{
           fields: fields,
           pipeline: pipeline,
-          on_conflict: on_conflict,
           store_positions: store_positions,
           store_documents: store_documents
         } = index,
@@ -77,7 +76,6 @@ defmodule Elasticlunr.Index do
     opts =
       opts
       |> Keyword.put_new(:pipeline, pipeline)
-      |> Keyword.put_new(:on_conflict, on_conflict)
       |> Keyword.put_new(:store_documents, store_documents)
       |> Keyword.put_new(:store_positions, store_positions)
 
@@ -112,11 +110,12 @@ defmodule Elasticlunr.Index do
   end
 
   @spec add_documents(t(), list(map())) :: t()
-  def add_documents(%__MODULE__{} = index, documents) do
+  def add_documents(%__MODULE__{on_conflict: on_conflict} = index, documents, opts \\ []) do
     docs_length = length(documents)
+    opts = Keyword.put_new(opts, :on_conflict, on_conflict)
 
     [index] =
-      transform_documents(index, documents)
+      transform_documents(index, documents, opts)
       |> Stream.with_index(1)
       |> Stream.drop_while(fn {_, index} -> index < docs_length end)
       |> Stream.map(&elem(&1, 0))
@@ -302,7 +301,7 @@ defmodule Elasticlunr.Index do
     %{index | documents_size: size}
   end
 
-  defp transform_documents(%{ref: ref} = index, documents) do
+  defp transform_documents(%{ref: ref} = index, documents, opts) do
     add_or_ignore_field = fn index, key, fields ->
       case Map.get(fields, key) do
         nil ->
@@ -328,7 +327,9 @@ defmodule Elasticlunr.Index do
       Enum.reduce(recognized_keys, index, fn key, index ->
         index = add_or_ignore_field.(index, key, fields)
         field = get_field(index, key)
-        field = Field.add(field, [%{id: Map.get(document, ref), content: Map.get(document, key)}])
+
+        field =
+          Field.add(field, [%{id: Map.get(document, ref), content: Map.get(document, key)}], opts)
 
         patch_field(index, key, field)
       end)

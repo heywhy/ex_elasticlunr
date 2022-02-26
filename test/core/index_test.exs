@@ -146,7 +146,7 @@ defmodule Elasticlunr.IndexTest do
     end
 
     test "fails when adding duplicate document" do
-      index = Index.add_field(Index.new(on_conflict: :error), "bio")
+      index = Index.add_field(Index.new(), "bio")
 
       document = %{
         "id" => 10,
@@ -156,7 +156,7 @@ defmodule Elasticlunr.IndexTest do
       assert index = Index.add_documents(index, [document])
 
       assert_raise RuntimeError, "Document id 10 already exists in the index", fn ->
-        Index.add_documents(index, [document])
+        Index.add_documents(index, [document], on_conflict: :error)
       end
     end
 

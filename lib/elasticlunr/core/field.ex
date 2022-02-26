@@ -1,7 +1,7 @@
 defmodule Elasticlunr.Field do
   alias Elasticlunr.{Pipeline, Token, Utils}
 
-  @fields ~w[pipeline query_pipeline store store_positions flnorm tf idf ids documents terms on_conflict]a
+  @fields ~w[pipeline query_pipeline store store_positions flnorm tf idf ids documents terms]a
 
   @enforce_keys @fields
   defstruct @fields
@@ -18,8 +18,7 @@ defmodule Elasticlunr.Field do
           idf: map(),
           terms: map(),
           documents: map(),
-          ids: map(),
-          on_conflict: atom()
+          ids: map()
         }
 
   @type document_ref :: atom() | binary()
@@ -42,7 +41,6 @@ defmodule Elasticlunr.Field do
       terms: %{},
       documents: %{},
       pipeline: Keyword.get(opts, :pipeline),
-      on_conflict: Keyword.get(opts, :on_conflict),
       store: Keyword.get(opts, :store_documents, false),
       query_pipeline: Keyword.get(opts, :query_pipeline),
       store_positions: Keyword.get(opts, :store_positions, false)
@@ -91,10 +89,12 @@ defmodule Elasticlunr.Field do
   end
 
   @spec add(t(), list(document())) :: t()
-  def add(%__MODULE__{ids: ids, store: store, pipeline: pipeline} = field, documents) do
+  def add(%__MODULE__{ids: ids, store: store, pipeline: pipeline} = field, documents, opts \\ []) do
+    action = Keyword.get(opts, :on_conflict)
+
     Enum.reduce(documents, field, fn %{id: id, content: content}, field ->
       if Map.has_key?(ids, id) do
-        handle_conflict(field, %{id: id, content: content})
+        handle_conflict(action, field, %{id: id, content: content})
       else
         field =
           case store do
@@ -319,15 +319,15 @@ defmodule Elasticlunr.Field do
     end)
   end
 
-  defp handle_conflict(%{on_conflict: :index} = field, document) do
+  defp handle_conflict(:index, field, document) do
     update(field, [document])
   end
 
-  defp handle_conflict(%{on_conflict: :error}, %{id: id}) do
+  defp handle_conflict(:error, _field, %{id: id}) do
     raise "Document id #{id} already exists in the index"
   end
 
-  defp handle_conflict(%{on_conflict: :ignore} = field, _document), do: field
+  defp handle_conflict(:ignore, field, _document), do: field
 
   defp recalculate_idf(%{idf: idf, ids: ids, terms: terms} = field) do
     terms_length = Enum.count(terms)
