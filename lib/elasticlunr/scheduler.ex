@@ -3,11 +3,16 @@ defmodule Elasticlunr.Scheduler do
 
   alias Elasticlunr.Index
 
-  @callback push(index :: Index.t(), action :: atom()) :: :ok
+  @actions ~w[calculate_idf]a
+
+  @spec push(Index.t(), atom()) :: :ok
+  def push(index, action) when action in @actions, do: provider().push(index, action)
+
+  defp provider, do: Application.get_env(:elasticlunr, :scheduler, Elasticlunr.Scheduler.Async)
 
   defmacro __using__(_) do
     quote location: :keep do
-      @behaviour Elasticlunr.Scheduler
+      @behaviour Elasticlunr.Scheduler.Provider
     end
   end
 end

@@ -10,7 +10,7 @@ defmodule Elasticlunr.Index.IdPipeline do
 end
 
 defmodule Elasticlunr.Index do
-  alias Elasticlunr.{DB, Field, Pipeline}
+  alias Elasticlunr.{DB, Field, Pipeline, Scheduler}
   alias Elasticlunr.Index.IdPipeline
   alias Elasticlunr.Dsl.{Query, QueryRepository}
 
@@ -120,7 +120,7 @@ defmodule Elasticlunr.Index do
       ) do
     opts = Keyword.put_new(opts, :on_conflict, on_conflict)
     :ok = persist(fields, ref, documents, &Field.add(&1, &2, opts))
-    :ok = scheduler().push(index, :calculate_idf)
+    :ok = Scheduler.push(index, :calculate_idf)
 
     update_documents_size(index)
   end
@@ -128,7 +128,7 @@ defmodule Elasticlunr.Index do
   @spec update_documents(t(), list(map())) :: t()
   def update_documents(%__MODULE__{ref: ref, fields: fields} = index, documents) do
     :ok = persist(fields, ref, documents, &Field.update/2)
-    :ok = scheduler().push(index, :calculate_idf)
+    :ok = Scheduler.push(index, :calculate_idf)
 
     update_documents_size(index)
   end
@@ -139,7 +139,7 @@ defmodule Elasticlunr.Index do
       Field.remove(field, document_ids)
     end)
 
-    :ok = scheduler().push(index, :calculate_idf)
+    :ok = Scheduler.push(index, :calculate_idf)
 
     update_documents_size(index)
   end
@@ -314,6 +314,4 @@ defmodule Elasticlunr.Index do
       end
     end)
   end
-
-  defp scheduler, do: Application.get_env(:elasticlunr, :scheduler, Elasticlunr.Scheduler.Async)
 end
