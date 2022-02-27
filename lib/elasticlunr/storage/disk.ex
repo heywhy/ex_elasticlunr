@@ -10,9 +10,7 @@ defmodule Elasticlunr.Storage.Disk do
   """
   use Elasticlunr.Storage
 
-  alias Elasticlunr.{DB, Deserializer, Index, Serializer}
-
-  require Logger
+  alias Elasticlunr.{DB, Deserializer, Index, Logger, Serializer}
 
   @data_file_ext "data"
   @index_file_ext "index"
@@ -44,7 +42,7 @@ defmodule Elasticlunr.Storage.Disk do
       Index.update_documents_size(%{index | db: db})
     else
       false ->
-        Logger.info("[elasticlunr] unable to data for index #{index.name}")
+        Logger.error("unable to load data for index #{index.name}")
         index
     end
   end
