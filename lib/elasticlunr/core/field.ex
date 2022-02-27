@@ -94,7 +94,7 @@ defmodule Elasticlunr.Field do
       end
     end)
 
-    recalculate_idf(field)
+    field
   end
 
   @spec length(t(), atom()) :: pos_integer()
@@ -146,7 +146,7 @@ defmodule Elasticlunr.Field do
       true = DB.delete(db, {:field_ids, name, id})
     end)
 
-    recalculate_idf(field)
+    field
   end
 
   @spec analyze(t(), any(), keyword) :: list(Token.t())
@@ -218,8 +218,43 @@ defmodule Elasticlunr.Field do
     end)
   end
 
-  defp handle_conflict(:index, field, document) do
-    update(field, [document])
+  @spec calculate_idf(t()) :: t()
+  def calculate_idf(%__MODULE__{} = field) do
+    terms = unique_terms_lookup(field)
+
+    terms_length = Enum.count(terms)
+
+    ids_length = length(field, :ids)
+
+    flnorm =
+      case terms_length > 0 do
+        true ->
+          1 / :math.sqrt(terms_length)
+
+        false ->
+          0
+      end
+
+    :ok =
+      terms
+      |> Task.async_stream(fn {term, _id, _attrs} ->
+        count = length(field, :term, term) + 1
+        value = 1 + :math.log10(ids_length / count)
+
+        true = DB.insert(field.db, {{:field_idf, field.name, term}, value})
+      end)
+      |> Stream.run()
+
+    true = DB.insert(field.db, {{:field_flnorm, field.name}, flnorm})
+    field
+  end
+
+  defp handle_conflict(:index, %{pipeline: pipeline} = field, %{id: id, content: content}) do
+    tokens = Pipeline.run(pipeline, content)
+
+    field
+    |> remove([id])
+    |> update_field_stats(id, tokens)
   end
 
   defp handle_conflict(:ignore, field, _document), do: field
@@ -326,36 +361,6 @@ defmodule Elasticlunr.Field do
   defp unique_terms_lookup(field) do
     terms_lookup(field)
     |> Stream.uniq_by(&elem(&1, 0))
-  end
-
-  defp recalculate_idf(field) do
-    terms = unique_terms_lookup(field)
-
-    terms_length = Enum.count(terms)
-
-    ids_length = length(field, :ids)
-
-    flnorm =
-      case terms_length > 0 do
-        true ->
-          1 / :math.sqrt(terms_length)
-
-        false ->
-          0
-      end
-
-    :ok =
-      terms
-      |> Task.async_stream(fn {term, _id, _attrs} ->
-        count = length(field, :term, term) + 1
-        value = 1 + :math.log10(ids_length / count)
-
-        true = DB.insert(field.db, {{:field_idf, field.name, term}, value})
-      end)
-      |> Stream.run()
-
-    true = DB.insert(field.db, {{:field_flnorm, field.name}, flnorm})
-    field
   end
 
   defp filter_ids(field, ids, term, matching_docs, query) do
