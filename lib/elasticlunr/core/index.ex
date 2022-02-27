@@ -295,7 +295,11 @@ defmodule Elasticlunr.Index do
     Task.async_stream(
       documents,
       fn document ->
-        document = flatten_document(document)
+        document =
+          document
+          |> flatten_document()
+          |> Map.put_new_lazy(ref, &FlakeId.get/0)
+
         save(fields, ref, document, persist_fn)
       end,
       tasks_opt

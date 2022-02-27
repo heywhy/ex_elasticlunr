@@ -50,6 +50,7 @@ defmodule Elasticlunr.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
+      {:flake_id, "~> 0.1.0"},
       {:jason, "~> 1.3"},
       {:stemmer, "~> 1.0"},
       {:uuid, "~> 1.1"},
