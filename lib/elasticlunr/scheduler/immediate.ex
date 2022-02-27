@@ -6,7 +6,7 @@ defmodule Elasticlunr.Scheduler.Immediate do
   @impl true
   def push(%Index{fields: fields}, :calculate_idf) do
     fields
-    |> Task.async_stream(fn {_, field} -> Field.calculate_idf(field) end, ordered: false)
+    |> Stream.each(fn {_, field} -> Field.calculate_idf(field) end)
     |> Stream.run()
   end
 end
