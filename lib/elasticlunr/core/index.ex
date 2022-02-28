@@ -14,7 +14,7 @@ defmodule Elasticlunr.Index do
   alias Elasticlunr.Index.IdPipeline
   alias Elasticlunr.Dsl.{Query, QueryRepository}
 
-  @fields ~w[db fields name ref pipeline documents_size store_positions store_documents on_conflict]a
+  @fields ~w[db fields name ref pipeline store_positions store_documents on_conflict]a
   @enforce_keys @fields
   defstruct @fields
 
@@ -23,7 +23,6 @@ defmodule Elasticlunr.Index do
   @type t :: %__MODULE__{
           db: DB.t(),
           fields: map(),
-          documents_size: integer(),
           ref: Field.document_ref(),
           pipeline: Pipeline.t(),
           name: atom() | binary(),
@@ -48,7 +47,6 @@ defmodule Elasticlunr.Index do
 
     attrs = %{
       db: db,
-      documents_size: 0,
       ref: ref,
       fields: fields,
       pipeline: pipeline,
@@ -91,7 +89,7 @@ defmodule Elasticlunr.Index do
       raise "Unknown field #{name} in index"
     end
 
-    update_documents_size(%{index | fields: Map.put(fields, name, field)})
+    %{index | fields: Map.put(fields, name, field)}
   end
 
   @spec get_fields(t()) :: list(Field.document_ref() | document_field())
@@ -122,7 +120,7 @@ defmodule Elasticlunr.Index do
     :ok = persist(fields, ref, documents, &Field.add(&1, &2, opts))
     :ok = Scheduler.push(index, :calculate_idf)
 
-    update_documents_size(index)
+    index
   end
 
   @spec update_documents(t(), list(map())) :: t()
@@ -130,7 +128,7 @@ defmodule Elasticlunr.Index do
     :ok = persist(fields, ref, documents, &Field.update/2)
     :ok = Scheduler.push(index, :calculate_idf)
 
-    update_documents_size(index)
+    index
   end
 
   @spec remove_documents(t(), list(Field.document_ref())) :: t()
@@ -141,7 +139,7 @@ defmodule Elasticlunr.Index do
 
     :ok = Scheduler.push(index, :calculate_idf)
 
-    update_documents_size(index)
+    index
   end
 
   @spec analyze(t(), document_field(), any(), keyword()) :: Enumerable.t()
@@ -167,20 +165,17 @@ defmodule Elasticlunr.Index do
     |> Field.documents()
   end
 
-  @spec update_documents_size(t()) :: t()
-  def update_documents_size(%__MODULE__{fields: fields} = index) do
-    size =
-      Enum.reduce(fields, 0, fn {_, field}, acc ->
-        size = Field.length(field, :ids)
+  @spec documents_size(t()) :: t()
+  def documents_size(%__MODULE__{fields: fields} = index) do
+    Enum.reduce(fields, 0, fn {_, field}, acc ->
+      size = Field.length(field, :ids)
 
-        if size > acc do
-          size
-        else
-          acc
-        end
-      end)
-
-    %{index | documents_size: size}
+      if size > acc do
+        size
+      else
+        acc
+      end
+    end)
   end
 
   @spec search(t(), search_query(), map() | nil) :: list(search_result())

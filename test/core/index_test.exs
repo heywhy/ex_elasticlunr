@@ -77,15 +77,17 @@ defmodule Elasticlunr.IndexTest do
                  }
                ])
 
-      assert %Index{documents_size: 1} = index
+      assert Index.documents_size(index) == 1
 
-      assert %Index{documents_size: 2} =
-               Index.add_documents(index, [
-                 %{
-                   "id" => 29,
-                   "bio" => Faker.Lorem.paragraph()
-                 }
-               ])
+      assert index
+             |> Index.add_documents([
+               %{
+                 "id" => 29,
+                 "bio" => Faker.Lorem.paragraph()
+               }
+             ])
+             |> Index.documents_size()
+             |> Kernel.==(2)
     end
 
     @tag :skip
@@ -117,7 +119,8 @@ defmodule Elasticlunr.IndexTest do
         }
       }
 
-      assert %Index{fields: %{"address.city" => %Field{}}, documents_size: 1} = index
+      assert %Index{fields: %{"address.city" => %Field{}}} = index
+      assert Index.documents_size(index) == 1
       refute Index.search(index, %{"query" => query}) |> Enum.empty?()
     end
 
@@ -142,10 +145,12 @@ defmodule Elasticlunr.IndexTest do
 
       index = Index.add_documents(index, [document])
 
-      assert %Index{fields: %{"address.city" => %Field{}}, documents_size: 1} = index
+      assert %Index{fields: %{"address.city" => %Field{}}} = index
+      assert Index.documents_size(index) == 1
 
-      assert %Index{fields: %{"address.city" => %Field{}}, documents_size: 0} =
-               Index.remove_documents(index, [20])
+      assert index = Index.remove_documents(index, [20])
+      assert %Index{fields: %{"address.city" => %Field{}}} = index
+      assert Index.documents_size(index) == 0
     end
 
     test "allows addition of document with empty field" do
@@ -204,9 +209,9 @@ defmodule Elasticlunr.IndexTest do
       }
 
       assert index = Index.add_documents(index, [document_2, document])
-      assert %Index{documents_size: 2} = index
+      assert Index.documents_size(index) == 2
       assert index = Index.remove_documents(index, [10])
-      assert %Index{documents_size: 1} = index
+      assert Index.documents_size(index) == 1
       assert field = Index.get_field(index, "bio")
       refute Field.has_token(field, "a")
       assert Field.has_token(field, "another")
@@ -226,8 +231,9 @@ defmodule Elasticlunr.IndexTest do
       }
 
       assert index = Index.add_documents(index, [document])
-      assert %Index{documents_size: 1} = index
-      assert %Index{documents_size: 1} = Index.remove_documents(index, [11])
+      assert Index.documents_size(index) == 1
+      assert index = Index.remove_documents(index, [11])
+      assert Index.documents_size(index) == 1
     end
 
     test "update existing document" do
@@ -240,9 +246,10 @@ defmodule Elasticlunr.IndexTest do
 
       index = Index.add_documents(index, [document])
 
-      assert %Index{documents_size: 1} = index
+      assert Index.documents_size(index) == 1
       updated_document = %{document | "bio" => Faker.Lorem.paragraph()}
-      assert %Index{documents_size: 1} = Index.update_documents(index, [updated_document])
+      assert index = Index.update_documents(index, [updated_document])
+      assert Index.documents_size(index) == 1
     end
 
     test "search for a document" do

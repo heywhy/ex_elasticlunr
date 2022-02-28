@@ -39,7 +39,7 @@ defmodule Elasticlunr.Storage.Disk do
 
     with %Index{db: db} <- index,
          {:ok, db} <- DB.from(db, file: data_file) do
-      Index.update_documents_size(%{index | db: db})
+      %{index | db: db}
     else
       false ->
         Logger.error("unable to load data for index #{index.name}")
