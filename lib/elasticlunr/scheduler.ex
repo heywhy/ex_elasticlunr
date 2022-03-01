@@ -12,7 +12,7 @@ defmodule Elasticlunr.Scheduler do
 
   defmacro __using__(_) do
     quote location: :keep do
-      @behaviour Elasticlunr.Scheduler.Provider
+      @behaviour Elasticlunr.Scheduler.Behaviour
     end
   end
 end

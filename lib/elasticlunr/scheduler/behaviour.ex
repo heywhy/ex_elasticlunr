@@ -1,4 +1,4 @@
-defmodule Elasticlunr.Scheduler.Provider do
+defmodule Elasticlunr.Scheduler.Behaviour do
   @moduledoc false
 
   alias Elasticlunr.Index
