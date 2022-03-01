@@ -50,14 +50,14 @@ defmodule Elasticlunr.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:jason, "~> 1.3"},
-      {:stemmer, "~> 1.0"},
-      {:uuid, "~> 1.1"},
       {:credo, "~> 1.5", only: [:dev, :test], runtime: false},
       {:ex_doc, "~> 0.25", only: :dev, runtime: false},
       {:excoveralls, "~> 0.14", only: :test},
       {:faker, "~> 0.16", only: :test},
-      {:mox, "~> 1.0", only: :test}
+      {:jason, "~> 1.3"},
+      {:mox, "~> 1.0", only: :test},
+      {:stemmer, "~> 1.0"},
+      {:uniq, "~> 0.4"}
     ]
   end
 

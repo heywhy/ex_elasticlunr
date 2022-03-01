@@ -13,6 +13,7 @@ defmodule Elasticlunr.Index do
   alias Elasticlunr.{DB, Field, Pipeline}
   alias Elasticlunr.Index.IdPipeline
   alias Elasticlunr.Dsl.{Query, QueryRepository}
+  alias Uniq.UUID
 
   @fields ~w[db fields name ref pipeline documents_size store_positions store_documents]a
   @enforce_keys @fields
