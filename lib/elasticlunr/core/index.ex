@@ -167,7 +167,7 @@ defmodule Elasticlunr.Index do
   end
 
   @spec documents_size(t()) :: t()
-  def documents_size(%__MODULE__{fields: fields} = index) do
+  def documents_size(%__MODULE__{fields: fields}) do
     Enum.reduce(fields, 0, fn {_, field}, acc ->
       size = Field.length(field, :ids)
 
