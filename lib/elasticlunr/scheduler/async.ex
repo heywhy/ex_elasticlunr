@@ -13,6 +13,20 @@ defmodule Elasticlunr.Scheduler.Async do
     end
   end
 
+  @spec started?(Index.t() | String.t()) :: boolean()
+  def started?(%Index{name: name}), do: started?(name)
+
+  def started?(name) do
+    started_processes()
+    |> Enum.any?(fn
+      ^name ->
+        true
+
+      _ ->
+        false
+    end)
+  end
+
   @impl true
   def init(state), do: {:ok, state}
 
@@ -53,7 +67,7 @@ defmodule Elasticlunr.Scheduler.Async do
   defp blank_state, do: %{}
 
   defp start_if_not_started(%{name: name} = index) do
-    with false <- loaded?(name),
+    with false <- started?(name),
          {:ok, _} <- start(index) do
       :ok
     else
@@ -66,18 +80,7 @@ defmodule Elasticlunr.Scheduler.Async do
     DynamicSupervisor.start_child(SchedulerSupervisor, {__MODULE__, index})
   end
 
-  defp loaded?(name) do
-    loaded_indices()
-    |> Enum.any?(fn
-      ^name ->
-        true
-
-      _ ->
-        false
-    end)
-  end
-
-  defp loaded_indices do
+  defp started_processes do
     Process.active_processes(SchedulerSupervisor, SchedulerRegistry, __MODULE__)
   end
 end
