@@ -25,6 +25,11 @@ defmodule Elasticlunr.MixProject do
         "coveralls.html": :test
       ],
 
+      # Dialyxir
+      dialyzer: [
+        plt_file: {:no_warn, "priv/plts/dialyzer.plt"}
+      ],
+
       # Docs
       name: "Elasticlunr",
       homepage_url: "https://hexdocs.pm/elasticlunr",
@@ -51,6 +56,7 @@ defmodule Elasticlunr.MixProject do
   defp deps do
     [
       {:credo, "~> 1.5", only: [:dev, :test], runtime: false},
+      {:dialyxir, "~> 1.1", only: :dev, runtime: false},
       {:ex_doc, "~> 0.25", only: :dev, runtime: false},
       {:excoveralls, "~> 0.14", only: :test},
       {:faker, "~> 0.16", only: :test},

@@ -25,3 +25,8 @@ elasticlunr-*.tar
 
 # Temporary files for e.g. tests
 /tmp
+
+# Generated files for Dialyxir
+
+/priv/plts/*.plt
+/priv/plts/*.plt.hash
