@@ -27,7 +27,7 @@ jobs:
           mix coveralls.json
       
       - name: Upload Coverage Reports
-        run: |
-          curl -Os https://uploader.codecov.io/latest/linux/codecov
-          chmod +x codecov
-          ./codecov --dir ./cover
+        uses: codecov/codecov-action@v2
+        with:
+          directory: ./cover
+          fail_ci_if_error: true
