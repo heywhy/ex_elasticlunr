@@ -18,8 +18,6 @@ jobs:
 
       - name: Install Dependencies
         run: |
-          mix local.rebar --force
-          mix local.hex --force
           mix deps.get
 
       - name: Run Tests
