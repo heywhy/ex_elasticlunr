@@ -12,6 +12,7 @@ defmodule Elasticlunr.FieldTest do
     field =
       Field.new(opts)
       |> Field.add([%{id: 1, content: "hello world"}])
+      |> Field.calculate_idf()
 
     :ok = on_exit(fn -> true = DB.destroy(field.db) end)
 
@@ -56,7 +57,12 @@ defmodule Elasticlunr.FieldTest do
 
   test "add/2", %{field: field} do
     assert Enum.count(Field.documents(field)) == 1
-    assert field = Field.add(field, [%{id: 10, content: "testing"}])
+
+    assert field =
+             field
+             |> Field.add([%{id: 10, content: "testing"}])
+             |> Field.calculate_idf()
+
     assert Enum.count(Field.documents(field)) == 2
     assert Field.has_token(field, "testing")
   end
@@ -69,7 +75,11 @@ defmodule Elasticlunr.FieldTest do
   end
 
   test "update/2", %{field: field} do
-    assert field = Field.update(field, [%{id: 1, content: "worse"}])
+    assert field =
+             field
+             |> Field.update([%{id: 1, content: "worse"}])
+             |> Field.calculate_idf()
+
     assert Field.has_token(field, "worse")
     assert Enum.count(Field.documents(field)) == 1
   end

@@ -5,7 +5,7 @@ defmodule Elasticlunr.DeserializerTest do
 
   test "deserialize index" do
     data = [
-      "settings#name:index|ref:id|pipeline:",
+      "settings#name:index|ref:id|pipeline:|on_conflict:index",
       "db#name:elasticlunr_index|options:compressed,named_table,set,public",
       "field#name:id|pipeline:Elixir.Elasticlunr.Index.IdPipeline|store_documents:false|store_positions:false"
     ]

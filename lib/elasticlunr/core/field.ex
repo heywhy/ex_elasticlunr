@@ -79,18 +79,22 @@ defmodule Elasticlunr.Field do
     %{field | query_pipeline: pipeline}
   end
 
-  @spec add(t(), list(document())) :: t()
-  def add(%__MODULE__{pipeline: pipeline} = field, documents) do
-    Enum.each(documents, fn %{id: id, content: content} ->
-      unless DB.member?(field.db, {:field_ids, field.name, id}) do
-        tokens = Pipeline.run(pipeline, content)
+  @spec add(t(), list(document()), keyword()) :: t()
+  def add(%__MODULE__{pipeline: pipeline} = field, documents, opts \\ []) do
+    conflict_action = Keyword.get(opts, :on_conflict)
 
-        add_id(field, id)
+    Enum.each(documents, fn %{id: id, content: content} ->
+      with false <- DB.member?(field.db, {:field_ids, field.name, id}),
+           tokens <- Pipeline.run(pipeline, content),
+           true <- add_id(field, id) do
         update_field_stats(field, id, tokens)
+      else
+        true ->
+          handle_conflict(conflict_action, field, %{id: id, content: content})
       end
     end)
 
-    recalculate_idf(field)
+    field
   end
 
   @spec length(t(), atom()) :: pos_integer()
@@ -142,7 +146,7 @@ defmodule Elasticlunr.Field do
       true = DB.delete(db, {:field_ids, name, id})
     end)
 
-    recalculate_idf(field)
+    field
   end
 
   @spec analyze(t(), any(), keyword) :: list(Token.t())
@@ -213,6 +217,47 @@ defmodule Elasticlunr.Field do
       to_field_token(field, term, flnorm)
     end)
   end
+
+  @spec calculate_idf(t()) :: t()
+  def calculate_idf(%__MODULE__{} = field) do
+    terms = unique_terms_lookup(field)
+
+    terms_length = Enum.count(terms)
+
+    ids_length = length(field, :ids)
+
+    flnorm =
+      case terms_length > 0 do
+        true ->
+          1 / :math.sqrt(terms_length)
+
+        false ->
+          0
+      end
+
+    :ok =
+      terms
+      |> Task.async_stream(fn {term, _id, _attrs} ->
+        count = length(field, :term, term) + 1
+        value = 1 + :math.log10(ids_length / count)
+
+        true = DB.insert(field.db, {{:field_idf, field.name, term}, value})
+      end)
+      |> Stream.run()
+
+    true = DB.insert(field.db, {{:field_flnorm, field.name}, flnorm})
+    field
+  end
+
+  defp handle_conflict(:index, %{pipeline: pipeline} = field, %{id: id, content: content}) do
+    tokens = Pipeline.run(pipeline, content)
+
+    field
+    |> remove([id])
+    |> update_field_stats(id, tokens)
+  end
+
+  defp handle_conflict(:ignore, field, _document), do: field
 
   defp update_field_stats(%{db: db, name: name} = field, id, tokens) do
     Enum.each(tokens, fn token ->
@@ -316,36 +361,6 @@ defmodule Elasticlunr.Field do
   defp unique_terms_lookup(field) do
     terms_lookup(field)
     |> Stream.uniq_by(&elem(&1, 0))
-  end
-
-  defp recalculate_idf(field) do
-    terms = unique_terms_lookup(field)
-
-    terms_length = Enum.count(terms)
-
-    ids_length = length(field, :ids)
-
-    flnorm =
-      case terms_length > 0 do
-        true ->
-          1 / :math.sqrt(terms_length)
-
-        false ->
-          0
-      end
-
-    :ok =
-      terms
-      |> Task.async_stream(fn {term, _id, _attrs} ->
-        count = length(field, :term, term) + 1
-        value = 1 + :math.log10(ids_length / count)
-
-        true = DB.insert(field.db, {{:field_idf, field.name, term}, value})
-      end)
-      |> Stream.run()
-
-    true = DB.insert(field.db, {{:field_flnorm, field.name}, flnorm})
-    field
   end
 
   defp filter_ids(field, ids, term, matching_docs, query) do

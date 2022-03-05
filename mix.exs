@@ -61,6 +61,7 @@ defmodule Elasticlunr.MixProject do
       {:ex_doc, "~> 0.25", only: :dev, runtime: false},
       {:excoveralls, "~> 0.14", only: :test},
       {:faker, "~> 0.16", only: :test},
+      {:flake_id, "~> 0.1.0"},
       {:jason, "~> 1.3"},
       {:mox, "~> 1.0", only: :test},
       {:stemmer, "~> 1.0"},

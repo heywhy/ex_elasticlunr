@@ -6,6 +6,8 @@ defmodule Elasticlunr.StorageTest do
 
   import Mox
 
+  setup :verify_on_exit!
+
   setup do
     Mox.stub_with(Mock, Blackhole)
     Application.put_env(:elasticlunr, :storage, Mock)
