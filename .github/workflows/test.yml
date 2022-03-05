@@ -25,10 +25,9 @@ jobs:
       - name: Run Tests
         run: |
           mix coveralls.json
-          # mix coveralls.github
       
       - name: Upload Coverage Reports
         run: |
           curl -Os https://uploader.codecov.io/latest/linux/codecov
           chmod +x codecov
-          ./codecov
+          ./codecov --dir ./cover
