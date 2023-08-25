@@ -28,5 +28,8 @@ elasticlunr-*.tar
 
 # Generated files for Dialyxir
 
+/priv/*.so
 /priv/plts/*.plt
 /priv/plts/*.plt.hash
+
+compile_flags.txt

@@ -1,12 +1,13 @@
 defmodule Elasticlunr.MixProject do
   use Mix.Project
 
+  @version "0.6.4"
   @source_url "https://github.com/heywhy/ex_elasticlunr"
 
   def project do
     [
       app: :elasticlunr,
-      version: "0.6.4",
+      version: @version,
       elixir: "~> 1.11",
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
@@ -15,6 +16,9 @@ defmodule Elasticlunr.MixProject do
       aliases: aliases(),
       deps: deps(),
       source_url: @source_url,
+
+      # Compilers
+      compilers: [:elixir_make] ++ Mix.compilers(),
 
       # Coverage
       test_coverage: [tool: ExCoveralls],
@@ -27,9 +31,7 @@ defmodule Elasticlunr.MixProject do
       ],
 
       # Dialyxir
-      dialyzer: [
-        plt_file: {:no_warn, "priv/plts/dialyzer.plt"}
-      ],
+      dialyzer: [],
 
       # Docs
       name: "Elasticlunr",
@@ -56,11 +58,14 @@ defmodule Elasticlunr.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
+      {:cc_precompiler, "~> 0.1", runtime: false},
       {:credo, "~> 1.5", only: [:dev, :test], runtime: false},
       {:dialyxir, "~> 1.1", only: :dev, runtime: false},
+      {:elixir_make, "~> 0.7", runtime: false},
       {:ex_doc, "~> 0.25", only: :dev, runtime: false},
       {:excoveralls, "~> 0.14", only: :test},
       {:faker, "~> 0.16", only: :test},
+      {:flake_id, "~> 0.1"},
       {:jason, "~> 1.3"},
       {:mox, "~> 1.0", only: :test},
       {:stemmer, "~> 1.0"},
@@ -80,7 +85,7 @@ defmodule Elasticlunr.MixProject do
 
   defp package do
     [
-      files: ["lib", "mix.exs", "README.md"],
+      files: ["lib", "mix.exs", "README.md", "c_src", "Makefile"],
       maintainers: ["Atanda Rasheed"],
       licenses: ["MIT License"],
       links: %{
