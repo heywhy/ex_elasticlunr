@@ -13,8 +13,7 @@ defmodule Box.Wal do
 
   @opts [:append, :binary]
 
-  @spec new(Path.t()) :: t()
-  def new(path) do
+  defp new(path) do
     path = Path.absname(path)
 
     struct!(__MODULE__, path: path, fd: File.open!(path, @opts))
@@ -31,11 +30,15 @@ defmodule Box.Wal do
   @spec from_path(Path.t()) :: t()
   def from_path(path), do: new(path)
 
+  @spec list(Path.t()) :: [Path.t()]
+  def list(dir) do
+    dir
+    |> Path.join("*.wal")
+    |> Path.wildcard()
+  end
+
   @spec load_from_dir(Path.t()) :: {t(), MemTable.t()} | no_return()
   def load_from_dir(dir) do
-    glob = Path.join(dir, "*.wal")
-    files = Path.wildcard(glob)
-
     reducer = fn %Entry{} = entry, {new_wal, mem_table} ->
       case entry.deleted do
         true ->
@@ -52,7 +55,7 @@ defmodule Box.Wal do
       end
     end
 
-    Enum.reduce(files, {create(dir), MemTable.new()}, fn path, acc ->
+    Enum.reduce(list(dir), {create(dir), MemTable.new()}, fn path, acc ->
       wal = from_path(path)
 
       result = Enum.reduce(iterator(wal), acc, reducer)
