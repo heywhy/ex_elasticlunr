@@ -1,6 +1,4 @@
 defmodule Box.MemTable.Iterator do
-  alias Box.MemTable.Entry
-
   defstruct [:fd, :path, offset: 0]
 
   @type t :: %__MODULE__{
@@ -11,21 +9,11 @@ defmodule Box.MemTable.Iterator do
 
   @opts [:read, :binary]
 
-  @spec reduce(Path.t(), term(), (Entry.t(), term() -> any())) :: term() | no_return()
-  def reduce(path, acc, fun), do: try_reduce(new(path), acc, fun)
-
-  defp new(path) do
+  @spec new(Path.t()) :: t()
+  def new(path) do
     path = Path.absname(path)
 
     struct!(__MODULE__, path: path, fd: File.open!(path, @opts))
-  end
-
-  defp try_reduce(%__MODULE__{fd: fd} = iterator, acc, fun) do
-    result = Enum.reduce(iterator, acc, fun)
-
-    :ok = File.close(fd)
-
-    result
   end
 end
 
@@ -44,13 +32,19 @@ defimpl Enumerable, for: Box.MemTable.Iterator do
     end
   end
 
-  def reduce(%Iterator{offset: -1, fd: fd}, {:cont, acc}, _reducer) do
+  def reduce(%Iterator{fd: fd}, {:halt, acc}, _fun) do
+    :ok = File.close(fd)
+
+    {:halted, acc}
+  end
+
+  def reduce(%Iterator{offset: -1, fd: fd}, {:cont, acc}, _fun) do
     :ok = File.close(fd)
 
     {:done, acc}
   end
 
-  def reduce(%Iterator{fd: fd, offset: offset} = iterator, {:cont, acc}, reducer) do
+  def reduce(%Iterator{fd: fd, offset: offset} = iterator, {:cont, acc}, fun) do
     with {:ok, _new_position} <- :file.position(fd, offset),
          <<key_size::unsigned-integer-size(64)>> <- IO.binread(fd, 8),
          <<deleted::unsigned-integer>> <- IO.binread(fd, 1),
@@ -58,9 +52,9 @@ defimpl Enumerable, for: Box.MemTable.Iterator do
          <<timestamp::big-unsigned-integer-size(64)>> <- IO.binread(fd, 8),
          entry <- Entry.new(key, value, deleted, timestamp) do
       offset = offset + key_size + value_size + 17
-      reduce(%{iterator | offset: offset}, reducer.(entry, acc), reducer)
+      reduce(%{iterator | offset: offset}, fun.(entry, acc), fun)
     else
-      _ -> reduce(%{iterator | offset: -1}, {:cont, acc}, reducer)
+      _ -> reduce(%{iterator | offset: -1}, {:cont, acc}, fun)
     end
   end
 

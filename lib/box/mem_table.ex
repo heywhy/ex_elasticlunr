@@ -1,6 +1,7 @@
 defmodule Box.MemTable do
   alias Box.MemTable.Entry
-  alias Box.MemTable.Iterator
+
+  alias __MODULE__.Iterator
 
   @enforce_keys [:entries]
   defstruct [:entries, size: 0]
@@ -61,7 +62,8 @@ defmodule Box.MemTable do
 
   @spec from_file(Path.t()) :: t() | no_return()
   def from_file(path) do
-    Iterator.reduce(path, new(), fn %Entry{} = entry, mem_table ->
+    Iterator.new(path)
+    |> Enum.reduce(new(), fn %Entry{} = entry, mem_table ->
       case entry.deleted do
         true -> remove(mem_table, entry.key, entry.timestamp)
         false -> set(mem_table, entry.key, entry.value, entry.timestamp)
@@ -71,9 +73,13 @@ defmodule Box.MemTable do
 
   @spec get(t(), binary(), Path.t()) :: Entry.t() | nil
   def get(%__MODULE__{} = mem_table, key, dir) do
-    fun = fn path, acc ->
-      from_file(path)
-      |> get(key)
+    fun = fn path, key, acc ->
+      Iterator.new(path)
+      |> Enum.find(&(&1.key == key))
+      # TODO: Find a more efficient approach
+      # Since loading all entries isn't efficient for a situation where
+      # there are a thousand entries but key is in 100th row. There should
+      # be a balance of usage between row or binary search by the tree.
       |> case do
         nil -> {:cont, acc}
         %Entry{} = entry -> {:halt, entry}
@@ -84,7 +90,7 @@ defmodule Box.MemTable do
     |> get(key)
     |> case do
       %Entry{} = entry -> entry
-      nil -> Enum.reduce_while(list(dir), nil, fun)
+      nil -> Enum.reduce_while(list(dir), nil, &fun.(&1, key, &2))
     end
   end
 

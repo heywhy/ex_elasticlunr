@@ -55,7 +55,7 @@ defmodule Box.Wal do
     Enum.reduce(files, {create(dir), MemTable.new()}, fn path, acc ->
       wal = from_path(path)
 
-      result = Iterator.reduce(wal.path, acc, reducer)
+      result = Enum.reduce(iterator(wal), acc, reducer)
 
       :ok = close(wal)
 
@@ -67,6 +67,9 @@ defmodule Box.Wal do
 
   @spec flush(t()) :: :ok | {:error, atom()}
   def flush(%__MODULE__{fd: fd}), do: :file.sync(fd)
+
+  @spec iterator(t()) :: Enumerable.t()
+  def iterator(%__MODULE__{path: path}), do: Iterator.new(path)
 
   @spec close(t()) :: :ok | no_return()
   def close(%__MODULE__{fd: fd} = wal) do

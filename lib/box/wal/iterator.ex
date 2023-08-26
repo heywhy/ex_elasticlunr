@@ -1,6 +1,4 @@
 defmodule Box.Wal.Iterator do
-  alias Box.Wal.Entry
-
   defstruct [:fd, :path, offset: 0]
 
   @type t :: %__MODULE__{
@@ -11,21 +9,11 @@ defmodule Box.Wal.Iterator do
 
   @opts [:read, :binary]
 
-  @spec reduce(Path.t(), term(), (Entry.t(), term() -> any())) :: term() | no_return()
-  def reduce(path, acc, fun), do: try_reduce(new(path), acc, fun)
-
-  defp new(path) do
+  @spec new(Path.t()) :: t()
+  def new(path) do
     path = Path.absname(path)
 
     struct!(__MODULE__, path: path, fd: File.open!(path, @opts))
-  end
-
-  defp try_reduce(%__MODULE__{fd: fd} = iterator, acc, fun) do
-    result = Enum.reduce(iterator, acc, fun)
-
-    :ok = File.close(fd)
-
-    result
   end
 end
 
