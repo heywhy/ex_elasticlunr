@@ -1,5 +1,6 @@
 defmodule Box.MemTable do
   alias Box.MemTable.Entry
+  alias Box.MemTable.Iterator
 
   @enforce_keys [:entries]
   defstruct [:entries, size: 0]
@@ -19,6 +20,12 @@ defmodule Box.MemTable do
     struct!(__MODULE__, entries: :gb_trees.empty())
   end
 
+  @spec length(t()) :: pos_integer()
+  def length(%__MODULE__{entries: entries}), do: :gb_trees.size(entries)
+
+  @spec size(t()) :: pos_integer()
+  def size(%__MODULE__{size: size}), do: size
+
   @spec maxed?(t()) :: boolean()
   def maxed?(%__MODULE__{size: size}) do
     @otp_app
@@ -26,16 +33,59 @@ defmodule Box.MemTable do
     |> Kernel.<=(size)
   end
 
-  @spec flush(t(), Path.t()) :: :ok
+  @spec flush(t(), Path.t()) :: :ok | no_return()
   def flush(%__MODULE__{entries: entries}, dir) do
     now = System.os_time(:microsecond)
+    dir = Path.join(dir, "_segments")
     path = Path.join(dir, "#{now}.seg")
+
+    unless File.dir?(dir) do
+      :ok = File.mkdir!(dir)
+    end
 
     :gb_trees.to_list(entries)
     |> Stream.map(&elem(&1, 1))
     |> Stream.map(&to_binary(&1))
     |> Stream.into(File.stream!(path, [:append]))
     |> Stream.run()
+  end
+
+  @spec list(Path.t()) :: [Path.t()]
+  def list(dir) do
+    dir
+    |> Path.join("_segments")
+    |> then(&Path.wildcard("#{&1}/*.seg"))
+    # reverse to get in descending order
+    |> Enum.reverse()
+  end
+
+  @spec from_file(Path.t()) :: t() | no_return()
+  def from_file(path) do
+    Iterator.reduce(path, new(), fn %Entry{} = entry, mem_table ->
+      case entry.deleted do
+        true -> remove(mem_table, entry.key, entry.timestamp)
+        false -> set(mem_table, entry.key, entry.value, entry.timestamp)
+      end
+    end)
+  end
+
+  @spec get(t(), binary(), Path.t()) :: Entry.t() | nil
+  def get(%__MODULE__{} = mem_table, key, dir) do
+    fun = fn path, acc ->
+      from_file(path)
+      |> get(key)
+      |> case do
+        nil -> {:cont, acc}
+        %Entry{} = entry -> {:halt, entry}
+      end
+    end
+
+    mem_table
+    |> get(key)
+    |> case do
+      %Entry{} = entry -> entry
+      nil -> Enum.reduce_while(list(dir), nil, fun)
+    end
   end
 
   @spec get(t(), binary()) :: Entry.t() | nil

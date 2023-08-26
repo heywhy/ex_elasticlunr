@@ -1,8 +1,7 @@
 defmodule Box.Schema do
-  defstruct [:name, fields: %{}]
+  alias Box.Field
 
-  @type literal :: :date | :number | :text
-  @type field_type :: literal() | {:array, literal()}
+  defstruct [:name, fields: %{}]
 
   @type t :: %__MODULE__{
           name: binary(),
@@ -29,8 +28,8 @@ defmodule Box.Schema do
     end
   end
 
-  @spec field(t(), atom(), field_type()) :: t()
-  def field(%__MODULE__{fields: fields} = schema, name, definition) when is_atom(name) do
-    %{schema | fields: Map.put(fields, name, definition)}
+  @spec field(t(), atom(), Field.type()) :: t()
+  def field(%__MODULE__{fields: fields} = schema, name, type) when is_atom(name) do
+    %{schema | fields: Map.put(fields, name, %Field{type: type})}
   end
 end

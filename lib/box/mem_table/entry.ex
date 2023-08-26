@@ -9,7 +9,17 @@ defmodule Box.MemTable.Entry do
           timestamp: pos_integer()
         }
 
-  @spec new(binary(), binary() | nil, boolean(), pos_integer()) :: t()
+  @spec new(binary(), binary() | nil, boolean() | pos_integer(), pos_integer()) :: t()
+  def new(key, value, deleted, timestamp) when is_integer(deleted) do
+    deleted =
+      case deleted do
+        0 -> false
+        1 -> true
+      end
+
+    new(key, value, deleted, timestamp)
+  end
+
   def new(key, value, deleted, timestamp) do
     attrs = %{
       key: key,

@@ -5,12 +5,13 @@ defmodule Box.Index do
   alias Box.MemTable.Entry, as: MemTableEntry
   alias Box.Schema
   alias Box.Wal
-  alias Elasticlunr.IndexRegistry
+  alias Box.Writer
 
   defstruct [:dir, :schema, :wal, :mem_table]
 
   @type t :: %__MODULE__{
           wal: Wal.t(),
+          dir: Path.t(),
           schema: Schema.t(),
           mem_table: MemTable.t()
         }
@@ -57,6 +58,7 @@ defmodule Box.Index do
   end
 
   @otp_app :elasticlunr
+  @registry Elasticlunr.IndexRegistry
 
   @spec save(binary(), map()) :: {:ok, map()}
   def save(index, document), do: GenServer.call(via(index), {:save, document})
@@ -69,7 +71,7 @@ defmodule Box.Index do
 
   @spec running?(binary()) :: boolean()
   def running?(index) do
-    case Registry.lookup(IndexRegistry, index) do
+    case Registry.lookup(@registry, index) do
       [] -> false
       [{_pid, _config}] -> true
     end
@@ -116,17 +118,17 @@ defmodule Box.Index do
       ) do
     known_fields = Map.keys(schema.fields)
 
-    {key, document} =
+    {id, document} =
       document
       |> Map.take(known_fields)
       |> Map.pop_lazy(:id, &FlakeId.get/0)
 
     with timestamp <- :os.system_time(:millisecond),
          value <- :erlang.term_to_binary(document),
-         mem_table <- MemTable.set(mem_table, key, value, timestamp),
-         {:ok, wal} <- Wal.set(wal, key, value, timestamp),
+         mem_table <- MemTable.set(mem_table, id, value, timestamp),
+         {:ok, wal} <- Wal.set(wal, id, value, timestamp),
          :ok <- Wal.flush(wal),
-         document <- Map.put(document, :id, key),
+         document <- Map.put(document, :id, id),
          state <- %{state | wal: wal, mem_table: mem_table} do
       {:reply, {:ok, document}, write_to_disk_if_needed(state)}
     else
@@ -134,10 +136,10 @@ defmodule Box.Index do
     end
   end
 
-  def handle_call({:delete, key}, _from, %__MODULE__{wal: wal, mem_table: mem_table} = state) do
+  def handle_call({:delete, id}, _from, %__MODULE__{wal: wal, mem_table: mem_table} = state) do
     with timestamp <- :os.system_time(:millisecond),
-         mem_table <- MemTable.remove(mem_table, key, timestamp),
-         {:ok, wal} <- Wal.remove(wal, key, timestamp),
+         mem_table <- MemTable.remove(mem_table, id, timestamp),
+         {:ok, wal} <- Wal.remove(wal, id, timestamp),
          :ok <- Wal.flush(wal),
          state <- %{state | wal: wal, mem_table: mem_table} do
       {:reply, :ok, write_to_disk_if_needed(state)}
@@ -146,11 +148,13 @@ defmodule Box.Index do
     end
   end
 
-  def handle_call({:get, key}, _from, %__MODULE__{mem_table: mem_table} = state) do
-    with %MemTableEntry{value: value} <- MemTable.get(mem_table, key),
+  def handle_call({:get, id}, _from, %__MODULE__{dir: dir, mem_table: mem_table} = state) do
+    with %MemTableEntry{deleted: false, value: value} <- MemTable.get(mem_table, id, dir),
          value <- :erlang.binary_to_term(value),
-         value <- Map.put(value, :id, key) do
+         value <- Map.put(value, :id, id) do
       {:reply, value, state}
+    else
+      %MemTableEntry{deleted: true} -> {:reply, nil, state}
     end
   end
 
@@ -160,18 +164,21 @@ defmodule Box.Index do
     Logger.info("Terminating index #{schema.name} due to #{inspect(reason)}")
   end
 
-  defp via(index), do: {:via, Registry, {IndexRegistry, index}}
+  defp via(index), do: {:via, Registry, {@registry, index}}
 
   defp write_to_disk_if_needed(%__MODULE__{mem_table: mem_table} = state) do
-    case MemTable.maxed?(mem_table) do
-      false -> state
-      true -> write_to_disk(state)
+    with true <- MemTable.maxed?(mem_table),
+         false <- Writer.running?(state) do
+      write_to_disk(state)
+    else
+      _ -> state
     end
   end
 
   defp write_to_disk(%__MODULE__{dir: dir, wal: wal, mem_table: mem_table} = state) do
     :ok = MemTable.flush(mem_table, dir)
     :ok = Wal.delete(wal)
+    :ok = Writer.start(state)
 
     %{state | wal: Wal.create(dir), mem_table: MemTable.new()}
   end

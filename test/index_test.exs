@@ -26,19 +26,6 @@ defmodule Elasticlunr.IndexTest do
     assert is_binary(id)
   end
 
-  test "can remove document" do
-    document = %{
-      views: 100,
-      title: Lorem.word(),
-      author: Person.name(),
-      tags: ["fiction", "science"],
-      release_date: Date.backward(1)
-    }
-
-    assert {:ok, %{id: id}} = Book.save(document)
-    assert :ok = Book.delete(id)
-  end
-
   test "can retrieve document" do
     document = %{
       views: 100,
@@ -50,5 +37,19 @@ defmodule Elasticlunr.IndexTest do
 
     assert {:ok, %{id: id} = document} = Book.save(document)
     assert ^document = Book.get(id)
+  end
+
+  test "can remove document" do
+    document = %{
+      views: 100,
+      title: Lorem.word(),
+      author: Person.name(),
+      tags: ["fiction", "science"],
+      release_date: Date.backward(1)
+    }
+
+    assert {:ok, %{id: id}} = Book.save(document)
+    assert :ok = Book.delete(id)
+    refute Book.get(id)
   end
 end
