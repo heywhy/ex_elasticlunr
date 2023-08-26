@@ -56,8 +56,6 @@ defmodule Box.MemTable do
     dir
     |> Path.join("_segments")
     |> then(&Path.wildcard("#{&1}/*.seg"))
-    # reverse to get in descending order
-    |> Enum.reverse()
   end
 
   @spec from_file(Path.t()) :: t() | no_return()
@@ -90,7 +88,7 @@ defmodule Box.MemTable do
     |> get(key)
     |> case do
       %Entry{} = entry -> entry
-      nil -> Enum.reduce_while(list(dir), nil, &fun.(&1, key, &2))
+      nil -> list(dir) |> Enum.reverse() |> Enum.reduce_while(nil, &fun.(&1, key, &2))
     end
   end
 

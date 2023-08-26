@@ -4,7 +4,7 @@ defmodule Elasticlunr.MemTableTest do
   alias Box.MemTable
   alias Box.MemTable.Entry
 
-  setup_all do
+  setup do
     dir = System.tmp_dir!() |> Path.join(FlakeId.get())
 
     :ok = File.mkdir!(dir)
@@ -55,12 +55,6 @@ defmodule Elasticlunr.MemTableTest do
     end
   end
 
-  # describe "getting a key" do
-  #   test "check current instance" do
-
-  #   end
-  # end
-
   describe "" do
     setup do
       mem_table =
@@ -75,7 +69,7 @@ defmodule Elasticlunr.MemTableTest do
 
     test "writes entries to file", %{dir: dir, mem_table: mem_table} do
       assert :ok = MemTable.flush(mem_table, dir)
-      assert [file | _] = MemTable.list(dir)
+      assert [file] = MemTable.list(dir)
       assert %File.Stat{size: size} = File.stat!(file)
       assert size > 0
     end
@@ -83,7 +77,7 @@ defmodule Elasticlunr.MemTableTest do
     test "rebuild memtable from file", %{dir: dir, mem_table: mem_table} do
       :ok = MemTable.flush(mem_table, dir)
 
-      [file | _] = MemTable.list(dir)
+      [file] = MemTable.list(dir)
 
       assert new_mem_table = MemTable.from_file(file)
       assert new_mem_table == mem_table
