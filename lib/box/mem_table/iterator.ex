@@ -21,10 +21,13 @@ defimpl Enumerable, for: Box.MemTable.Iterator do
   alias Box.MemTable.Entry
   alias Box.MemTable.Iterator
 
+  @impl true
   def member?(%Iterator{}, _element), do: {:ok, false}
 
+  @impl true
   def slice(%Iterator{}), do: throw(:not_implemented)
 
+  @impl true
   def count(%Iterator{path: path}) do
     case File.stat(path) do
       {:ok, %File.Stat{size: size}} -> {:ok, size}
@@ -32,6 +35,7 @@ defimpl Enumerable, for: Box.MemTable.Iterator do
     end
   end
 
+  @impl true
   def reduce(%Iterator{fd: fd}, {:halt, acc}, _fun) do
     :ok = File.close(fd)
 

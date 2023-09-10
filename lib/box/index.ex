@@ -7,6 +7,8 @@ defmodule Box.Index do
   alias Box.Wal
   alias Box.Writer
 
+  require Logger
+
   defstruct [:dir, :schema, :wal, :mem_table]
 
   @type t :: %__MODULE__{
@@ -99,8 +101,6 @@ defmodule Box.Index do
       {:ok, struct!(__MODULE__, opts)}
     end
   end
-
-  require Logger
 
   @spec start_link(schema: Schema.t()) :: GenServer.on_start()
   def start_link(schema: schema) do
