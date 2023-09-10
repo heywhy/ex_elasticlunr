@@ -146,30 +146,34 @@ defmodule Box.MemTable do
     end
   end
 
-  defp to_binary(%Entry{key: key, value: value, deleted: deleted, timestamp: timestamp}) do
+  defp to_binary(%Entry{deleted: true, key: key, timestamp: timestamp}) do
     key_size = byte_size(key)
     key_size_data = <<key_size::unsigned-integer-size(64)>>
 
-    deleted_val = if(deleted, do: 1, else: 0)
-    deleted_data = <<deleted_val::unsigned-integer>>
+    deleted_data = <<1::unsigned-integer>>
 
     timestamp_data = <<timestamp::big-unsigned-integer-size(64)>>
 
-    case deleted do
-      true ->
-        sizes_data = <<key_size_data::binary, deleted_data::binary>>
+    sizes_data = <<key_size_data::binary, deleted_data::binary>>
 
-        <<sizes_data::binary, key::binary, timestamp_data::binary>>
+    <<sizes_data::binary, key::binary, timestamp_data::binary>>
+  end
 
-      false ->
-        value_size = byte_size(value)
-        value_size_data = <<value_size::unsigned-integer-size(64)>>
+  defp to_binary(%Entry{deleted: false, key: key, value: value, timestamp: timestamp}) do
+    key_size = byte_size(key)
+    key_size_data = <<key_size::unsigned-integer-size(64)>>
 
-        sizes_data = <<key_size_data::binary, deleted_data::binary, value_size_data::binary>>
+    deleted_data = <<0::unsigned-integer>>
 
-        kv_data = <<key::binary, value::binary>>
+    timestamp_data = <<timestamp::big-unsigned-integer-size(64)>>
 
-        <<sizes_data::binary, kv_data::binary, timestamp_data::binary>>
-    end
+    value_size = byte_size(value)
+    value_size_data = <<value_size::unsigned-integer-size(64)>>
+
+    sizes_data = <<key_size_data::binary, deleted_data::binary, value_size_data::binary>>
+
+    kv_data = <<key::binary, value::binary>>
+
+    <<sizes_data::binary, kv_data::binary, timestamp_data::binary>>
   end
 end

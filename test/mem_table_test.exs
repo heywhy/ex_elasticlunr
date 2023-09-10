@@ -4,16 +4,6 @@ defmodule Elasticlunr.MemTableTest do
   alias Box.MemTable
   alias Box.MemTable.Entry
 
-  setup do
-    dir = System.tmp_dir!() |> Path.join(FlakeId.get())
-
-    :ok = File.mkdir!(dir)
-
-    on_exit(fn -> File.rm_rf!(dir) end)
-
-    [dir: dir]
-  end
-
   describe "setting a key" do
     test "adds a new entry" do
       mem_table =
@@ -64,7 +54,13 @@ defmodule Elasticlunr.MemTableTest do
         |> MemTable.remove("key", 3)
         |> MemTable.set("key2", "value2", 4)
 
-      [mem_table: mem_table]
+      dir = System.tmp_dir!() |> Path.join(FlakeId.get())
+
+      :ok = File.mkdir!(dir)
+
+      on_exit(fn -> File.rm_rf!(dir) end)
+
+      [dir: dir, mem_table: mem_table]
     end
 
     test "writes entries to file", %{dir: dir, mem_table: mem_table} do
