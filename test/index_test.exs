@@ -14,7 +14,7 @@ defmodule Elasticlunr.IndexTest do
   end
 
   test "can save document" do
-    document = %{
+    document = %Book{
       views: 100,
       title: Lorem.word(),
       author: Person.name(),
@@ -22,12 +22,12 @@ defmodule Elasticlunr.IndexTest do
       release_date: Date.backward(1)
     }
 
-    assert {:ok, %{id: id, views: 100}} = Book.save(document)
+    assert {:ok, %Book{id: id, views: 100}} = Book.save(document)
     assert is_binary(id)
   end
 
   test "can retrieve document" do
-    document = %{
+    document = %Book{
       views: 100,
       title: Lorem.word(),
       author: Person.name(),
@@ -40,7 +40,7 @@ defmodule Elasticlunr.IndexTest do
   end
 
   test "can remove document" do
-    document = %{
+    document = %Book{
       views: 100,
       title: Lorem.word(),
       author: Person.name(),

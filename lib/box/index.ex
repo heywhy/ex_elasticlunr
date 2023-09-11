@@ -39,11 +39,24 @@ defmodule Box.Index do
       alias Box.Index
       alias Box.Schema
 
-      @spec get(binary()) :: map() | nil
-      def get(id), do: Index.get(@name, id)
+      fields = [:id] |> Enum.concat(Map.keys(@schema.fields)) |> Enum.uniq()
 
-      @spec save(map()) :: {:ok, map()}
-      def save(document), do: Index.save(@name, document)
+      defstruct fields
+
+      @spec get(binary()) :: struct() | nil
+      def get(id) do
+        with %{} = document <- Index.get(@name, id) do
+          struct!(__MODULE__, document)
+        end
+      end
+
+      @spec save(struct()) :: {:ok, struct()}
+      def save(%__MODULE__{} = document) do
+        with document <- Map.from_struct(document),
+             {:ok, document} <- Index.save(@name, document) do
+          {:ok, struct!(__MODULE__, document)}
+        end
+      end
 
       @spec delete(binary()) :: :ok
       def delete(id), do: Index.delete(@name, id)
@@ -121,7 +134,11 @@ defmodule Box.Index do
     {id, document} =
       document
       |> Map.take(known_fields)
-      |> Map.pop_lazy(:id, &FlakeId.get/0)
+      |> Map.replace_lazy(:id, fn
+        nil -> FlakeId.get()
+        value -> value
+      end)
+      |> Map.pop!(:id)
 
     with timestamp <- :os.system_time(:millisecond),
          value <- :erlang.term_to_binary(document),
