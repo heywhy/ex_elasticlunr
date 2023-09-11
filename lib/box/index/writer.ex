@@ -109,7 +109,7 @@ defmodule Box.Index.Writer do
            state
        ) do
     with true <- MemTable.size(mem_table) >= mt_max_size,
-         _file <- SSTable.flush(mem_table, dir),
+         _path <- SSTable.flush(mem_table, dir),
          :ok <- Wal.delete(wal) do
       %{state | wal: Wal.create(dir), mem_table: MemTable.new()}
     else

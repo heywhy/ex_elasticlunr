@@ -53,7 +53,7 @@ defmodule Box.Index.Reader do
     with true <- SSTable.is?(path),
          :load <- action(events),
          nil <- Enum.find(segments, &(&1.path == path)),
-         ss_table <- SSTable.from_file(path),
+         ss_table <- SSTable.from_path(path),
          segments <- Enum.concat([ss_table], segments) do
       Logger.debug("Update reader with #{path}.")
       {:noreply, %{state | segments: segments}}
@@ -85,6 +85,6 @@ defmodule Box.Index.Reader do
     |> SSTable.list()
     # Reverse list so that we have the latest segment at the top
     |> Enum.reverse()
-    |> Enum.map(&SSTable.from_file/1)
+    |> Enum.map(&SSTable.from_path/1)
   end
 end

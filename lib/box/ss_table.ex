@@ -19,8 +19,8 @@ defmodule Box.SSTable do
     struct!(__MODULE__, path: path, entries: :gb_trees.empty())
   end
 
-  @spec from_file(Path.t()) :: t() | no_return()
-  def from_file(path) do
+  @spec from_path(Path.t()) :: t() | no_return()
+  def from_path(path) do
     Iterator.new(path)
     |> Enum.reduce(new(path), fn %Entry{} = entry, ss_table ->
       case entry.deleted do

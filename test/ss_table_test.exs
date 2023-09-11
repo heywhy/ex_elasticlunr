@@ -30,16 +30,17 @@ defmodule Elasticlunr.SSTableTest do
     assert [^file] = SSTable.list(dir)
   end
 
-  test "from_file/1", %{dir: dir, mem_table: mem_table} do
+  test "from_path/1", %{dir: dir, mem_table: mem_table} do
     mem_table = MemTable.remove(mem_table, "key", 3)
 
-    assert ss_table = flush(mem_table, dir)
+    assert path = SSTable.flush(mem_table, dir)
+    assert ss_table = SSTable.from_path(path)
     assert %Entry{key: "key", deleted: true} = SSTable.get(ss_table, "key")
   end
 
   defp flush(mem_table, dir) do
     mem_table
     |> SSTable.flush(dir)
-    |> SSTable.from_file()
+    |> SSTable.from_path()
   end
 end
