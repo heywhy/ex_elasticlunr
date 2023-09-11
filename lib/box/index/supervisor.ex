@@ -57,7 +57,7 @@ defmodule Box.Index.Supervisor do
       {Writer, opts}
     ]
 
-    Supervisor.init(children, strategy: :one_for_one)
+    Supervisor.init(children, strategy: :one_for_all)
   end
 
   defp via(index), do: {:via, Registry, {@registry, index}}
