@@ -5,15 +5,10 @@ defmodule Elasticlunr.Application do
 
   use Application
 
-  alias Box.Writer
-  alias Elasticlunr.IndexManager
-
   @impl true
   def start(_type, _args) do
     children = [
-      Writer.Supervisor,
-      {Registry, name: Elasticlunr.IndexRegistry, keys: :unique},
-      {DynamicSupervisor, name: Elasticlunr.IndexSupervisor, strategy: :one_for_one}
+      {Registry, name: Elasticlunr.IndexRegistry, keys: :unique}
       # Starts a worker by calling: Elasticlunr.Worker.start_link(arg)
       # {Elasticlunr.Worker, arg}
     ]
@@ -22,13 +17,6 @@ defmodule Elasticlunr.Application do
     # for other strategies and supported options
     opts = [strategy: :one_for_one, name: Elasticlunr.Supervisor]
 
-    case Supervisor.start_link(children, opts) do
-      {:ok, _} = result ->
-        :ok = IndexManager.preload()
-        result
-
-      err ->
-        err
-    end
+    Supervisor.start_link(children, opts)
   end
 end
