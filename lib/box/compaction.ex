@@ -1,14 +1,16 @@
 defmodule Box.Compaction do
   use GenServer
 
+  alias Box.Index.Process, as: P
   alias Box.Schema
 
   require Logger
 
-  defstruct [:dir, :schema]
+  defstruct [:dir, :schema, :watcher]
 
   @type t :: %__MODULE__{
           dir: Path.t(),
+          watcher: pid(),
           schema: Schema.t()
         }
 
@@ -28,10 +30,32 @@ defmodule Box.Compaction do
   def init(opts) do
     Process.flag(:trap_exit, true)
 
-    dir = Keyword.fetch!(opts, :dir)
-    schema = Keyword.fetch!(opts, :schema)
+    with dir <- Keyword.fetch!(opts, :dir),
+         watcher <- P.fs_watcher(dir),
+         :ok <- FileSystem.subscribe(watcher),
+         schema <- Keyword.fetch!(opts, :schema),
+         attrs <- [dir: dir, schema: schema, watcher: watcher] do
+      {:ok, struct!(__MODULE__, attrs)}
+    end
+  end
 
-    {:ok, struct!(__MODULE__, dir: dir, schema: schema)}
+  @impl true
+  def handle_info(
+        {:file_event, watcher, {path, events}},
+        %__MODULE__{watcher: watcher} = state
+      ) do
+    Logger.debug("Received #{inspect(events)} for #{path}.")
+
+    {:noreply, state}
+  end
+
+  def handle_info(
+        {:file_event, watcher, :stop},
+        %__MODULE__{dir: dir, watcher: watcher} = state
+      ) do
+    Logger.debug("Stop watching directory #{dir}.")
+
+    {:noreply, state}
   end
 
   @impl true

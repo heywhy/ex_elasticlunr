@@ -1,8 +1,6 @@
 defmodule Box.MemTable do
   alias Box.MemTable.Entry
 
-  alias __MODULE__.Iterator
-
   @enforce_keys [:entries]
   defstruct [:entries, size: 0]
 
@@ -10,8 +8,6 @@ defmodule Box.MemTable do
           size: pos_integer(),
           entries: :gb_trees.tree(binary(), Entry.t())
         }
-
-  @ext "seg"
 
   @spec new() :: t()
   def new do
@@ -23,44 +19,6 @@ defmodule Box.MemTable do
 
   @spec size(t()) :: pos_integer()
   def size(%__MODULE__{size: size}), do: size
-
-  @spec flush(t(), Path.t()) :: :ok | no_return()
-  def flush(%__MODULE__{entries: entries}, dir) do
-    now = System.os_time(:microsecond)
-    dir = Path.join(dir, "_segments")
-    path = Path.join(dir, "#{now}.seg")
-
-    unless File.dir?(dir) do
-      :ok = File.mkdir!(dir)
-    end
-
-    :gb_trees.to_list(entries)
-    |> Stream.map(&elem(&1, 1))
-    |> Stream.map(&to_binary(&1))
-    |> Stream.into(File.stream!(path, [:append]))
-    |> Stream.run()
-  end
-
-  @spec is?(Path.t()) :: boolean()
-  def is?(path), do: Path.extname(path) == ".#{@ext}"
-
-  @spec list(Path.t()) :: [Path.t()]
-  def list(dir) do
-    dir
-    |> Path.join("_segments")
-    |> then(&Path.wildcard("#{&1}/*.#{@ext}"))
-  end
-
-  @spec from_file(Path.t()) :: t() | no_return()
-  def from_file(path) do
-    Iterator.new(path)
-    |> Enum.reduce(new(), fn %Entry{} = entry, mem_table ->
-      case entry.deleted do
-        true -> remove(mem_table, entry.key, entry.timestamp)
-        false -> set(mem_table, entry.key, entry.value, entry.timestamp)
-      end
-    end)
-  end
 
   @spec get(t(), binary()) :: Entry.t() | nil
   def get(%__MODULE__{entries: entries}, key) do
@@ -114,36 +72,5 @@ defmodule Box.MemTable do
 
         %{mem_table | entries: entries, size: size}
     end
-  end
-
-  defp to_binary(%Entry{deleted: true, key: key, timestamp: timestamp}) do
-    key_size = byte_size(key)
-    key_size_data = <<key_size::unsigned-integer-size(64)>>
-
-    deleted_data = <<1::unsigned-integer>>
-
-    timestamp_data = <<timestamp::big-unsigned-integer-size(64)>>
-
-    sizes_data = <<key_size_data::binary, deleted_data::binary>>
-
-    <<sizes_data::binary, key::binary, timestamp_data::binary>>
-  end
-
-  defp to_binary(%Entry{deleted: false, key: key, value: value, timestamp: timestamp}) do
-    key_size = byte_size(key)
-    key_size_data = <<key_size::unsigned-integer-size(64)>>
-
-    deleted_data = <<0::unsigned-integer>>
-
-    timestamp_data = <<timestamp::big-unsigned-integer-size(64)>>
-
-    value_size = byte_size(value)
-    value_size_data = <<value_size::unsigned-integer-size(64)>>
-
-    sizes_data = <<key_size_data::binary, deleted_data::binary, value_size_data::binary>>
-
-    kv_data = <<key::binary, value::binary>>
-
-    <<sizes_data::binary, kv_data::binary, timestamp_data::binary>>
   end
 end

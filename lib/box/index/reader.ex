@@ -2,8 +2,8 @@ defmodule Box.Index.Reader do
   use GenServer
 
   alias Box.Index.Process
-  alias Box.MemTable
-  alias Box.MemTable.Entry
+  alias Box.SSTable
+  alias Box.SSTable.Entry
 
   require Logger
 
@@ -12,7 +12,7 @@ defmodule Box.Index.Reader do
   @type t :: %__MODULE__{
           dir: Path.t(),
           watcher: pid(),
-          segments: [MemTable.t()]
+          segments: [SSTable.t()]
         }
 
   @spec start_link(keyword()) :: GenServer.on_start()
@@ -33,8 +33,8 @@ defmodule Box.Index.Reader do
   # Callbacks
   @impl true
   def handle_call({:get, id}, _from, %__MODULE__{segments: segments} = state) do
-    fun = fn {_path, mem_table}, key, acc ->
-      case MemTable.get(mem_table, key) do
+    fun = fn ss_table, key, acc ->
+      case SSTable.get(ss_table, key) do
         nil -> {:cont, acc}
         %Entry{} = entry -> {:halt, entry}
       end
@@ -50,17 +50,17 @@ defmodule Box.Index.Reader do
         {:file_event, watcher, {path, events}},
         %__MODULE__{watcher: watcher, segments: segments} = state
       ) do
-    with true <- MemTable.is?(path),
+    with true <- SSTable.is?(path),
          :load <- action(events),
-         nil <- Enum.find(segments, &match?({^path, _}, &1)),
-         mem_table <- MemTable.from_file(path),
-         segments <- Enum.concat([{path, mem_table}], segments) do
+         nil <- Enum.find(segments, &(&1.path == path)),
+         ss_table <- SSTable.from_file(path),
+         segments <- Enum.concat([ss_table], segments) do
       Logger.debug("Update reader with #{path}.")
       {:noreply, %{state | segments: segments}}
     else
       false -> {:noreply, state}
-      {_path, _mem_table} -> {:noreply, state}
-      :remove -> {:noreply, %{state | segments: Enum.reject(segments, &match?({^path, _}, &1))}}
+      {_path, _ss_table} -> {:noreply, state}
+      :remove -> {:noreply, %{state | segments: Enum.reject(segments, &(&1.path == path))}}
     end
   end
 
@@ -82,9 +82,9 @@ defmodule Box.Index.Reader do
 
   defp load_segments(dir) do
     dir
-    |> MemTable.list()
+    |> SSTable.list()
     # Reverse list so that we have the latest segment at the top
     |> Enum.reverse()
-    |> Enum.map(&{&1, MemTable.from_file(&1)})
+    |> Enum.map(&SSTable.from_file/1)
   end
 end

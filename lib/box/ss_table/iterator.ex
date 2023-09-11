@@ -1,4 +1,4 @@
-defmodule Box.MemTable.Iterator do
+defmodule Box.SSTable.Iterator do
   defstruct [:fd, :path, offset: 0]
 
   @type t :: %__MODULE__{
@@ -17,9 +17,9 @@ defmodule Box.MemTable.Iterator do
   end
 end
 
-defimpl Enumerable, for: Box.MemTable.Iterator do
-  alias Box.MemTable.Entry
-  alias Box.MemTable.Iterator
+defimpl Enumerable, for: Box.SSTable.Iterator do
+  alias Box.SSTable.Entry
+  alias Box.SSTable.Iterator
 
   @impl true
   def member?(%Iterator{}, _element), do: {:ok, false}

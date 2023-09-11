@@ -1,8 +1,8 @@
 defmodule Elasticlunr.Index.WriterTest do
   use ExUnit.Case, async: true
 
-  alias Box.MemTable
   alias Box.Index.Writer
+  alias Box.SSTable
   alias Elasticlunr.Book
 
   import Elasticlunr.Fixture
@@ -58,7 +58,7 @@ defmodule Elasticlunr.Index.WriterTest do
     |> Stream.each(&GenServer.call(pid, {:save, &1}))
     |> Enum.take(10)
 
-    assert segments = MemTable.list(dir)
+    assert segments = SSTable.list(dir)
     refute Enum.empty?(segments)
     assert Enum.count(segments) >= 2
   end

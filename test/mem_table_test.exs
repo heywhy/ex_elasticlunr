@@ -4,8 +4,6 @@ defmodule Elasticlunr.MemTableTest do
   alias Box.MemTable
   alias Box.MemTable.Entry
 
-  import Elasticlunr.Fixture
-
   setup do
     mem_table =
       MemTable.new()
@@ -40,27 +38,5 @@ defmodule Elasticlunr.MemTableTest do
 
     assert 3 = MemTable.length(mem_table)
     assert %Entry{key: "key2", deleted: true} = MemTable.get(mem_table, "key2")
-  end
-
-  test "flush/2", %{mem_table: mem_table} do
-    dir = tmp_dir!()
-
-    assert :ok = MemTable.flush(mem_table, dir)
-    assert [file] = MemTable.list(dir)
-    assert %File.Stat{size: size} = File.stat!(file)
-    assert size > 0
-  end
-
-  test "from_file/1", %{mem_table: mem_table} do
-    dir = tmp_dir!()
-    mem_table = MemTable.remove(mem_table, "key", 3)
-
-    :ok = MemTable.flush(mem_table, dir)
-
-    [file] = MemTable.list(dir)
-
-    assert new_mem_table = MemTable.from_file(file)
-    assert new_mem_table == mem_table
-    assert %Entry{key: "key", deleted: true} = MemTable.get(new_mem_table, "key")
   end
 end

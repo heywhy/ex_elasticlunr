@@ -1,11 +1,11 @@
 defmodule Elasticlunr.Index.ReaderTest do
   use ExUnit.Case, async: true
 
-  alias Box.MemTable
-  alias Box.MemTable.Entry
   alias Box.Index.Fs
   alias Box.Index.Reader
   alias Box.Index.Writer
+  alias Box.SSTable
+  alias Box.SSTable.Entry
   alias Elasticlunr.Book
 
   import Elasticlunr.Fixture
@@ -38,7 +38,7 @@ defmodule Elasticlunr.Index.ReaderTest do
 
   test "update internals when a segment is deleted", %{dir: dir, pid: pid, document: document} do
     dir
-    |> MemTable.list()
+    |> SSTable.list()
     |> Enum.each(&File.rm!/1)
 
     assert eventually(fn -> GenServer.call(pid, {:get, document.id}) == nil end)
