@@ -24,14 +24,14 @@ defmodule Box.Index do
 
       defstruct fields
 
-      @spec get(binary()) :: struct() | nil
+      @spec get(binary()) :: struct() | nil | no_return()
       def get(id) do
         with %{} = document <- Index.Supervisor.get(@name, id) do
           struct!(__MODULE__, document)
         end
       end
 
-      @spec save(struct()) :: {:ok, struct()}
+      @spec save(struct()) :: {:ok, struct()} | {:error, :not_running}
       def save(%__MODULE__{} = document) do
         with document <- Map.from_struct(document),
              {:ok, document} <- Index.Supervisor.save(@name, document) do
@@ -39,7 +39,7 @@ defmodule Box.Index do
         end
       end
 
-      @spec delete(binary()) :: :ok
+      @spec delete(binary()) :: :ok | {:error, :not_running}
       def delete(id), do: Index.Supervisor.delete(@name, id)
 
       @spec __schema__() :: Schema.t()

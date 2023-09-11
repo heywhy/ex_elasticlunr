@@ -3,17 +3,19 @@ defmodule Box.Index.Writer do
 
   alias Box.MemTable
   alias Box.MemTable.Entry
+  alias Box.Schema
   alias Box.Wal
 
   require Logger
 
-  defstruct [:dir, :schema, :wal, :mem_table]
+  defstruct [:dir, :schema, :wal, :mem_table, :mt_max_size]
 
   @type t :: %__MODULE__{
           wal: Wal.t(),
           dir: Path.t(),
           schema: Schema.t(),
-          mem_table: MemTable.t()
+          mem_table: MemTable.t(),
+          mt_max_size: pos_integer()
         }
 
   @spec start_link(keyword()) :: GenServer.on_start()
@@ -25,6 +27,7 @@ defmodule Box.Index.Writer do
 
     dir = Keyword.fetch!(opts, :dir)
     schema = Keyword.fetch!(opts, :schema)
+    mt_max_size = Keyword.fetch!(opts, :mem_table_max_size)
 
     {wal, mem_table} = Wal.load_from_dir(opts[:dir])
 
@@ -32,7 +35,8 @@ defmodule Box.Index.Writer do
       dir: dir,
       wal: wal,
       schema: schema,
-      mem_table: mem_table
+      mem_table: mem_table,
+      mt_max_size: mt_max_size
     ]
 
     {:ok, struct!(__MODULE__, attrs)}
@@ -81,13 +85,14 @@ defmodule Box.Index.Writer do
     end
   end
 
-  def handle_call({:get, id}, _from, %__MODULE__{dir: dir, mem_table: mem_table} = state) do
-    with %Entry{deleted: false, value: value} <- MemTable.get(mem_table, id, dir),
+  def handle_call({:get, id}, _from, %__MODULE__{mem_table: mem_table} = state) do
+    with %Entry{deleted: false, value: value} <- MemTable.get(mem_table, id),
          value <- :erlang.binary_to_term(value),
          value <- Map.put(value, :id, id) do
       {:reply, value, state}
     else
       %Entry{deleted: true} -> {:reply, nil, state}
+      nil -> {:reply, nil, state}
     end
   end
 
@@ -98,17 +103,16 @@ defmodule Box.Index.Writer do
     Logger.debug("Terminating writer process for #{schema.name} due to #{inspect(reason)}")
   end
 
-  defp write_to_disk_if_needed(%__MODULE__{mem_table: mem_table} = state) do
-    case MemTable.maxed?(mem_table) do
-      true -> write_to_disk(state)
+  defp write_to_disk_if_needed(
+         %__MODULE__{dir: dir, wal: wal, mem_table: mem_table, mt_max_size: mt_max_size} =
+           state
+       ) do
+    with true <- MemTable.size(mem_table) >= mt_max_size,
+         :ok <- MemTable.flush(mem_table, dir),
+         :ok <- Wal.delete(wal) do
+      %{state | wal: Wal.create(dir), mem_table: MemTable.new()}
+    else
       false -> state
     end
-  end
-
-  defp write_to_disk(%__MODULE__{dir: dir, wal: wal, mem_table: mem_table} = state) do
-    :ok = MemTable.flush(mem_table, dir)
-    :ok = Wal.delete(wal)
-
-    %{state | wal: Wal.create(dir), mem_table: MemTable.new()}
   end
 end

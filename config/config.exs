@@ -1,6 +1,7 @@
 import Config
 
 config :elasticlunr,
+  env: config_env(),
   storage_dir: "./storage",
   max_mem_table_size: 1_000_000
 

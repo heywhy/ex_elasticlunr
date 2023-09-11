@@ -2,33 +2,41 @@ defmodule Box.Index.Supervisor do
   use Supervisor
 
   alias Box.Compaction
+  alias Box.Index.Fs
+  alias Box.Index.Process
+  alias Box.Index.Reader
   alias Box.Index.Writer
   alias Box.Schema
 
   @otp_app :elasticlunr
+  # default to 15mb
+  @mem_table_max_size 15_728_640
   @registry Elasticlunr.IndexRegistry
 
   @spec save(binary(), map()) :: {:ok, map()} | {:error, :not_running}
   def save(index, document) do
-    case writer(index) do
+    case Process.writer(index) do
       nil -> {:error, :not_found}
       pid -> GenServer.call(pid, {:save, document})
     end
   end
 
-  @spec delete(binary(), binary()) :: :ok
+  @spec delete(binary(), binary()) :: :ok | {:error, :not_running}
   def delete(index, id) do
-    case writer(index) do
+    case Process.writer(index) do
       nil -> {:error, :not_found}
       pid -> GenServer.call(pid, {:delete, id})
     end
   end
 
-  @spec get(binary(), binary()) :: map() | nil
+  @spec get(binary(), binary()) :: map() | nil | no_return()
   def get(index, id) do
-    case writer(index) do
-      nil -> {:error, :not_found}
-      pid -> GenServer.call(pid, {:get, id})
+    with writer_pid <- Process.writer(index),
+         nil <- GenServer.call(writer_pid, {:get, id}),
+         reader_pid <- Process.reader(index) do
+      GenServer.call(reader_pid, {:get, id})
+    else
+      document -> document
     end
   end
 
@@ -50,11 +58,13 @@ defmodule Box.Index.Supervisor do
   @impl true
   def init(%Schema{} = schema) do
     dir = create_dir!(schema)
-    opts = [dir: dir, schema: schema]
+    mem_table_max_size = Application.get_env(@otp_app, :mem_table_max_size, @mem_table_max_size)
 
     children = [
-      {Compaction, opts},
-      {Writer, opts}
+      {Fs, dir},
+      {Compaction, dir: dir, schema: schema},
+      {Writer, [dir: dir, schema: schema, mem_table_max_size: mem_table_max_size]},
+      {Reader, dir: dir, schema: schema}
     ]
 
     Supervisor.init(children, strategy: :one_for_all)
@@ -74,16 +84,6 @@ defmodule Box.Index.Supervisor do
       dir
     else
       true -> dir
-    end
-  end
-
-  defp writer(index) do
-    via(index)
-    |> Supervisor.which_children()
-    |> Enum.find(&(elem(&1, 0) == Writer))
-    |> case do
-      nil -> {:error, :not_found}
-      {Writer, pid, :worker, [Writer]} -> pid
     end
   end
 end

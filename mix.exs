@@ -13,7 +13,6 @@ defmodule Elasticlunr.MixProject do
       start_permanent: Mix.env() == :prod,
       description: description(),
       package: package(),
-      aliases: aliases(),
       deps: deps(),
       source_url: @source_url,
 
@@ -65,17 +64,13 @@ defmodule Elasticlunr.MixProject do
       {:ex_doc, "~> 0.25", only: :dev, runtime: false},
       {:excoveralls, "~> 0.14", only: :test},
       {:faker, "~> 0.16", only: :test},
+      {:file_system, "~> 0.2"},
       {:flake_id, "~> 0.1"},
       {:jason, "~> 1.3"},
+      {:liveness, "~> 1.0", only: :test},
       {:mox, "~> 1.0", only: :test},
       {:stemmer, "~> 1.0"},
       {:uniq, "~> 0.4"}
-    ]
-  end
-
-  defp aliases do
-    [
-      test: ~w[format credo test]
     ]
   end
 

@@ -4,97 +4,63 @@ defmodule Elasticlunr.MemTableTest do
   alias Box.MemTable
   alias Box.MemTable.Entry
 
-  describe "setting a key" do
-    test "adds a new entry" do
-      mem_table =
-        MemTable.new()
-        |> MemTable.set("key", "value", 1)
-        |> MemTable.set("key1", "value1", 2)
+  import Elasticlunr.Fixture
 
-      assert 2 = MemTable.length(mem_table)
-    end
+  setup do
+    mem_table =
+      MemTable.new()
+      |> MemTable.set("key", "value", 1)
+      |> MemTable.set("key1", "value1", 2)
 
-    test "updates existing entry" do
-      mem_table =
-        MemTable.new()
-        |> MemTable.set("key", "value", 1)
-        |> MemTable.set("key", "value1", 2)
-
-      assert 1 = MemTable.length(mem_table)
-      assert %Entry{key: "key", value: "value1"} = MemTable.get(mem_table, "key")
-    end
+    [mem_table: mem_table]
   end
 
-  describe "removing a key" do
-    test "sets entry to deleted" do
-      mem_table =
-        MemTable.new()
-        |> MemTable.set("key", "value", 1)
-        |> MemTable.set("key1", "value1", 2)
-        |> MemTable.remove("key", 3)
+  test "set/4 adds a new entry", %{mem_table: mem_table} do
+    mem_table = MemTable.set(mem_table, "key2", "value2", 3)
 
-      assert 2 = MemTable.length(mem_table)
-      assert %Entry{key: "key", deleted: true, value: nil} = MemTable.get(mem_table, "key")
-    end
-
-    test "adds a deletion entry for non-existing key" do
-      mem_table = MemTable.remove(MemTable.new(), "key", 3)
-
-      assert 1 = MemTable.length(mem_table)
-      assert %Entry{key: "key", deleted: true} = MemTable.get(mem_table, "key")
-    end
+    assert 3 = MemTable.length(mem_table)
   end
 
-  describe "" do
-    setup do
-      mem_table =
-        MemTable.new()
-        |> MemTable.set("key", "value", 1)
-        |> MemTable.set("key1", "value1", 2)
-        |> MemTable.remove("key", 3)
-        |> MemTable.set("key2", "value2", 4)
+  test "set/4 updates existing entry", %{mem_table: mem_table} do
+    mem_table = MemTable.set(mem_table, "key", "value1", 2)
 
-      dir = System.tmp_dir!() |> Path.join(FlakeId.get())
+    assert 2 = MemTable.length(mem_table)
+    assert %Entry{key: "key", value: "value1", timestamp: 2} = MemTable.get(mem_table, "key")
+  end
 
-      :ok = File.mkdir!(dir)
+  test "remove/3 sets entry to deleted", %{mem_table: mem_table} do
+    mem_table = MemTable.remove(mem_table, "key", 3)
 
-      on_exit(fn -> File.rm_rf!(dir) end)
+    assert 2 = MemTable.length(mem_table)
+    assert %Entry{key: "key", deleted: true, value: nil} = MemTable.get(mem_table, "key")
+  end
 
-      [dir: dir, mem_table: mem_table]
-    end
+  test "remove/3 adds a deletion entry for missing key", %{mem_table: mem_table} do
+    mem_table = MemTable.remove(mem_table, "key2", 3)
 
-    test "writes entries to file", %{dir: dir, mem_table: mem_table} do
-      assert :ok = MemTable.flush(mem_table, dir)
-      assert [file] = MemTable.list(dir)
-      assert %File.Stat{size: size} = File.stat!(file)
-      assert size > 0
-    end
+    assert 3 = MemTable.length(mem_table)
+    assert %Entry{key: "key2", deleted: true} = MemTable.get(mem_table, "key2")
+  end
 
-    test "rebuild memtable from file", %{dir: dir, mem_table: mem_table} do
-      :ok = MemTable.flush(mem_table, dir)
+  test "flush/2", %{mem_table: mem_table} do
+    dir = tmp_dir!()
 
-      [file] = MemTable.list(dir)
+    assert :ok = MemTable.flush(mem_table, dir)
+    assert [file] = MemTable.list(dir)
+    assert %File.Stat{size: size} = File.stat!(file)
+    assert size > 0
+  end
 
-      assert new_mem_table = MemTable.from_file(file)
-      assert new_mem_table == mem_table
-    end
+  test "from_file/1", %{mem_table: mem_table} do
+    dir = tmp_dir!()
+    mem_table = MemTable.remove(mem_table, "key", 3)
 
-    test "retrieve key", %{mem_table: mem_table} do
-      refute MemTable.get(mem_table, "unknown")
-      assert %Entry{key: "key2", value: "value2"} = MemTable.get(mem_table, "key2")
-    end
+    :ok = MemTable.flush(mem_table, dir)
 
-    test "retrieve through the existing segments", %{dir: dir, mem_table: mem_table} do
-      :ok = MemTable.flush(mem_table, dir)
+    [file] = MemTable.list(dir)
 
-      mem_table =
-        MemTable.new()
-        |> MemTable.set("name", "elasticlunr", 5)
-        |> MemTable.set("key", "new_value", 6)
-
-      assert %Entry{} = MemTable.get(mem_table, "name", dir)
-      assert %Entry{value: "new_value"} = MemTable.get(mem_table, "key", dir)
-      assert %Entry{value: "value2"} = MemTable.get(mem_table, "key2", dir)
-    end
+    assert new_mem_table = MemTable.from_file(file)
+    assert new_mem_table == mem_table
+    assert %Entry{key: "key", deleted: true} = MemTable.get(new_mem_table, "key")
   end
 end

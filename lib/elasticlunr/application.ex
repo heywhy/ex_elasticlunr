@@ -8,6 +8,7 @@ defmodule Elasticlunr.Application do
   @impl true
   def start(_type, _args) do
     children = [
+      {Registry, name: Box.Index.Fs, keys: :unique},
       {Registry, name: Elasticlunr.IndexRegistry, keys: :unique}
       # Starts a worker by calling: Elasticlunr.Worker.start_link(arg)
       # {Elasticlunr.Worker, arg}

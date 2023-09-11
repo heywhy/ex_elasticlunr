@@ -6,15 +6,12 @@ defmodule Box.MemTable do
   @enforce_keys [:entries]
   defstruct [:entries, size: 0]
 
-  @otp_app :elasticlunr
-
-  # default to 15mb
-  @max_size 15_728_640
-
   @type t :: %__MODULE__{
           size: pos_integer(),
           entries: :gb_trees.tree(binary(), Entry.t())
         }
+
+  @ext "seg"
 
   @spec new() :: t()
   def new do
@@ -26,13 +23,6 @@ defmodule Box.MemTable do
 
   @spec size(t()) :: pos_integer()
   def size(%__MODULE__{size: size}), do: size
-
-  @spec maxed?(t()) :: boolean()
-  def maxed?(%__MODULE__{size: size}) do
-    @otp_app
-    |> Application.get_env(:mem_table_max_size, @max_size)
-    |> Kernel.<=(size)
-  end
 
   @spec flush(t(), Path.t()) :: :ok | no_return()
   def flush(%__MODULE__{entries: entries}, dir) do
@@ -51,11 +41,14 @@ defmodule Box.MemTable do
     |> Stream.run()
   end
 
+  @spec is?(Path.t()) :: boolean()
+  def is?(path), do: Path.extname(path) == ".#{@ext}"
+
   @spec list(Path.t()) :: [Path.t()]
   def list(dir) do
     dir
     |> Path.join("_segments")
-    |> then(&Path.wildcard("#{&1}/*.seg"))
+    |> then(&Path.wildcard("#{&1}/*.#{@ext}"))
   end
 
   @spec from_file(Path.t()) :: t() | no_return()
@@ -67,29 +60,6 @@ defmodule Box.MemTable do
         false -> set(mem_table, entry.key, entry.value, entry.timestamp)
       end
     end)
-  end
-
-  @spec get(t(), binary(), Path.t()) :: Entry.t() | nil
-  def get(%__MODULE__{} = mem_table, key, dir) do
-    fun = fn path, key, acc ->
-      Iterator.new(path)
-      |> Enum.find(&(&1.key == key))
-      # TODO: Find a more efficient approach
-      # Since loading all entries isn't efficient for a situation where
-      # there are a thousand entries but key is in 100th row. There should
-      # be a balance of usage between row or binary search by the tree.
-      |> case do
-        nil -> {:cont, acc}
-        %Entry{} = entry -> {:halt, entry}
-      end
-    end
-
-    mem_table
-    |> get(key)
-    |> case do
-      %Entry{} = entry -> entry
-      nil -> list(dir) |> Enum.reverse() |> Enum.reduce_while(nil, &fun.(&1, key, &2))
-    end
   end
 
   @spec get(t(), binary()) :: Entry.t() | nil
