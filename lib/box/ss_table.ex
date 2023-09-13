@@ -53,7 +53,11 @@ defmodule Box.SSTable do
 
   @spec count(t()) :: pos_integer()
   def count(%__MODULE__{path: path}) do
-    Iterator.new(path) |> Enum.count()
+    with iter <- Iterator.new(path),
+         count <- Enum.count(iter),
+         :ok <- Iterator.destroy(iter) do
+      count
+    end
   end
 
   @spec is?(Path.t()) :: boolean()

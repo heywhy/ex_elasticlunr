@@ -15,6 +15,9 @@ defmodule Box.SSTable.Iterator do
 
     struct!(__MODULE__, path: path, fd: File.open!(path, @opts))
   end
+
+  @spec destroy(t()) :: :ok
+  def destroy(%__MODULE__{fd: fd}), do: File.close(fd)
 end
 
 defimpl Enumerable, for: Box.SSTable.Iterator do
