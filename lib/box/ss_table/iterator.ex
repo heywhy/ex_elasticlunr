@@ -22,7 +22,7 @@ defimpl Enumerable, for: Box.SSTable.Iterator do
   alias Box.SSTable.Iterator
 
   @impl true
-  def member?(%Iterator{}, _element), do: {:ok, false}
+  def member?(%Iterator{}, _element), do: throw(:not_implemented)
 
   @impl true
   def slice(%Iterator{}), do: throw(:not_implemented)

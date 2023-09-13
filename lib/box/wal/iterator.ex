@@ -22,18 +22,13 @@ defimpl Enumerable, for: Box.Wal.Iterator do
   alias Box.Wal.Iterator
 
   @impl true
-  def member?(%Iterator{}, _element), do: {:ok, false}
+  def member?(%Iterator{}, _element), do: throw(:not_implemented)
 
   @impl true
   def slice(%Iterator{}), do: throw(:not_implemented)
 
   @impl true
-  def count(%Iterator{path: path}) do
-    case File.stat(path) do
-      {:ok, %File.Stat{size: size}} -> {:ok, size}
-      error -> error
-    end
-  end
+  def count(%Iterator{}), do: throw(:not_implemented)
 
   @impl true
   def reduce(%Iterator{offset: -1, fd: fd}, {:cont, acc}, _reducer) do
