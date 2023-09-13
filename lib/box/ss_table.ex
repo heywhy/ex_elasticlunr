@@ -8,15 +8,15 @@ defmodule Box.SSTable do
 
   @type t :: %__MODULE__{
           path: Path.t(),
-          offsets: %{binary() => pos_integer()},
-          entries: :gb_trees.tree(binary(), Entry.t())
+          entries: Treex.t(),
+          offsets: %{binary() => pos_integer()}
         }
 
   @ext "seg"
 
   @spec new(Path.t()) :: t()
   def new(path) do
-    struct!(__MODULE__, path: path, entries: :gb_trees.empty())
+    struct!(__MODULE__, path: path, entries: Treex.empty())
   end
 
   @spec from_path(Path.t()) :: t() | no_return()
@@ -31,23 +31,29 @@ defmodule Box.SSTable do
   end
 
   @spec flush(MemTable.t(), Path.t()) :: Path.t() | no_return()
-  def flush(%MemTable{entries: entries}, dir) do
-    now = System.os_time(:microsecond)
-    dir = Path.join(dir, "_segments")
-    path = Path.join(dir, "#{now}.seg")
+  def flush(%MemTable{} = mem_table, dir) do
+    path = create_file(dir)
+    length = MemTable.length(mem_table)
 
-    unless File.dir?(dir) do
-      :ok = File.mkdir!(dir)
-    end
+    file =
+      path
+      |> File.stream!([:append])
+      # Store entries count as the first byte in the file
+      |> then(&Enum.into([<<length::unsigned-integer>>], &1))
 
     :ok =
-      :gb_trees.to_list(entries)
-      |> Stream.map(&elem(&1, 1))
+      mem_table
+      |> MemTable.stream()
       |> Stream.map(&to_binary(&1))
-      |> Stream.into(File.stream!(path, [:append]))
+      |> Stream.into(file)
       |> Stream.run()
 
     path
+  end
+
+  @spec count(t()) :: pos_integer()
+  def count(%__MODULE__{path: path}) do
+    Iterator.new(path) |> Enum.count()
   end
 
   @spec is?(Path.t()) :: boolean()
@@ -62,22 +68,33 @@ defmodule Box.SSTable do
 
   @spec get(t(), binary()) :: Entry.t() | nil
   def get(%__MODULE__{entries: entries}, key) do
-    case :gb_trees.lookup(key, entries) do
+    case Treex.lookup(entries, key) do
       :none -> nil
       {:value, entry} -> entry
     end
   end
 
+  defp create_file(dir) do
+    dir = Path.join(dir, "_segments")
+    now = System.os_time(:microsecond)
+
+    unless File.dir?(dir) do
+      :ok = File.mkdir!(dir)
+    end
+
+    Path.join(dir, "#{now}.seg")
+  end
+
   defp set(%__MODULE__{entries: entries} = ss_table, key, value, timestamp) do
     entry = Entry.new(key, value, false, timestamp)
-    entries = :gb_trees.insert(key, entry, entries)
+    entries = Treex.insert!(entries, key, entry)
 
     %{ss_table | entries: entries}
   end
 
   defp remove(%__MODULE__{entries: entries} = ss_table, key, timestamp) do
     entry = Entry.new(key, nil, true, timestamp)
-    entries = :gb_trees.insert(key, entry, entries)
+    entries = Treex.insert!(entries, key, entry)
 
     %{ss_table | entries: entries}
   end

@@ -18,6 +18,12 @@ defmodule Elasticlunr.SSTableTest do
     [dir: dir, mem_table: mem_table]
   end
 
+  test "count/1", %{dir: dir, mem_table: mem_table} do
+    ss_table = flush(mem_table, dir)
+
+    assert SSTable.count(ss_table) == 2
+  end
+
   test "flush/2", %{dir: dir, mem_table: mem_table} do
     assert file = SSTable.flush(mem_table, dir)
     assert %File.Stat{size: size} = File.stat!(file)

@@ -1,5 +1,5 @@
 defmodule Box.SSTable.Iterator do
-  defstruct [:fd, :path, offset: 0]
+  defstruct [:fd, :path, offset: 1]
 
   @type t :: %__MODULE__{
           path: Path.t(),
@@ -28,19 +28,17 @@ defimpl Enumerable, for: Box.SSTable.Iterator do
   def slice(%Iterator{}), do: throw(:not_implemented)
 
   @impl true
-  def count(%Iterator{path: path}) do
-    case File.stat(path) do
-      {:ok, %File.Stat{size: size}} -> {:ok, size}
-      error -> error
+  def count(%Iterator{fd: fd, offset: offset}) do
+    # The first byte holds the number of entries in the sstable
+    with {:ok, _new_offset} <- :file.position(fd, 0),
+         <<count::unsigned-integer>> <- IO.binread(fd, 1),
+         {:ok, _new_offset} <- :file.position(fd, offset) do
+      {:ok, count}
     end
   end
 
   @impl true
-  def reduce(%Iterator{fd: fd}, {:halt, acc}, _fun) do
-    :ok = File.close(fd)
-
-    {:halted, acc}
-  end
+  def reduce(%Iterator{fd: _fd}, {:halt, acc}, _fun), do: {:halted, acc}
 
   def reduce(%Iterator{offset: -1, fd: fd}, {:cont, acc}, _fun) do
     :ok = File.close(fd)

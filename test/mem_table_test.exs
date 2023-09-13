@@ -39,4 +39,10 @@ defmodule Elasticlunr.MemTableTest do
     assert 3 = MemTable.length(mem_table)
     assert %Entry{key: "key2", deleted: true} = MemTable.get(mem_table, "key2")
   end
+
+  test "stream/1", %{mem_table: mem_table} do
+    assert stream = MemTable.stream(mem_table)
+    assert Enum.count(stream) == 2
+    assert Enum.all?(stream, &(&1.key in ["key", "key1"]))
+  end
 end

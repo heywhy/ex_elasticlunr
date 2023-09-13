@@ -21,5 +21,6 @@
   "mox": {:hex, :mox, "1.0.2", "dc2057289ac478b35760ba74165b4b3f402f68803dd5aecd3bfd19c183815d64", [:mix], [], "hexpm", "f9864921b3aaf763c8741b5b8e6f908f44566f1e427b2630e89e9a73b981fef2"},
   "nimble_parsec": {:hex, :nimble_parsec, "1.3.1", "2c54013ecf170e249e9291ed0a62e5832f70a476c61da16f6aac6dca0189f2af", [:mix], [], "hexpm", "2682e3c0b2eb58d90c6375fc0cc30bc7be06f365bf72608804fb9cffa5e1b167"},
   "stemmer": {:hex, :stemmer, "1.1.0", "71221331ced40832b47e6989a12dd9de1b15c982043d1014742be83c34ec9e79", [:mix], [], "hexpm", "0cb5faf73476b84500e371ff39fd9a494f60ab31d991689c1cd53b920556228f"},
+  "treex": {:hex, :treex, "0.1.0", "d3cf28651d84e5c5535f90748fa13b4fe334860f62a79f2edcb2410bbbec7da7", [:mix], [], "hexpm", "4749226e0c970f1ec840da8dee78b20f4dd2f104c466256330cd652c0a08f5f5"},
   "uniq": {:hex, :uniq, "0.6.1", "369660ecbc19051be526df3aa85dc393af5f61f45209bce2fa6d7adb051ae03c", [:mix], [{:ecto, "~> 3.0", [hex: :ecto, repo: "hexpm", optional: true]}], "hexpm", "6426c34d677054b3056947125b22e0daafd10367b85f349e24ac60f44effb916"},
 }

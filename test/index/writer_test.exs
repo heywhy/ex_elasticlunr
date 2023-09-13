@@ -31,7 +31,7 @@ defmodule Elasticlunr.Index.WriterTest do
   end
 
   test "update document", %{pid: pid} do
-    document = new_book(id: FlakeId.get())
+    {:ok, document} = GenServer.call(pid, {:save, new_book()})
 
     assert {:ok, saved} = GenServer.call(pid, {:save, document})
     assert document.id == saved.id

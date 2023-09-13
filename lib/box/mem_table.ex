@@ -1,28 +1,32 @@
 defmodule Box.MemTable do
   alias Box.MemTable.Entry
 
-  @enforce_keys [:entries]
-  defstruct [:entries, size: 0]
+  defstruct entries: Treex.empty(), size: 0
 
   @type t :: %__MODULE__{
-          size: pos_integer(),
-          entries: :gb_trees.tree(binary(), Entry.t())
+          entries: Treex.t(),
+          size: pos_integer()
         }
 
   @spec new() :: t()
-  def new do
-    struct!(__MODULE__, entries: :gb_trees.empty())
-  end
+  def new, do: struct!(__MODULE__)
 
   @spec length(t()) :: pos_integer()
-  def length(%__MODULE__{entries: entries}), do: :gb_trees.size(entries)
+  def length(%__MODULE__{entries: entries}), do: Treex.size(entries)
 
   @spec size(t()) :: pos_integer()
   def size(%__MODULE__{size: size}), do: size
 
+  @spec stream(t()) :: Enumerable.t()
+  def stream(%__MODULE__{entries: entries}) do
+    entries
+    |> Treex.stream()
+    |> Stream.map(&elem(&1, 1))
+  end
+
   @spec get(t(), binary()) :: Entry.t() | nil
   def get(%__MODULE__{entries: entries}, key) do
-    case :gb_trees.lookup(key, entries) do
+    case Treex.lookup(entries, key) do
       :none -> nil
       {:value, entry} -> entry
     end
@@ -30,12 +34,12 @@ defmodule Box.MemTable do
 
   @spec set(t(), binary(), binary(), pos_integer()) :: t()
   def set(%__MODULE__{entries: entries, size: size} = mem_table, key, value, timestamp) do
-    case :gb_trees.lookup(key, entries) do
+    case Treex.lookup(entries, key) do
       :none ->
         size = size + byte_size(key) + byte_size(value) + 16 + 1
         entry = Entry.new(key, value, false, timestamp)
 
-        entries = :gb_trees.insert(key, entry, entries)
+        entries = Treex.insert!(entries, key, entry)
 
         %{mem_table | entries: entries, size: size}
 
@@ -47,7 +51,7 @@ defmodule Box.MemTable do
           end
 
         entry = %{entry | value: value, deleted: false, timestamp: timestamp}
-        entries = :gb_trees.update(key, entry, entries)
+        entries = Treex.update!(entries, key, entry)
 
         %{mem_table | entries: entries, size: size}
     end
@@ -55,12 +59,12 @@ defmodule Box.MemTable do
 
   @spec remove(t(), binary(), pos_integer()) :: t()
   def remove(%__MODULE__{entries: entries, size: size} = mem_table, key, timestamp) do
-    case :gb_trees.lookup(key, entries) do
+    case Treex.lookup(entries, key) do
       :none ->
         size = size + byte_size(key) + 16 + 1
 
         entry = Entry.new(key, nil, true, timestamp)
-        entries = :gb_trees.insert(key, entry, entries)
+        entries = Treex.insert!(entries, key, entry)
 
         %{mem_table | entries: entries, size: size}
 
@@ -68,7 +72,7 @@ defmodule Box.MemTable do
         size = size - byte_size(entry.value)
 
         entry = %{entry | value: nil, deleted: true, timestamp: timestamp}
-        entries = :gb_trees.update(key, entry, entries)
+        entries = Treex.update!(entries, key, entry)
 
         %{mem_table | entries: entries, size: size}
     end
