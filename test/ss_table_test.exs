@@ -18,10 +18,18 @@ defmodule Elasticlunr.SSTableTest do
     [dir: dir, mem_table: mem_table]
   end
 
-  test "count/1", %{dir: dir, mem_table: mem_table} do
+  test "length/1", %{dir: dir, mem_table: mem_table} do
     ss_table = flush(mem_table, dir)
 
-    assert SSTable.count(ss_table) == 2
+    assert SSTable.length(ss_table) == 2
+  end
+
+  test "contains?/2", %{dir: dir, mem_table: mem_table} do
+    ss_table = flush(mem_table, dir)
+
+    assert SSTable.contains?(ss_table, "key")
+    assert SSTable.contains?(ss_table, "key1")
+    refute SSTable.contains?(ss_table, "unknown")
   end
 
   test "flush/2", %{dir: dir, mem_table: mem_table} do

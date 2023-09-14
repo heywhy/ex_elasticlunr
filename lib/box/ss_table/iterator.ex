@@ -1,23 +1,38 @@
 defmodule Box.SSTable.Iterator do
-  defstruct [:fd, :path, offset: 1]
+  defstruct [:fd, :path, :count, :offset, :lower_bound, :upper_bound]
 
   @type t :: %__MODULE__{
           path: Path.t(),
           offset: integer(),
-          fd: File.io_device()
+          count: pos_integer(),
+          fd: File.io_device(),
+          lower_bound: binary(),
+          upper_bound: binary()
         }
 
   @opts [:read, :binary]
 
   @spec new(Path.t()) :: t()
   def new(path) do
-    path = Path.absname(path)
+    with path <- Path.absname(path),
+         fd <- File.open!(path, @opts),
+         <<count::unsigned-integer>> <- IO.binread(fd, 1),
+         <<lb_size::unsigned-integer>> <- IO.binread(fd, 1),
+         <<ub_size::unsigned-integer>> <- IO.binread(fd, 1),
+         <<lb::binary>> <- IO.binread(fd, lb_size),
+         <<ub::binary>> <- IO.binread(fd, ub_size) do
+      attrs = %{
+        fd: fd,
+        path: path,
+        count: count,
+        lower_bound: lb,
+        upper_bound: ub,
+        offset: lb_size + ub_size + 3
+      }
 
-    struct!(__MODULE__, path: path, fd: File.open!(path, @opts))
+      struct!(__MODULE__, attrs)
+    end
   end
-
-  @spec destroy(t()) :: :ok
-  def destroy(%__MODULE__{fd: fd}), do: File.close(fd)
 end
 
 defimpl Enumerable, for: Box.SSTable.Iterator do
@@ -25,20 +40,14 @@ defimpl Enumerable, for: Box.SSTable.Iterator do
   alias Box.SSTable.Iterator
 
   @impl true
-  def member?(%Iterator{}, _element), do: throw(:not_implemented)
+  def member?(%Iterator{lower_bound: lb, upper_bound: ub}, element),
+    do: {:ok, element >= lb and element <= ub}
 
   @impl true
   def slice(%Iterator{}), do: throw(:not_implemented)
 
   @impl true
-  def count(%Iterator{fd: fd, offset: offset}) do
-    # The first byte holds the number of entries in the sstable
-    with {:ok, _new_offset} <- :file.position(fd, 0),
-         <<count::unsigned-integer>> <- IO.binread(fd, 1),
-         {:ok, _new_offset} <- :file.position(fd, offset) do
-      {:ok, count}
-    end
-  end
+  def count(%Iterator{count: count}), do: {:ok, count}
 
   @impl true
   def reduce(%Iterator{fd: _fd}, {:halt, acc}, _fun), do: {:halted, acc}

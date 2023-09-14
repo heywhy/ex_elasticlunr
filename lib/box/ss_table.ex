@@ -4,42 +4,52 @@ defmodule Box.SSTable do
   alias Box.SSTable.Entry
   alias Box.SSTable.Iterator
 
-  defstruct [:path, :offsets, :entries]
+  defstruct [:path, :offsets, :entries, :length, :lower_bound, :upper_bound]
 
   @type t :: %__MODULE__{
           path: Path.t(),
           entries: Treex.t(),
+          length: pos_integer(),
+          lower_bound: binary(),
+          upper_bound: binary(),
           offsets: %{binary() => pos_integer()}
         }
 
   @ext "seg"
 
-  @spec new(Path.t()) :: t()
-  def new(path) do
-    struct!(__MODULE__, path: path, entries: Treex.empty())
-  end
-
   @spec from_path(Path.t()) :: t() | no_return()
   def from_path(path) do
-    Iterator.new(path)
-    |> Enum.reduce(new(path), fn %Entry{} = entry, ss_table ->
-      case entry.deleted do
-        true -> remove(ss_table, entry.key, entry.timestamp)
-        false -> set(ss_table, entry.key, entry.value, entry.timestamp)
-      end
-    end)
+    with %Iterator{} = iterator <- Iterator.new(path),
+         ss_table <- new(path, iterator.count, iterator.lower_bound, iterator.upper_bound) do
+      Enum.reduce(iterator, ss_table, fn %Entry{} = entry, ss_table ->
+        case entry.deleted do
+          true -> remove(ss_table, entry.key, entry.timestamp)
+          false -> set(ss_table, entry.key, entry.value, entry.timestamp)
+        end
+      end)
+    end
   end
 
   @spec flush(MemTable.t(), Path.t()) :: Path.t() | no_return()
-  def flush(%MemTable{} = mem_table, dir) do
+  def flush(%MemTable{entries: entries} = mem_table, dir) do
     path = create_file(dir)
     length = MemTable.length(mem_table)
+    {upper_bound, _value} = Treex.largest!(entries)
+    {lower_bound, _value} = Treex.smallest!(entries)
+
+    # Store metadata in the first 3 bytes in the file
+    metadata = [
+      <<length::unsigned-integer>>,
+      <<byte_size(lower_bound)::unsigned-integer>>,
+      <<byte_size(upper_bound)::unsigned-integer>>,
+      lower_bound,
+      upper_bound
+    ]
 
     file =
       path
       |> File.stream!([:append])
-      # Store entries count as the first byte in the file
-      |> then(&Enum.into([<<length::unsigned-integer>>], &1))
+      |> then(&Enum.into(metadata, &1))
 
     :ok =
       mem_table
@@ -51,14 +61,11 @@ defmodule Box.SSTable do
     path
   end
 
-  @spec count(t()) :: pos_integer()
-  def count(%__MODULE__{path: path}) do
-    with iter <- Iterator.new(path),
-         count <- Enum.count(iter),
-         :ok <- Iterator.destroy(iter) do
-      count
-    end
-  end
+  @spec length(t()) :: pos_integer()
+  def length(%__MODULE__{length: length}), do: length
+
+  @spec contains?(t(), binary()) :: boolean()
+  def contains?(%__MODULE__{lower_bound: lb, upper_bound: ub}, key), do: key >= lb and key <= ub
 
   @spec is?(Path.t()) :: boolean()
   def is?(path), do: Path.extname(path) == ".#{@ext}"
@@ -76,6 +83,18 @@ defmodule Box.SSTable do
       :none -> nil
       {:value, entry} -> entry
     end
+  end
+
+  defp new(path, length, lower_bound, upper_bound) do
+    attrs = %{
+      path: path,
+      length: length,
+      entries: Treex.empty(),
+      lower_bound: lower_bound,
+      upper_bound: upper_bound
+    }
+
+    struct!(__MODULE__, attrs)
   end
 
   defp create_file(dir) do
