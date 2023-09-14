@@ -39,6 +39,11 @@ defmodule Box.Index do
         end
       end
 
+      @spec save_all([struct()]) :: :ok | {:error, :not_running}
+      def save_all([%__MODULE__{} | _rest] = documents) do
+        Index.Supervisor.save_all(@name, documents)
+      end
+
       @spec delete(binary()) :: :ok | {:error, :not_running}
       def delete(id), do: Index.Supervisor.delete(@name, id)
 

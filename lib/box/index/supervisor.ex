@@ -9,8 +9,8 @@ defmodule Box.Index.Supervisor do
   alias Box.Schema
 
   @otp_app :elasticlunr
-  # default to 15mb
-  @mem_table_max_size 15_728_640
+  # default to 160mb
+  @mem_table_max_size 167_772_160
   @registry Elasticlunr.IndexRegistry
 
   @spec save(binary(), map()) :: {:ok, map()} | {:error, :not_running}
@@ -18,6 +18,14 @@ defmodule Box.Index.Supervisor do
     case Process.writer(index) do
       nil -> {:error, :not_found}
       pid -> GenServer.call(pid, {:save, document})
+    end
+  end
+
+  @spec save_all(binary(), [map()]) :: :ok | {:error, :not_running}
+  def save_all(index, documents) do
+    case Process.writer(index) do
+      nil -> {:error, :not_found}
+      pid -> GenServer.call(pid, {:save_all, documents}, :infinity)
     end
   end
 
@@ -35,8 +43,6 @@ defmodule Box.Index.Supervisor do
          nil <- GenServer.call(writer_pid, {:get, id}),
          reader_pid <- Process.reader(index) do
       GenServer.call(reader_pid, {:get, id})
-    else
-      document -> document
     end
   end
 

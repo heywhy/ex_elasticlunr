@@ -36,10 +36,11 @@ defmodule Box.Index.Reader do
     fun = fn ss_table, key, acc ->
       case SSTable.get(ss_table, key) do
         nil -> {:cont, acc}
-        %Entry{} = entry -> {:halt, entry}
+        %Entry{key: key} = entry -> {:halt, %{entry | key: FlakeId.to_string(key)}}
       end
     end
 
+    id = FlakeId.from_string(id)
     result = Enum.reduce_while(segments, nil, &fun.(&1, id, &2))
 
     {:reply, result, state}
@@ -59,7 +60,7 @@ defmodule Box.Index.Reader do
       {:noreply, %{state | segments: segments}}
     else
       false -> {:noreply, state}
-      {_path, _ss_table} -> {:noreply, state}
+      %SSTable{} -> {:noreply, state}
       :remove -> {:noreply, %{state | segments: Enum.reject(segments, &(&1.path == path))}}
     end
   end

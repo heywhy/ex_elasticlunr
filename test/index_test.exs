@@ -4,6 +4,8 @@ defmodule Elasticlunr.IndexTest do
   alias Elasticlunr.Book
   alias Faker.{Date, Lorem, Person}
 
+  import Elasticlunr.Fixture
+
   setup_all do
     start_supervised!(Book)
     :ok
@@ -24,6 +26,13 @@ defmodule Elasticlunr.IndexTest do
 
     assert {:ok, %Book{id: id, views: 100}} = Book.save(document)
     assert is_binary(id)
+  end
+
+  test "can save multiple documents" do
+    documents = [new_book(id: FlakeId.get()), new_book(id: FlakeId.get())]
+
+    assert :ok = Book.save_all(documents)
+    assert Enum.all?(documents, &match?(%{id: _id}, Book.get(&1.id)))
   end
 
   test "can retrieve document" do

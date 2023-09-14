@@ -30,6 +30,13 @@ defmodule Elasticlunr.Index.WriterTest do
     assert document.title == saved.title
   end
 
+  test "save multiple documents", %{pid: pid} do
+    documents = [new_book(id: FlakeId.get()), new_book(id: FlakeId.get())]
+
+    assert :ok = GenServer.call(pid, {:save_all, documents})
+    assert Enum.all?(documents, &match?(%{id: _id}, GenServer.call(pid, {:get, &1.id})))
+  end
+
   test "update document", %{pid: pid} do
     {:ok, document} = GenServer.call(pid, {:save, new_book()})
 
