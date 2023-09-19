@@ -3,6 +3,7 @@ defmodule Box.SSTable do
   alias Box.MemTable.Entry, as: MEntry
   alias Box.SSTable.Entry
   alias Box.SSTable.Iterator
+  alias Box.Utils
 
   defstruct [:path, :bloom_filter, :offsets, :entries, :length]
 
@@ -111,8 +112,8 @@ defmodule Box.SSTable do
   end
 
   defp create_file(dir) do
+    now = Utils.now()
     dir = Path.join(dir, "_segments")
-    now = System.os_time(:microsecond)
 
     unless File.dir?(dir) do
       :ok = File.mkdir!(dir)

@@ -5,6 +5,7 @@ defmodule Box.Index.Writer do
   alias Box.MemTable.Entry
   alias Box.Schema
   alias Box.SSTable
+  alias Box.Utils
   alias Box.Wal
 
   require Logger
@@ -66,7 +67,7 @@ defmodule Box.Index.Writer do
 
   def handle_call({:delete, id}, _from, %__MODULE__{wal: wal, mem_table: mem_table} = state) do
     with id <- FlakeId.from_string(id),
-         timestamp <- System.system_time(:microsecond),
+         timestamp <- Utils.now(),
          mem_table <- MemTable.remove(mem_table, id, timestamp),
          {:ok, wal} <- Wal.remove(wal, id, timestamp),
          :ok <- Wal.flush(wal),
@@ -115,7 +116,7 @@ defmodule Box.Index.Writer do
       end)
       |> Map.pop!(:id)
 
-    with timestamp <- System.system_time(:microsecond),
+    with timestamp <- Utils.now(),
          value <- :erlang.term_to_binary(document),
          mem_table <- MemTable.set(state.mem_table, id, value, timestamp),
          {:ok, wal} <- Wal.set(state.wal, id, value, timestamp),

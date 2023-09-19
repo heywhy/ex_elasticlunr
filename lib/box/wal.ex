@@ -1,5 +1,6 @@
 defmodule Box.Wal do
   alias Box.MemTable
+  alias Box.Utils
   alias Box.Wal.Entry
 
   alias __MODULE__.Iterator
@@ -21,7 +22,7 @@ defmodule Box.Wal do
 
   @spec create(Path.t()) :: t()
   def create(dir) do
-    now = System.os_time(:microsecond)
+    now = Utils.now()
     path = Path.join(dir, "#{now}.wal")
 
     new(path)
