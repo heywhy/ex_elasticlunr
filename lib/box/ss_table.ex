@@ -4,23 +4,25 @@ defmodule Box.SSTable do
   alias Box.SSTable.Entry
   alias Box.SSTable.Iterator
 
-  defstruct [:path, :offsets, :entries, :length, :lower_bound, :upper_bound]
+  defstruct [:path, :bloom_filter, :offsets, :entries, :length]
 
   @type t :: %__MODULE__{
           path: Path.t(),
+          bloom_filter: reference(),
           entries: Treex.t(),
           length: pos_integer(),
-          lower_bound: binary(),
-          upper_bound: binary(),
           offsets: %{binary() => pos_integer()}
         }
 
   @ext "seg"
+  @bf_ext "bf"
 
   @spec from_path(Path.t()) :: t() | no_return()
   def from_path(path) do
-    with %Iterator{} = iterator <- Iterator.new(path),
-         ss_table <- new(path, iterator.count, iterator.lower_bound, iterator.upper_bound) do
+    with path <- Path.absname(path) |> Path.expand(),
+         bloom_filter <- load_bloom_filter(path),
+         %Iterator{count: count} = iterator <- Iterator.new(path),
+         ss_table <- new(path, count, bloom_filter) do
       Enum.reduce(iterator, ss_table, fn %Entry{} = entry, ss_table ->
         case entry.deleted do
           true -> remove(ss_table, entry.key, entry.timestamp)
@@ -36,10 +38,12 @@ defmodule Box.SSTable do
     length = MemTable.length(mem_table)
     {upper_bound, _value} = Treex.largest!(entries)
     {lower_bound, _value} = Treex.smallest!(entries)
+    # TODO: allow chance to be configured by user just like cassandra
+    {:ok, bloom_filter} = :bloom.new_optimal(length, 0.01)
 
     # Store metadata in the first 3 bytes in the file
     metadata = [
-      <<length::unsigned-integer>>,
+      <<length::unsigned-integer-size(64)>>,
       <<byte_size(lower_bound)::unsigned-integer>>,
       <<byte_size(upper_bound)::unsigned-integer>>,
       lower_bound,
@@ -54,9 +58,19 @@ defmodule Box.SSTable do
     :ok =
       mem_table
       |> MemTable.stream()
-      |> Stream.map(&to_binary(&1))
+      |> Stream.map(&to_binary/1)
       |> Stream.into(file)
+      |> Stream.each(fn
+        <<key_size::unsigned-integer-size(64), 1, key::binary-size(key_size), _rest::binary>> ->
+          :ok = :bloom.set(bloom_filter, key)
+
+        <<key_size::unsigned-integer-size(64), 0, _value_size::unsigned-integer-size(64),
+          key::binary-size(key_size), _rest::binary>> ->
+          :ok = :bloom.set(bloom_filter, key)
+      end)
       |> Stream.run()
+
+    :ok = save_bloom_filter(bloom_filter, path)
 
     path
   end
@@ -65,7 +79,7 @@ defmodule Box.SSTable do
   def length(%__MODULE__{length: length}), do: length
 
   @spec contains?(t(), binary()) :: boolean()
-  def contains?(%__MODULE__{lower_bound: lb, upper_bound: ub}, key), do: key >= lb and key <= ub
+  def contains?(%__MODULE__{bloom_filter: bf}, key), do: :bloom.check(bf, key)
 
   @spec is?(Path.t()) :: boolean()
   def is?(path), do: Path.extname(path) == ".#{@ext}"
@@ -85,13 +99,12 @@ defmodule Box.SSTable do
     end
   end
 
-  defp new(path, length, lower_bound, upper_bound) do
+  defp new(path, length, bloom_filter) do
     attrs = %{
       path: path,
       length: length,
       entries: Treex.empty(),
-      lower_bound: lower_bound,
-      upper_bound: upper_bound
+      bloom_filter: bloom_filter
     }
 
     struct!(__MODULE__, attrs)
@@ -106,6 +119,23 @@ defmodule Box.SSTable do
     end
 
     Path.join(dir, "#{now}.seg")
+  end
+
+  defp save_bloom_filter(bloom_filter, path) do
+    with bf_path <- "#{path}.#{@bf_ext}",
+         {:ok, bin} <- :bloom.serialize(bloom_filter) do
+      File.write!(bf_path, bin, [:binary, :compressed])
+    end
+  end
+
+  defp load_bloom_filter(path) do
+    with path <- "#{path}.#{@bf_ext}",
+         fd <- File.open!(path, [:read, :binary, :compressed]),
+         bin <- IO.binread(fd, :eof),
+         :ok <- File.close(fd),
+         {:ok, ref} <- :bloom.deserialize(bin) do
+      ref
+    end
   end
 
   defp set(%__MODULE__{entries: entries} = ss_table, key, value, timestamp) do
@@ -126,11 +156,9 @@ defmodule Box.SSTable do
     key_size = byte_size(key)
     key_size_data = <<key_size::unsigned-integer-size(64)>>
 
-    deleted_data = <<1::unsigned-integer>>
-
     timestamp_data = <<timestamp::big-unsigned-integer-size(64)>>
 
-    sizes_data = <<key_size_data::binary, deleted_data::binary>>
+    sizes_data = <<key_size_data::binary, 1>>
 
     <<sizes_data::binary, key::binary, timestamp_data::binary>>
   end
@@ -139,14 +167,12 @@ defmodule Box.SSTable do
     key_size = byte_size(key)
     key_size_data = <<key_size::unsigned-integer-size(64)>>
 
-    deleted_data = <<0::unsigned-integer>>
-
     timestamp_data = <<timestamp::big-unsigned-integer-size(64)>>
 
     value_size = byte_size(value)
     value_size_data = <<value_size::unsigned-integer-size(64)>>
 
-    sizes_data = <<key_size_data::binary, deleted_data::binary, value_size_data::binary>>
+    sizes_data = <<key_size_data::binary, 0, value_size_data::binary>>
 
     kv_data = <<key::binary, value::binary>>
 

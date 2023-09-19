@@ -61,6 +61,7 @@ defmodule Elasticlunr.MixProject do
       {:credo, "~> 1.5", only: [:dev, :test], runtime: false},
       {:dialyxir, "~> 1.1", only: :dev, runtime: false},
       {:elixir_make, "~> 0.7", runtime: false},
+      {:erbloom, github: "filmor/erbloom", branch: "update-rustler"},
       {:ex_doc, "~> 0.25", only: :dev, runtime: false},
       {:excoveralls, "~> 0.14", only: :test},
       {:faker, "~> 0.16", only: :test},

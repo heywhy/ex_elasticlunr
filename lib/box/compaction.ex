@@ -1,7 +1,7 @@
 defmodule Box.Compaction do
   use GenServer
 
-  alias Box.Index.Process, as: P
+  alias Box.Index.Fs
   alias Box.Schema
 
   require Logger
@@ -31,8 +31,7 @@ defmodule Box.Compaction do
     Process.flag(:trap_exit, true)
 
     with dir <- Keyword.fetch!(opts, :dir),
-         watcher <- P.fs_watcher(dir),
-         :ok <- FileSystem.subscribe(watcher),
+         watcher <- Fs.watch!(dir),
          schema <- Keyword.fetch!(opts, :schema),
          attrs <- [dir: dir, schema: schema, watcher: watcher] do
       {:ok, struct!(__MODULE__, attrs)}

@@ -1,7 +1,7 @@
 defmodule Box.Index.Reader do
   use GenServer
 
-  alias Box.Index.Process
+  alias Box.Index.Fs
   alias Box.SSTable
   alias Box.SSTable.Entry
 
@@ -23,7 +23,7 @@ defmodule Box.Index.Reader do
     with dir <- Keyword.fetch!(opts, :dir),
          # TODO: pushing this action to handle_continue might improve performance
          segments <- load_segments(dir),
-         watcher <- Process.fs_watcher(dir),
+         watcher <- Fs.watch!(dir),
          :ok <- FileSystem.subscribe(watcher),
          attrs <- [dir: dir, watcher: watcher, segments: segments] do
       {:ok, struct!(__MODULE__, attrs)}
@@ -34,9 +34,11 @@ defmodule Box.Index.Reader do
   @impl true
   def handle_call({:get, id}, _from, %__MODULE__{segments: segments} = state) do
     fun = fn ss_table, key, acc ->
-      case SSTable.get(ss_table, key) do
-        nil -> {:cont, acc}
-        %Entry{key: key} = entry -> {:halt, %{entry | key: FlakeId.to_string(key)}}
+      with true <- SSTable.contains?(ss_table, key),
+           %Entry{key: key} = entry <- SSTable.get(ss_table, key) do
+        {:halt, %{entry | key: FlakeId.to_string(key)}}
+      else
+        _ -> {:cont, acc}
       end
     end
 
@@ -73,6 +75,8 @@ defmodule Box.Index.Reader do
 
     {:noreply, state}
   end
+
+  def handle_info({:file_event, _watcher, _arg}, %__MODULE__{} = state), do: {:noreply, state}
 
   defp action(events) do
     case :removed in events or :deleted in events do

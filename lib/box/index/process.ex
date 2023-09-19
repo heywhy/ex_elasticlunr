@@ -2,10 +2,7 @@ defmodule Box.Index.Process do
   alias Box.Index.Reader
   alias Box.Index.Writer
 
-  @fs_registry Box.Index.Fs
   @registry Elasticlunr.IndexRegistry
-
-  def fs_watcher(dir), do: GenServer.whereis({:via, Registry, {@fs_registry, dir}})
 
   @spec reader(binary()) :: pid() | nil
   def reader(index) do
