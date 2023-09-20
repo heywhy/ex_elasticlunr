@@ -4,6 +4,7 @@ defmodule Elasticlunr.SSTableTest do
   alias Box.MemTable
   alias Box.SSTable
   alias Box.SSTable.Entry
+  alias Box.Utils
 
   import Elasticlunr.Fixture
 
@@ -16,12 +17,6 @@ defmodule Elasticlunr.SSTableTest do
       |> MemTable.set("key1", "value1", 2)
 
     [dir: dir, mem_table: mem_table]
-  end
-
-  test "length/1", %{dir: dir, mem_table: mem_table} do
-    ss_table = flush(mem_table, dir)
-
-    assert SSTable.length(ss_table) == 2
   end
 
   test "contains?/2", %{dir: dir, mem_table: mem_table} do
@@ -50,6 +45,34 @@ defmodule Elasticlunr.SSTableTest do
     assert path = SSTable.flush(mem_table, dir)
     assert ss_table = SSTable.from_path(path)
     assert %Entry{key: "key", deleted: true} = SSTable.get(ss_table, "key")
+  end
+
+  test "merge/1", %{dir: dir} do
+    mem_table1 =
+      MemTable.new()
+      |> MemTable.set("handbag", "8786", Utils.now())
+      |> MemTable.set("handful", "40308", Utils.now())
+      |> MemTable.set("handicap", "65995", Utils.now())
+
+    mem_table2 =
+      MemTable.new()
+      |> MemTable.set("handcuffs", "2729", Utils.now())
+      |> MemTable.set("handful", "42307", Utils.now())
+      |> MemTable.set("handicap", "67884", Utils.now())
+
+    mem_table3 =
+      MemTable.new()
+      |> MemTable.set("handful", "44662", Utils.now())
+      |> MemTable.set("handicap", "70836", Utils.now())
+      |> MemTable.set("handiwork", "45521", Utils.now())
+
+    for mem_table <- [mem_table1, mem_table2, mem_table3] do
+      SSTable.flush(mem_table, dir)
+    end
+
+    assert path = SSTable.merge(dir)
+    assert ss_table = SSTable.from_path(path)
+    assert SSTable.contains?(ss_table, "handiwork")
   end
 
   defp flush(mem_table, dir) do

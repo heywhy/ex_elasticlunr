@@ -1,4 +1,6 @@
 defmodule Box.SSTable.Entry do
+  alias Box.MemTable
+
   @enforce_keys [:key, :value, :deleted, :timestamp]
   defstruct [:key, :value, :deleted, :timestamp]
 
@@ -29,5 +31,10 @@ defmodule Box.SSTable.Entry do
     }
 
     struct!(__MODULE__, attrs)
+  end
+
+  @spec from(MemTable.Entry.t()) :: t()
+  def from(%MemTable.Entry{key: key, value: value, deleted: deleted, timestamp: timestamp}) do
+    new(key, value, deleted, timestamp)
   end
 end
