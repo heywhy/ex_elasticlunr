@@ -1,6 +1,6 @@
 defmodule Box.Bloom.Stackable do
   alias Box.Bloom
-  alias Box.Index.Fs
+  alias Box.Fs
 
   defstruct [:capacity, :count, :fp_rate, :expansion, :bloom_filters]
 

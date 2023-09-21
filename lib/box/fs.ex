@@ -1,4 +1,4 @@
-defmodule Box.Index.Fs do
+defmodule Box.Fs do
   @spec stream(String.t()) :: File.Stream.t()
   def stream(path), do: File.stream!(path, [:compressed])
 

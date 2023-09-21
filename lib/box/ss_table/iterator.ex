@@ -1,5 +1,5 @@
 defmodule Box.SSTable.Iterator do
-  alias Box.Index.Fs
+  alias Box.Fs
   alias Box.SSTable.Entry
   alias Box.SSTable.Shared
 

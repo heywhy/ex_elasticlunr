@@ -2,7 +2,7 @@ defmodule Box.Index.Supervisor do
   use Supervisor
 
   alias Box.Compaction
-  alias Box.Index.Fs
+  alias Box.Fs
   alias Box.Index.Process
   alias Box.Index.Reader
   alias Box.Index.Writer

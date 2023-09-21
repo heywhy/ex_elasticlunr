@@ -1,6 +1,6 @@
 defmodule Box.SSTable do
   alias Box.Bloom.Stackable, as: StackableBloom
-  alias Box.Index.Fs
+  alias Box.Fs
   alias Box.MemTable
   alias Box.SSTable.Entry
   alias Box.SSTable.Iterator

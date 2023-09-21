@@ -1,7 +1,7 @@
 defmodule Box.Bloom do
   # TODO: Find a permanent fix for the erbloom error
 
-  alias Box.Index.Fs
+  alias Box.Fs
 
   @type t :: reference()
   @type serialized_t :: binary()

@@ -1,7 +1,7 @@
 defmodule Box.Compaction do
   use GenServer
 
-  alias Box.Index.Fs
+  alias Box.Fs
   alias Box.Schema
 
   require Logger

@@ -1,7 +1,7 @@
 defmodule Box.Index.Reader do
   use GenServer
 
-  alias Box.Index.Fs
+  alias Box.Fs
   alias Box.SSTable
   alias Box.SSTable.Entry
 
