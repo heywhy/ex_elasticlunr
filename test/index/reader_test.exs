@@ -39,7 +39,7 @@ defmodule Elasticlunr.Index.ReaderTest do
   test "update internals when a segment is deleted", %{dir: dir, pid: pid, document: document} do
     dir
     |> SSTable.list()
-    |> Enum.each(&File.rm!/1)
+    |> Enum.each(&File.rm_rf!/1)
 
     assert eventually(fn -> GenServer.call(pid, {:get, document.id}) == nil end)
   end

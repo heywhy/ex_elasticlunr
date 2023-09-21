@@ -19,6 +19,12 @@ defmodule Elasticlunr.SSTableTest do
     [dir: dir, mem_table: mem_table]
   end
 
+  test "count/1", %{dir: dir, mem_table: mem_table} do
+    ss_table = flush(mem_table, dir)
+
+    assert SSTable.count(ss_table) == 2
+  end
+
   test "contains?/2", %{dir: dir, mem_table: mem_table} do
     ss_table = flush(mem_table, dir)
 
@@ -53,18 +59,21 @@ defmodule Elasticlunr.SSTableTest do
       |> MemTable.set("handbag", "8786", Utils.now())
       |> MemTable.set("handful", "40308", Utils.now())
       |> MemTable.set("handicap", "65995", Utils.now())
+      |> MemTable.set("handkerchief", "16324", Utils.now())
 
     mem_table2 =
       MemTable.new()
       |> MemTable.set("handcuffs", "2729", Utils.now())
       |> MemTable.set("handful", "42307", Utils.now())
       |> MemTable.set("handicap", "67884", Utils.now())
+      |> MemTable.set("handkerchief", "20952", Utils.now())
 
     mem_table3 =
       MemTable.new()
       |> MemTable.set("handful", "44662", Utils.now())
       |> MemTable.set("handicap", "70836", Utils.now())
       |> MemTable.set("handiwork", "45521", Utils.now())
+      |> MemTable.remove("handkerchief", Utils.now())
 
     for mem_table <- [mem_table1, mem_table2, mem_table3] do
       SSTable.flush(mem_table, dir)
@@ -72,7 +81,11 @@ defmodule Elasticlunr.SSTableTest do
 
     assert path = SSTable.merge(dir)
     assert ss_table = SSTable.from_path(path)
+    refute SSTable.contains?(ss_table, "unknown")
     assert SSTable.contains?(ss_table, "handiwork")
+    refute SSTable.contains?(ss_table, "handkerchief")
+    assert %Entry{key: "handful", value: "44662"} = SSTable.get(ss_table, "handful")
+    assert %Entry{key: "handicap", value: "70836"} = SSTable.get(ss_table, "handicap")
   end
 
   defp flush(mem_table, dir) do

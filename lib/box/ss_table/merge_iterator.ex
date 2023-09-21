@@ -35,23 +35,19 @@ defimpl Enumerable, for: Box.SSTable.MergeIterator do
     entries =
       iterators
       |> Enum.map(&Iterator.current(&1))
-      |> Enum.reject(&is_nil(elem(&1, 0)))
       |> Enum.sort_by(fn {entry, _iterator} -> {entry.key, entry.timestamp} end)
 
-    with [_ | _rest] <- entries,
-         {entry, iterators} <- next_entry(entries) do
-      reduce(%{mi | iterators: iterators}, fun.(entry, acc), fun)
-    else
-      [] -> reduce(%{mi | iterators: []}, {:cont, acc}, fun)
-    end
+    {entry, iterators} = next_entry(entries)
+    iterators = Enum.reject(iterators, &Iterator.eof?/1)
+
+    reduce(%{mi | iterators: iterators}, fun.(entry, acc), fun)
   end
 
   defp next_entry([{%Entry{key: key}, _}, {%Entry{key: key}, _} | _rest] = entries) do
     {duplicates, rest} =
       Enum.split_with(entries, fn {entry, _iterator} -> entry.key == key end)
 
-    [{entry, _iterator} | _rest] =
-      Enum.sort_by(duplicates, fn {entry, _} -> entry.timestamp end, :desc)
+    {entry, _iterator} = Enum.max_by(duplicates, fn {entry, _} -> entry.timestamp end)
 
     iterators =
       duplicates

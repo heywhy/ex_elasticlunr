@@ -1,4 +1,22 @@
 defmodule Box.Index.Fs do
+  @spec stream(String.t()) :: File.Stream.t()
+  def stream(path), do: File.stream!(path, [:compressed])
+
+  @spec open(Path.t(), :append | :read | :write) :: File.io_device()
+  def open(path, mode \\ :read), do: File.open!(path, [mode, :binary, :compressed])
+
+  @spec read(Path.t()) :: binary()
+  def read(path) do
+    with fd <- open(path),
+         data <- IO.binread(fd, :eof),
+         :ok <- File.close(fd) do
+      data
+    end
+  end
+
+  @spec write(Path.t(), binary()) :: :ok | no_return()
+  def write(path, content), do: File.write!(path, content, [:binary, :compressed])
+
   @spec watch!(Path.t()) :: pid() | no_return()
   def watch!(dir) do
     dir

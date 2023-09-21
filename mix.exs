@@ -30,7 +30,7 @@ defmodule Elasticlunr.MixProject do
       ],
 
       # Dialyxir
-      dialyzer: [],
+      dialyzer: [plt_add_deps: :apps_direct, plt_ignore_apps: [:erbloom]],
 
       # Docs
       name: "Elasticlunr",

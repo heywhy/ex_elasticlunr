@@ -1,37 +1,40 @@
 defmodule Box.SSTable.Iterator do
+  alias Box.Index.Fs
   alias Box.SSTable.Entry
+  alias Box.SSTable.Shared
 
   defstruct [:fd, :path, offset: 0]
 
   @type t :: %__MODULE__{
           path: Path.t(),
-          offset: pos_integer(),
-          fd: File.io_device() | :eof
+          fd: File.io_device(),
+          offset: pos_integer() | :eof
         }
-
-  @opts [:read, :binary]
 
   @spec new(Path.t()) :: t()
   def new(path) do
-    fd = File.open!(path, @opts)
+    fd =
+      path
+      |> Shared.segment_file()
+      |> Fs.open()
 
-    attrs = %{
-      fd: fd,
-      path: path
-    }
-
-    struct!(__MODULE__, attrs)
+    struct!(__MODULE__, fd: fd, path: path)
   end
 
-  @spec next(t()) :: {Entry.t() | nil | :file.posix() | :badarg | :terminated, t()} | no_return()
-  def next(%__MODULE__{fd: fd} = iterator) when is_pid(fd) do
-    case read(iterator) do
-      {%Entry{} = entry, new_offset, iterator} ->
-        {entry, %{iterator | offset: new_offset}}
+  @spec eof?(t()) :: boolean()
+  def eof?(%__MODULE__{offset: offset}), do: offset == :eof
 
-      {nil, new_offset, iterator} ->
+  @spec next(t()) :: {Entry.t(), t()} | no_return()
+  def next(%__MODULE__{offset: offset} = iterator) when is_integer(offset) do
+    {entry, new_offset, iterator} = read(iterator)
+
+    case %{iterator | offset: new_offset} do
+      %__MODULE__{fd: fd, offset: :eof} = iterator ->
         :ok = File.close(fd)
-        {nil, %{iterator | fd: :eof, offset: new_offset}}
+        {entry, iterator}
+
+      %__MODULE__{} = iterator ->
+        {entry, iterator}
     end
   end
 
@@ -49,12 +52,13 @@ defmodule Box.SSTable.Iterator do
          {key, value, value_size} <- read_kv(fd, deleted, key_size),
          <<timestamp::big-unsigned-integer-size(64)>> <- IO.binread(fd, 8),
          entry <- Entry.new(key, value, deleted, timestamp) do
-      new_offset = offset + key_size + value_size + 17
+      new_offset =
+        case IO.binread(fd, 1) do
+          :eof -> :eof
+          _ -> offset + key_size + value_size + 17
+        end
 
       {entry, new_offset, iterator}
-    else
-      {:error, reason} -> {reason, offset, iterator}
-      :eof -> {nil, offset, iterator}
     end
   end
 
@@ -74,7 +78,6 @@ defmodule Box.SSTable.Iterator do
 end
 
 defimpl Enumerable, for: Box.SSTable.Iterator do
-  alias Box.SSTable.Entry
   alias Box.SSTable.Iterator
 
   import Iterator, only: [next: 1]
@@ -89,13 +92,12 @@ defimpl Enumerable, for: Box.SSTable.Iterator do
   def count(%Iterator{}), do: throw(:not_implemented)
 
   @impl true
-  def reduce(%Iterator{fd: _fd}, {:halt, acc}, _fun), do: {:halted, acc}
-  def reduce(%Iterator{fd: :eof}, {:cont, acc}, _fun), do: {:done, acc}
+  def reduce(%Iterator{}, {:halt, acc}, _fun), do: {:halted, acc}
+  def reduce(%Iterator{offset: :eof}, {:cont, acc}, _fun), do: {:done, acc}
 
   def reduce(%Iterator{} = iterator, {:cont, acc}, fun) do
-    case next(iterator) do
-      {%Entry{} = entry, iterator} -> reduce(iterator, fun.(entry, acc), fun)
-      {nil, iterator} -> reduce(iterator, {:cont, acc}, fun)
-    end
+    {entry, iterator} = next(iterator)
+
+    reduce(iterator, fun.(entry, acc), fun)
   end
 end

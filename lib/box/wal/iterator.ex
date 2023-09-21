@@ -31,7 +31,7 @@ defimpl Enumerable, for: Box.Wal.Iterator do
   def count(%Iterator{}), do: throw(:not_implemented)
 
   @impl true
-  def reduce(%Iterator{offset: -1, fd: fd}, {:cont, acc}, _reducer) do
+  def reduce(%Iterator{offset: :eof, fd: fd}, {:cont, acc}, _reducer) do
     :ok = File.close(fd)
 
     {:done, acc}
@@ -44,10 +44,13 @@ defimpl Enumerable, for: Box.Wal.Iterator do
          {key, value, value_size} <- read_kv(fd, deleted, key_size),
          <<timestamp::big-unsigned-integer-size(64)>> <- IO.binread(fd, 8),
          entry <- Entry.new(key, value, deleted, timestamp) do
-      offset = offset + key_size + value_size + 17
-      reduce(%{iterator | offset: offset}, reducer.(entry, acc), reducer)
-    else
-      _ -> reduce(%{iterator | offset: -1}, {:cont, acc}, reducer)
+      new_offset =
+        case IO.binread(fd, 1) do
+          :eof -> :eof
+          _ -> offset + key_size + value_size + 17
+        end
+
+      reduce(%{iterator | offset: new_offset}, reducer.(entry, acc), reducer)
     end
   end
 

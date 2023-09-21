@@ -1,8 +1,11 @@
 defmodule Box.SSTable do
+  alias Box.Bloom.Stackable, as: StackableBloom
+  alias Box.Index.Fs
   alias Box.MemTable
   alias Box.SSTable.Entry
   alias Box.SSTable.Iterator
   alias Box.SSTable.MergeIterator
+  alias Box.SSTable.Shared
   alias Box.Utils
 
   defstruct [:path, :bloom_filter, :offsets, :entries]
@@ -10,17 +13,16 @@ defmodule Box.SSTable do
   @type t :: %__MODULE__{
           path: Path.t(),
           entries: Treex.t(),
-          bloom_filter: reference(),
+          bloom_filter: StackableBloom.t(),
           offsets: %{binary() => pos_integer()}
         }
 
-  @ext "seg"
-  @bf_ext "bf"
+  @lockfile "_.lock"
 
   @spec from_path(Path.t()) :: t() | no_return()
   def from_path(path) do
     with path <- Path.absname(path) |> Path.expand(),
-         bloom_filter <- load_bloom_filter(path),
+         bloom_filter <- StackableBloom.from_path(path),
          %Iterator{} = iterator <- Iterator.new(path),
          ss_table <- new(path, bloom_filter) do
       Enum.reduce(iterator, ss_table, fn %Entry{} = entry, ss_table ->
@@ -34,69 +36,52 @@ defmodule Box.SSTable do
 
   @spec flush(MemTable.t(), Path.t()) :: Path.t() | no_return()
   def flush(%MemTable{} = mem_table, dir) do
-    path = create_file(dir)
-    length = MemTable.length(mem_table)
-    # TODO: allow chance to be configured by user just like cassandra
-    {:ok, bloom_filter} = :bloom.new_optimal(length, 0.01)
+    path = new_dir(dir)
 
     :ok =
       mem_table
       |> MemTable.stream()
       |> Stream.map(&Entry.from/1)
-      |> Stream.map(&to_binary/1)
-      |> Stream.into(File.stream!(path))
-      |> Stream.each(fn
-        <<key_size::unsigned-integer-size(64), 1, key::binary-size(key_size), _rest::binary>> ->
-          :ok = :bloom.set(bloom_filter, key)
-
-        <<key_size::unsigned-integer-size(64), 0, _value_size::unsigned-integer-size(64),
-          key::binary-size(key_size), _rest::binary>> ->
-          :ok = :bloom.set(bloom_filter, key)
-      end)
-      |> Stream.run()
-
-    :ok = save_bloom_filter(bloom_filter, path)
+      |> write_to_disk(path)
 
     path
   end
 
-  @spec contains?(t(), binary()) :: boolean()
-  def contains?(%__MODULE__{bloom_filter: bf}, key), do: :bloom.check(bf, key)
-
-  @spec is?(Path.t()) :: boolean()
-  def is?(path), do: Path.extname(path) == ".#{@ext}"
-
-  @spec list(Path.t()) :: [Path.t()]
-  def list(dir) do
-    dir
-    |> Path.join("_segments")
-    |> then(&Path.wildcard("#{&1}/*.#{@ext}"))
-  end
-
   @spec merge(Path.t()) :: Path.t() | no_return()
   def merge(dir) do
-    path = create_file(dir)
-    paths = list(dir) |> Enum.reject(&(&1 == path))
-    # TODO: use user configured chance rate or default
-    {:ok, bloom_filter} = :bloom.new_optimal(1_000_000, 0.01)
+    paths = list(dir)
+    path = new_dir(dir)
 
     :ok =
       paths
       |> MergeIterator.new()
       |> Stream.reject(& &1.deleted)
-      |> Stream.each(&(:ok = :bloom.set(bloom_filter, &1.key)))
-      |> Stream.map(&to_binary/1)
-      |> Stream.into(File.stream!(path))
-      |> Stream.run()
+      |> write_to_disk(path)
 
-    :ok = save_bloom_filter(bloom_filter, path)
-
-    Enum.each(paths, fn path ->
-      :ok = File.rm!(path)
-      :ok = File.rm!("#{path}.#{@bf_ext}")
-    end)
+    # Delete all merged sstables
+    :ok = Enum.each(paths, &File.rm_rf!/1)
 
     path
+  end
+
+  @spec count(t()) :: pos_integer()
+  def count(%__MODULE__{bloom_filter: bf}), do: bf.count
+
+  @spec contains?(t(), binary()) :: boolean()
+  def contains?(%__MODULE__{bloom_filter: bf}, key), do: StackableBloom.check(bf, key)
+
+  @spec lockfile?(Path.t()) :: boolean()
+  def lockfile?(path) do
+    path
+    |> String.match?(~r/_segments\/[\d+]+\//i)
+    |> Kernel.and(Path.basename(path) == @lockfile)
+  end
+
+  @spec list(Path.t()) :: [Path.t()]
+  def list(dir) do
+    dir
+    |> Path.join("_segments")
+    |> then(&Path.wildcard("#{&1}/*"))
   end
 
   @spec get(t(), binary()) :: Entry.t() | nil
@@ -117,33 +102,43 @@ defmodule Box.SSTable do
     struct!(__MODULE__, attrs)
   end
 
-  defp create_file(dir) do
+  defp new_dir(dir) do
     now = Utils.now()
-    dir = Path.join(dir, "_segments")
+    path = Path.join([dir, "_segments", to_string(now)]) |> Path.expand()
 
-    unless File.dir?(dir) do
-      :ok = File.mkdir!(dir)
-    end
-
-    Path.join(dir, "#{now}.seg")
-  end
-
-  defp save_bloom_filter(bloom_filter, path) do
-    with bf_path <- "#{path}.#{@bf_ext}",
-         {:ok, bin} <- :bloom.serialize(bloom_filter) do
-      File.write!(bf_path, bin, [:binary, :compressed])
+    with false <- File.dir?(path),
+         :ok <- File.mkdir_p!(path) do
+      path
+    else
+      true -> path
     end
   end
 
-  defp load_bloom_filter(path) do
-    with path <- "#{path}.#{@bf_ext}",
-         fd <- File.open!(path, [:read, :binary, :compressed]),
-         bin <- IO.binread(fd, :eof),
-         :ok <- File.close(fd),
-         {:ok, ref} <- :bloom.deserialize(bin) do
-      ref
+  defp write_to_disk(entries, path) do
+    file = Shared.segment_file(path)
+
+    entries
+    |> Stream.map(&to_binary/1)
+    |> Stream.into(Fs.stream(file))
+    # TODO: allow chance to be configured by user just like cassandra
+    |> Enum.reduce(StackableBloom.new(), &write_to_bf(&2, &1))
+    |> StackableBloom.flush(path)
+
+    :ok = gen_lockfile(path)
+  end
+
+  defp write_to_bf(bloom_filter, entry) do
+    case entry do
+      <<key_size::unsigned-integer-size(64), 1, key::binary-size(key_size), _rest::binary>> ->
+        StackableBloom.set(bloom_filter, key)
+
+      <<key_size::unsigned-integer-size(64), 0, _value_size::unsigned-integer-size(64),
+        key::binary-size(key_size), _rest::binary>> ->
+        StackableBloom.set(bloom_filter, key)
     end
   end
+
+  defp gen_lockfile(path), do: Path.join(path, @lockfile) |> File.touch!()
 
   defp set(%__MODULE__{entries: entries} = ss_table, key, value, timestamp) do
     entry = Entry.new(key, value, false, timestamp)

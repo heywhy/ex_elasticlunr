@@ -53,8 +53,9 @@ defmodule Box.Index.Reader do
         {:file_event, watcher, {path, events}},
         %__MODULE__{watcher: watcher, segments: segments} = state
       ) do
-    with true <- SSTable.is?(path),
+    with true <- SSTable.lockfile?(path),
          :load <- action(events),
+         path <- Path.dirname(path),
          nil <- Enum.find(segments, &(&1.path == path)),
          ss_table <- SSTable.from_path(path),
          segments <- Enum.concat([ss_table], segments) do
