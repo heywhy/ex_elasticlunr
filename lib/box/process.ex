@@ -1,4 +1,4 @@
-defmodule Box.Index.Process do
+defmodule Box.Process do
   alias Box.Index.Reader
   alias Box.Index.Writer
 

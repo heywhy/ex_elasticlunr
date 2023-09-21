@@ -1,7 +1,7 @@
 defmodule Elasticlunr.Index.ReaderTest do
   use ExUnit.Case, async: true
 
-  alias Box.Index.Fs
+  alias Box.Fs
   alias Box.Index.Reader
   alias Box.Index.Writer
   alias Box.SSTable
