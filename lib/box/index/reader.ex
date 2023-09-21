@@ -24,7 +24,6 @@ defmodule Box.Index.Reader do
          # TODO: pushing this action to handle_continue might improve performance
          segments <- load_segments(dir),
          watcher <- Fs.watch!(dir),
-         :ok <- FileSystem.subscribe(watcher),
          attrs <- [dir: dir, watcher: watcher, segments: segments] do
       {:ok, struct!(__MODULE__, attrs)}
     end
