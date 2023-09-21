@@ -75,7 +75,7 @@ defmodule Elasticlunr.DocumentStoreTest do
         DocumentStore.new(false)
         |> DocumentStore.add(10, document)
 
-      refute ^document = DocumentStore.get(document_store, 10)
+      refute DocumentStore.get(document_store, 10)
     end
   end
 
