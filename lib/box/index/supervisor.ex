@@ -3,9 +3,9 @@ defmodule Box.Index.Supervisor do
 
   alias Box.Compaction
   alias Box.Fs
-  alias Box.Process
   alias Box.Index.Reader
   alias Box.Index.Writer
+  alias Box.Process
   alias Box.Schema
 
   @otp_app :elasticlunr

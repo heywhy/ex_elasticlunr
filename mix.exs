@@ -58,7 +58,7 @@ defmodule Elasticlunr.MixProject do
   defp deps do
     [
       {:cc_precompiler, "~> 0.1", runtime: false},
-      {:credo, "~> 1.5", only: [:dev, :test], runtime: false},
+      {:credo, "~> 1.5", only: :dev, runtime: false},
       {:dialyxir, "~> 1.1", only: :dev, runtime: false},
       {:elixir_make, "~> 0.7", runtime: false},
       {:erbloom, github: "filmor/erbloom", branch: "update-rustler"},
@@ -67,9 +67,7 @@ defmodule Elasticlunr.MixProject do
       {:faker, "~> 0.16", only: :test},
       {:file_system, "~> 0.2"},
       {:flake_id, "~> 0.1"},
-      {:jason, "~> 1.3"},
       {:liveness, "~> 1.0", only: :test},
-      {:mox, "~> 1.0", only: :test},
       {:stemmer, "~> 1.0"},
       {:treex, "~> 0.1"},
       {:uniq, "~> 0.4"}
