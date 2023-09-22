@@ -3,22 +3,21 @@ name: Test
 on: push
 
 env:
-  MIX_ENV: test
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
 jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - uses: erlef/setup-beam@v1
         id: beam
         with:
-          otp-version: "24"
-          elixir-version: "1.12"
+          otp-version: "25"
+          elixir-version: "1.15"
 
       - name: Restore Cached Dependencies
-        uses: actions/cache@v2
+        uses: actions/cache@v3
         id: mix-cache
         with:
           path: |
@@ -37,11 +36,13 @@ jobs:
           mix credo
 
       - name: Run Tests
+        env:
+          MIX_ENV: test
         run: |
           mix coveralls.json
-      
+
       - name: Upload Coverage Reports
-        uses: codecov/codecov-action@v2
+        uses: codecov/codecov-action@v3
         with:
           directory: ./cover
           fail_ci_if_error: true

@@ -6,15 +6,15 @@ jobs:
   analyze:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - uses: erlef/setup-beam@v1
         id: beam
         with:
-          otp-version: "24"
-          elixir-version: "1.12"
+          otp-version: "25"
+          elixir-version: "1.15"
 
       - name: Restore Cached Dependencies
-        uses: actions/cache@v2
+        uses: actions/cache@v3
         id: mix-cache
         with:
           path: |
@@ -23,7 +23,7 @@ jobs:
           key: ${{ runner.os }}-${{ steps.beam.outputs.elixir-version }}-${{ steps.beam.outputs.otp-version }}-${{ hashFiles('mix.lock') }}
 
       - name: Restore PLT cache
-        uses: actions/cache@v2
+        uses: actions/cache@v3
         id: plt-cache
         with:
           key: |
