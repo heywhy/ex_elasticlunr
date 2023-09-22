@@ -27,8 +27,7 @@ jobs:
 
       - name: Install Dependencies
         if: steps.mix-cache.outputs.cache-hit != 'true'
-        run: |
-          mix deps.get
+        run: mix deps.get
 
       - name: Check Codebase Standard
         run: |
@@ -38,8 +37,7 @@ jobs:
       - name: Run Tests
         env:
           MIX_ENV: test
-        run: |
-          mix coveralls.json
+        run: mix coveralls.json
 
       - name: Upload Coverage Reports
         uses: codecov/codecov-action@v3

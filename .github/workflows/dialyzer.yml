@@ -36,8 +36,7 @@ jobs:
 
       - name: Install Dependencies
         if: steps.mix-cache.outputs.cache-hit != 'true'
-        run: |
-          mix deps.get
+        run: mix deps.get
 
       - name: Create PLTs
         if: steps.plt-cache.outputs.cache-hit != 'true'

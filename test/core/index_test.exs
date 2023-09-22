@@ -1,4 +1,4 @@
-defmodule Elasticlunr.IndexTest do
+defmodule Elasticlunr.IndexsTest do
   use ExUnit.Case
 
   alias Elasticlunr.{Field, Index, Pipeline, Token}
