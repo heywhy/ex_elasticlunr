@@ -17,7 +17,7 @@ defmodule Elasticlunr.MixProject do
       source_url: @source_url,
 
       # Compilers
-      compilers: [:elixir_make] ++ Mix.compilers(),
+      # compilers: [:elixir_make] ++ Mix.compilers(),
 
       # Coverage
       test_coverage: [tool: ExCoveralls],
