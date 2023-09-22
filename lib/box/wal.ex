@@ -89,7 +89,8 @@ defmodule Box.Wal do
 
   @spec set(t(), binary(), binary(), pos_integer()) :: {:ok, t()} | {:error, term()}
   def set(%__MODULE__{fd: fd} = wal, key, value, timestamp) do
-    with data <- kv_to_binary(key, value, timestamp),
+    with %Entry{} = entry <- Entry.new(key, value, false, timestamp),
+         data <- Entry.to_binary(entry),
          :ok <- IO.binwrite(fd, data) do
       {:ok, wal}
     end
@@ -97,40 +98,10 @@ defmodule Box.Wal do
 
   @spec remove(t(), binary(), pos_integer()) :: {:ok, t()} | {:error, term()}
   def remove(%__MODULE__{fd: fd} = wal, key, timestamp) do
-    with data <- deleted_key_to_binary(key, timestamp),
+    with %Entry{} = entry <- Entry.new(key, nil, true, timestamp),
+         data <- Entry.to_binary(entry),
          :ok <- IO.binwrite(fd, data) do
       {:ok, wal}
     end
-  end
-
-  defp kv_to_binary(key, value, timestamp) do
-    key_size = byte_size(key)
-    key_size_data = <<key_size::unsigned-integer-size(64)>>
-
-    deleted_data = <<0::unsigned-integer>>
-
-    value_size = byte_size(value)
-    value_size_data = <<value_size::unsigned-integer-size(64)>>
-
-    timestamp_data = <<timestamp::big-unsigned-integer-size(64)>>
-
-    sizes_data = <<key_size_data::binary, deleted_data::binary, value_size_data::binary>>
-
-    kv_data = <<key::binary, value::binary>>
-
-    <<sizes_data::binary, kv_data::binary, timestamp_data::binary>>
-  end
-
-  defp deleted_key_to_binary(key, timestamp) do
-    key_size = byte_size(key)
-    key_size_data = <<key_size::unsigned-integer-size(64)>>
-
-    deleted_data = <<1::unsigned-integer>>
-
-    timestamp_data = <<timestamp::big-unsigned-integer-size(64)>>
-
-    sizes_data = <<key_size_data::binary, deleted_data::binary>>
-
-    <<sizes_data::binary, key::binary, timestamp_data::binary>>
   end
 end

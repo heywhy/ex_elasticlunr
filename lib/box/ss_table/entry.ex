@@ -1,4 +1,14 @@
 defmodule Box.SSTable.Entry do
+  @moduledoc """
+  |----------------------------------------------------|
+  | timestamp(8B) | key_size(8B) | tombstone(1B) | key |
+  |----------------------------------------------------|
+
+  |-----------------------------------------------------------------------------|
+  | timestamp(8B) | key_size(8B) | tombstone(1B) | value_size(8B) | key | value |
+  |-----------------------------------------------------------------------------|
+  """
+
   alias Box.MemTable
 
   @enforce_keys [:key, :value, :deleted, :timestamp]
@@ -40,13 +50,17 @@ defmodule Box.SSTable.Entry do
 
   def from(entry) when is_binary(entry) do
     case entry do
-      <<key_size::unsigned-integer-size(64), 1, key::binary-size(key_size),
-        timestamp::big-unsigned-integer-size(64)>> ->
+      <<
+        timestamp::big-unsigned-integer-size(64),
+        key_size::unsigned-integer-size(64),
+        1,
+        key::binary-size(key_size)
+      >> ->
         new(key, nil, true, timestamp)
 
-      <<key_size::unsigned-integer-size(64), 0, value_size::unsigned-integer-size(64),
-        key::binary-size(key_size), value::binary-size(value_size),
-        timestamp::big-unsigned-integer-size(64)>> ->
+      <<timestamp::big-unsigned-integer-size(64), key_size::unsigned-integer-size(64), 0,
+        value_size::unsigned-integer-size(64), key::binary-size(key_size),
+        value::binary-size(value_size)>> ->
         new(key, value, false, timestamp)
     end
   end
@@ -60,7 +74,7 @@ defmodule Box.SSTable.Entry do
 
     sizes_data = <<key_size_data::binary, 1>>
 
-    <<sizes_data::binary, key::binary, timestamp_data::binary>>
+    <<timestamp_data::binary, sizes_data::binary, key::binary>>
   end
 
   def to_binary(%__MODULE__{deleted: false, key: key, value: value, timestamp: timestamp}) do
@@ -76,13 +90,13 @@ defmodule Box.SSTable.Entry do
 
     kv_data = <<key::binary, value::binary>>
 
-    <<sizes_data::binary, kv_data::binary, timestamp_data::binary>>
+    <<timestamp_data::binary, sizes_data::binary, kv_data::binary>>
   end
 
   @spec size(t()) :: pos_integer()
   def size(%__MODULE__{key: key, deleted: deleted, value: value}) do
-    # key_size + delete_tombstone + timestamp_size + key
-    default = 8 + 1 + 8 + byte_size(key)
+    # timestamp_size + key_size + delete_tombstone + key
+    default = 8 + 8 + 1 + byte_size(key)
 
     case deleted do
       true -> default
@@ -92,10 +106,10 @@ defmodule Box.SSTable.Entry do
 
   @spec read(File.io_device()) :: t()
   def read(fd) do
-    with <<key_size::unsigned-integer-size(64)>> <- IO.binread(fd, 8),
+    with <<timestamp::big-unsigned-integer-size(64)>> <- IO.binread(fd, 8),
+         <<key_size::unsigned-integer-size(64)>> <- IO.binread(fd, 8),
          <<deleted::unsigned-integer>> <- IO.binread(fd, 1),
-         {key, value} <- read_kv(fd, deleted, key_size),
-         <<timestamp::big-unsigned-integer-size(64)>> <- IO.binread(fd, 8) do
+         {key, value} <- read_kv(fd, deleted, key_size) do
       new(key, value, deleted, timestamp)
     end
   end
