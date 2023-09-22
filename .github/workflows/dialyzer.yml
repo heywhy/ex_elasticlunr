@@ -32,6 +32,7 @@ jobs:
             ${{ runner.os }}-${{ steps.beam.outputs.elixir-version }}-${{ steps.beam.outputs.otp-version }}-plt
           path: |
             priv/plts
+            _build/dev/dialyxir_erlang*
 
       - name: Install Dependencies
         if: steps.mix-cache.outputs.cache-hit != 'true'
