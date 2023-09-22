@@ -1,20 +1,20 @@
 defmodule Box.SSTable do
-  alias Box.Bloom.Stackable, as: StackableBloom
+  alias Box.Bloom.Stackable, as: BloomFilter
   alias Box.Fs
   alias Box.MemTable
   alias Box.SSTable.Entry
-  alias Box.SSTable.Iterator
   alias Box.SSTable.MergeIterator
+  alias Box.SSTable.Offsets
+  alias Box.SSTable.RangeIterator
   alias Box.SSTable.Shared
   alias Box.Utils
 
-  defstruct [:path, :bloom_filter, :offsets, :entries]
+  defstruct [:path, :bloom_filter, :offsets]
 
   @type t :: %__MODULE__{
           path: Path.t(),
-          entries: Treex.t(),
-          bloom_filter: StackableBloom.t(),
-          offsets: %{binary() => pos_integer()}
+          offsets: Offsets.t(),
+          bloom_filter: BloomFilter.t()
         }
 
   @lockfile "_.lock"
@@ -22,15 +22,9 @@ defmodule Box.SSTable do
   @spec from_path(Path.t()) :: t() | no_return()
   def from_path(path) do
     with path <- Path.absname(path) |> Path.expand(),
-         bloom_filter <- StackableBloom.from_path(path),
-         %Iterator{} = iterator <- Iterator.new(path),
-         ss_table <- new(path, bloom_filter) do
-      Enum.reduce(iterator, ss_table, fn %Entry{} = entry, ss_table ->
-        case entry.deleted do
-          true -> remove(ss_table, entry.key, entry.timestamp)
-          false -> set(ss_table, entry.key, entry.value, entry.timestamp)
-        end
-      end)
+         offsets <- Offsets.from_path(path),
+         bloom_filter <- BloomFilter.from_path(path) do
+      new(path, bloom_filter, offsets)
     end
   end
 
@@ -68,7 +62,7 @@ defmodule Box.SSTable do
   def count(%__MODULE__{bloom_filter: bf}), do: bf.count
 
   @spec contains?(t(), binary()) :: boolean()
-  def contains?(%__MODULE__{bloom_filter: bf}, key), do: StackableBloom.check(bf, key)
+  def contains?(%__MODULE__{bloom_filter: bf}, key), do: BloomFilter.check?(bf, key)
 
   @spec lockfile?(Path.t()) :: boolean()
   def lockfile?(path) do
@@ -85,17 +79,20 @@ defmodule Box.SSTable do
   end
 
   @spec get(t(), binary()) :: Entry.t() | nil
-  def get(%__MODULE__{entries: entries}, key) do
-    case Treex.lookup(entries, key) do
-      :none -> nil
-      {:value, entry} -> entry
+  def get(%__MODULE__{offsets: offsets, path: path} = ss_table, key) do
+    with true <- contains?(ss_table, key),
+         {_start, _end} = range <- Offsets.get(offsets, key),
+         iterator <- RangeIterator.new(path, range) do
+      Enum.find(iterator, &(&1.key == key))
+    else
+      false -> nil
     end
   end
 
-  defp new(path, bloom_filter) do
+  defp new(path, bloom_filter, offsets) do
     attrs = %{
       path: path,
-      entries: Treex.empty(),
+      offsets: offsets,
       bloom_filter: bloom_filter
     }
 
@@ -116,68 +113,35 @@ defmodule Box.SSTable do
 
   defp write_to_disk(entries, path) do
     file = Shared.segment_file(path)
-
-    entries
-    |> Stream.map(&to_binary/1)
-    |> Stream.into(Fs.stream(file))
     # TODO: allow chance to be configured by user just like cassandra
-    |> Enum.reduce(StackableBloom.new(), &write_to_bf(&2, &1))
-    |> StackableBloom.flush(path)
+    acc = {BloomFilter.new(), Offsets.new(), nil, 0}
 
+    {bloom_filter, offsets, entry, offset} =
+      entries
+      |> Stream.map(&Entry.to_binary/1)
+      |> Stream.into(Fs.stream(file))
+      |> Stream.with_index()
+      |> Enum.reduce(acc, fn {binary, index}, {bloom_filter, offsets, _last_entry, offset} ->
+        entry = Entry.from(binary)
+        bloom_filter = BloomFilter.set(bloom_filter, entry.key)
+
+        # TODO: allow interval to be configurable
+        offsets =
+          case rem(index, 128) do
+            0 -> Offsets.set(offsets, entry.key, offset)
+            _ -> offsets
+          end
+
+        {bloom_filter, offsets, entry, offset + Entry.size(entry)}
+      end)
+
+    # Add the last entry in case the interval in the reduction function does not capture it
+    offsets = Offsets.set(offsets, entry.key, offset - Entry.size(entry))
+
+    :ok = Offsets.flush(offsets, path)
+    :ok = BloomFilter.flush(bloom_filter, path)
     :ok = gen_lockfile(path)
   end
 
-  defp write_to_bf(bloom_filter, entry) do
-    case entry do
-      <<key_size::unsigned-integer-size(64), 1, key::binary-size(key_size), _rest::binary>> ->
-        StackableBloom.set(bloom_filter, key)
-
-      <<key_size::unsigned-integer-size(64), 0, _value_size::unsigned-integer-size(64),
-        key::binary-size(key_size), _rest::binary>> ->
-        StackableBloom.set(bloom_filter, key)
-    end
-  end
-
   defp gen_lockfile(path), do: Path.join(path, @lockfile) |> File.touch!()
-
-  defp set(%__MODULE__{entries: entries} = ss_table, key, value, timestamp) do
-    entry = Entry.new(key, value, false, timestamp)
-    entries = Treex.insert!(entries, key, entry)
-
-    %{ss_table | entries: entries}
-  end
-
-  defp remove(%__MODULE__{entries: entries} = ss_table, key, timestamp) do
-    entry = Entry.new(key, nil, true, timestamp)
-    entries = Treex.insert!(entries, key, entry)
-
-    %{ss_table | entries: entries}
-  end
-
-  defp to_binary(%Entry{deleted: true, key: key, timestamp: timestamp}) do
-    key_size = byte_size(key)
-    key_size_data = <<key_size::unsigned-integer-size(64)>>
-
-    timestamp_data = <<timestamp::big-unsigned-integer-size(64)>>
-
-    sizes_data = <<key_size_data::binary, 1>>
-
-    <<sizes_data::binary, key::binary, timestamp_data::binary>>
-  end
-
-  defp to_binary(%Entry{deleted: false, key: key, value: value, timestamp: timestamp}) do
-    key_size = byte_size(key)
-    key_size_data = <<key_size::unsigned-integer-size(64)>>
-
-    timestamp_data = <<timestamp::big-unsigned-integer-size(64)>>
-
-    value_size = byte_size(value)
-    value_size_data = <<value_size::unsigned-integer-size(64)>>
-
-    sizes_data = <<key_size_data::binary, 0, value_size_data::binary>>
-
-    kv_data = <<key::binary, value::binary>>
-
-    <<sizes_data::binary, kv_data::binary, timestamp_data::binary>>
-  end
 end

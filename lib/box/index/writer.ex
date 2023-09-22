@@ -31,7 +31,7 @@ defmodule Box.Index.Writer do
     schema = Keyword.fetch!(opts, :schema)
     mt_max_size = Keyword.fetch!(opts, :mem_table_max_size)
 
-    {wal, mem_table} = Wal.load_from_dir(opts[:dir])
+    {wal, mem_table} = Wal.load_from_dir(dir)
 
     attrs = [
       dir: dir,
@@ -130,6 +130,7 @@ defmodule Box.Index.Writer do
            state
        ) do
     with true <- MemTable.size(mem_table) >= mt_max_size,
+         # TODO: Asynchronously flush to disk
          _path <- SSTable.flush(mem_table, dir),
          :ok <- Wal.delete(wal) do
       %{state | wal: Wal.create(dir), mem_table: MemTable.new()}

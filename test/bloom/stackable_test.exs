@@ -23,14 +23,14 @@ defmodule Elasticlunr.Bloom.StackableTest do
     assert Enum.count(bfs) == 2
   end
 
-  test "check/2" do
+  test "check?/2" do
     bloom_filter = Stackable.new()
     id = FlakeId.get() |> FlakeId.from_string()
 
     bloom_filter = Stackable.set(bloom_filter, id)
 
-    assert Stackable.check(bloom_filter, id)
-    refute Stackable.check(bloom_filter, "unknown")
+    assert Stackable.check?(bloom_filter, id)
+    refute Stackable.check?(bloom_filter, "unknown")
   end
 
   test "flush/1" do
@@ -58,7 +58,7 @@ defmodule Elasticlunr.Bloom.StackableTest do
 
     assert :ok = Stackable.flush(bloom_filter, dir)
     assert bloom_filter = Stackable.from_path(dir)
-    assert Stackable.check(bloom_filter, id1)
-    assert Stackable.check(bloom_filter, id2)
+    assert Stackable.check?(bloom_filter, id1)
+    assert Stackable.check?(bloom_filter, id2)
   end
 end

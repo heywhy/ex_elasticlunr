@@ -9,8 +9,8 @@ defmodule Box.Bloom do
   @spec set(t(), term()) :: :ok | boolean()
   defdelegate set(reference, term), to: :bloom
 
-  @spec check(t() | serialized_t(), term()) :: boolean()
-  defdelegate check(reference, term), to: :bloom
+  @spec check?(t() | serialized_t(), term()) :: boolean()
+  defdelegate check?(reference, term), to: :bloom, as: :check
 
   @spec new_optimal(pos_integer(), float()) :: t() | no_return()
   def new_optimal(capacity, fp_rate) do

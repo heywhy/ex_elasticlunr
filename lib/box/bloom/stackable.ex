@@ -39,8 +39,8 @@ defmodule Box.Bloom.Stackable do
     struct(__MODULE__, attrs)
   end
 
-  @spec check(t(), term()) :: boolean()
-  def check(%__MODULE__{bloom_filters: bfs}, term), do: Enum.any?(bfs, &Bloom.check(&1, term))
+  @spec check?(t(), term()) :: boolean()
+  def check?(%__MODULE__{bloom_filters: bfs}, term), do: Enum.any?(bfs, &Bloom.check?(&1, term))
 
   @spec set(t(), term()) :: t()
   def set(

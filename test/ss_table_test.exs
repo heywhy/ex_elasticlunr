@@ -33,6 +33,14 @@ defmodule Elasticlunr.SSTableTest do
     refute SSTable.contains?(ss_table, "unknown")
   end
 
+  test "get/2", %{dir: dir, mem_table: mem_table} do
+    ss_table = flush(mem_table, dir)
+
+    assert %Entry{key: "key"} = SSTable.get(ss_table, "key")
+    assert %Entry{key: "key1"} = SSTable.get(ss_table, "key1")
+    refute SSTable.get(ss_table, "unknown")
+  end
+
   test "flush/2", %{dir: dir, mem_table: mem_table} do
     assert file = SSTable.flush(mem_table, dir)
     assert %File.Stat{size: size} = File.stat!(file)

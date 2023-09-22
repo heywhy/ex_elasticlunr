@@ -18,6 +18,7 @@ defimpl Enumerable, for: Box.SSTable.MergeIterator do
   alias Box.SSTable.Iterator
   alias Box.SSTable.MergeIterator
 
+  # coveralls-ignore-start
   @impl true
   def member?(%MergeIterator{}, _element), do: throw(:not_implemented)
 
@@ -26,9 +27,9 @@ defimpl Enumerable, for: Box.SSTable.MergeIterator do
 
   @impl true
   def count(%MergeIterator{}), do: throw(:not_implemented)
+  # coveralls-ignore-stop
 
   @impl true
-  def reduce(%MergeIterator{}, {:halt, acc}, _fun), do: {:halted, acc}
   def reduce(%MergeIterator{iterators: []}, {:cont, acc}, _fun), do: {:done, acc}
 
   def reduce(%MergeIterator{iterators: iterators} = mi, {:cont, acc}, fun) do
