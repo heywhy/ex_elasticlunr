@@ -33,11 +33,9 @@ defmodule Box.Index.Reader do
   @impl true
   def handle_call({:get, id}, _from, %__MODULE__{segments: segments} = state) do
     fun = fn ss_table, key, acc ->
-      with true <- SSTable.contains?(ss_table, key),
-           %Entry{key: key} = entry <- SSTable.get(ss_table, key) do
-        {:halt, %{entry | key: FlakeId.to_string(key)}}
-      else
-        _ -> {:cont, acc}
+      case SSTable.get(ss_table, key) do
+        nil -> {:cont, acc}
+        %Entry{key: key} = entry -> {:halt, %{entry | key: FlakeId.to_string(key)}}
       end
     end
 
