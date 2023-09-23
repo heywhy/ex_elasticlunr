@@ -5,6 +5,7 @@ defmodule Box.Fs do
   @spec open(Path.t(), :append | :read | :write) :: File.io_device()
   def open(path, mode \\ :read), do: File.open!(path, [mode, :binary, :compressed])
 
+  # coveralls-ignore-start
   @spec read(Path.t()) :: binary()
   def read(path) do
     with fd <- open(path),
@@ -16,6 +17,7 @@ defmodule Box.Fs do
 
   @spec write(Path.t(), binary()) :: :ok | no_return()
   def write(path, content), do: File.write!(path, content, [:binary, :compressed])
+  # coveralls-ignore-stop
 
   @spec watch!(Path.t()) :: pid() | no_return()
   def watch!(dir) do

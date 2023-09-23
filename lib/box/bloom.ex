@@ -1,8 +1,6 @@
 defmodule Box.Bloom do
   # TODO: Find a permanent fix for the erbloom error
 
-  alias Box.Fs
-
   @type t :: reference()
   @type serialized_t :: binary()
 
@@ -29,14 +27,4 @@ defmodule Box.Bloom do
     {:ok, reference} = :bloom.deserialize(bin)
     reference
   end
-
-  @spec flush(t(), Path.t()) :: :ok
-  def flush(reference, path) do
-    reference
-    |> serialize()
-    |> then(&Fs.write(path, &1))
-  end
-
-  @spec from_path(Path.t()) :: t()
-  def from_path(path), do: Fs.read(path) |> deserialize()
 end

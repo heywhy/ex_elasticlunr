@@ -1,4 +1,14 @@
 defmodule Box.Bloom.Stackable do
+  @moduledoc """
+  |--------------------------------------------------------|
+  | capacity(8B) | fp_rate(8B) | expansion(1B) | count(8B) |
+  |--------------------------------------------------------|
+
+  |-----------------|
+  | size(4B) | data |
+  |-----------------|
+  """
+
   alias Box.Bloom
   alias Box.Fs
 
@@ -12,28 +22,20 @@ defmodule Box.Bloom.Stackable do
           bloom_filters: [Bloom.t()]
         }
 
-  @ext "bf"
+  @filename "filter.db"
 
   @spec new(keyword()) :: t()
   def new(opts \\ []) do
     # TODO: Allow parameters to be configured by user
     fp_rate = Keyword.get(opts, :fp_rate, 0.01)
-    capacity = Keyword.get(opts, :capacity, 1_000_000)
-
-    bloom_filters =
-      opts
-      |> Keyword.get(:init?, true)
-      |> case do
-        false -> []
-        true -> [Bloom.new_optimal(capacity, fp_rate)]
-      end
+    capacity = Keyword.get(opts, :capacity, 500_000)
 
     attrs = %{
       count: 0,
       fp_rate: fp_rate,
       capacity: capacity,
-      bloom_filters: bloom_filters,
-      expansion: Keyword.get(opts, :expansion, 2)
+      expansion: Keyword.get(opts, :expansion, 2),
+      bloom_filters: [Bloom.new_optimal(capacity, fp_rate)]
     }
 
     struct(__MODULE__, attrs)
@@ -56,9 +58,8 @@ defmodule Box.Bloom.Stackable do
       ) do
     new_capacity = capacity * expansion
     bf = Bloom.new_optimal(new_capacity, fp_rate)
-    :ok = Bloom.set(bf, term)
 
-    struct!(mod, capacity: new_capacity, count: capacity + 1, bloom_filters: [bf] ++ bfs)
+    set(%{mod | capacity: new_capacity, bloom_filters: [bf] ++ bfs}, term)
   end
 
   def set(
@@ -71,54 +72,65 @@ defmodule Box.Bloom.Stackable do
   end
 
   @spec flush(t(), Path.t()) :: :ok | no_return()
-  def flush(%__MODULE__{bloom_filters: bfs} = mod, dir) do
-    :ok =
+  def flush(
+        %__MODULE__{
+          fp_rate: fp_rate,
+          capacity: capacity,
+          count: count,
+          expansion: expansion,
+          bloom_filters: bfs
+        },
+        dir
+      ) do
+    path = Path.join(dir, @filename)
+    stream = Fs.stream(path)
+
+    filters =
       bfs
-      |> Enum.with_index()
-      |> Enum.each(fn {bloom_filter, index} ->
-        :ok =
-          dir
-          |> Path.join("#{index}.#{@ext}")
-          |> then(&Bloom.flush(bloom_filter, &1))
+      |> Stream.map(fn bloom_filter ->
+        data = Bloom.serialize(bloom_filter)
+        size = byte_size(data)
+
+        <<size::unsigned-integer-size(32), data::binary>>
       end)
 
-    dir
-    |> Path.join("_.#{@ext}")
-    |> Fs.write(to_binary(mod))
+    metadata =
+      <<capacity::unsigned-integer-size(64), fp_rate::unsigned-float, expansion,
+        count::unsigned-integer-size(64)>>
+
+    [metadata]
+    |> Stream.concat(filters)
+    |> Stream.into(stream)
+    |> Stream.run()
   end
 
   @spec from_path(Path.t()) :: t()
   def from_path(dir) do
-    bloom_filters = list(dir)
-    state = Path.join(dir, "_.#{@ext}")
-
-    with fd <- Fs.open(state),
-         <<capacity::unsigned-integer-size(64)>> <- IO.binread(fd, 8),
-         <<fp_rate::unsigned-float>> <- IO.binread(fd, 8),
-         <<expansion::unsigned-integer>> <- IO.binread(fd, 1),
-         <<count::unsigned-integer-size(64)>> <- IO.binread(fd, 8),
-         :ok <- File.close(fd),
-         bloom_filters <- Enum.map(bloom_filters, &Bloom.from_path/1),
-         opts <- [init?: false, fp_rate: fp_rate, capacity: capacity, expansion: expansion] do
-      opts
-      |> new()
-      |> struct!(count: count, bloom_filters: bloom_filters)
+    with path <- Path.join(dir, @filename),
+         fd <- Fs.open(path),
+         opts <- read_metadata(fd),
+         bloom_filters <- read_filters(fd),
+         :ok <- File.close(fd) do
+      struct!(__MODULE__, [bloom_filters: bloom_filters] ++ opts)
     end
   end
 
-  defp list(dir) do
-    Path.expand(dir)
-    |> then(&Path.wildcard("#{&1}/*.#{@ext}"))
-    |> Enum.reject(&String.ends_with?(&1, "_.#{@ext}"))
+  defp read_metadata(fd) do
+    with <<capacity::unsigned-integer-size(64)>> <- IO.binread(fd, 8),
+         <<fp_rate::unsigned-float>> <- IO.binread(fd, 8),
+         <<expansion::unsigned-integer>> <- IO.binread(fd, 1),
+         <<count::unsigned-integer-size(64)>> <- IO.binread(fd, 8) do
+      [fp_rate: fp_rate, capacity: capacity, count: count, expansion: expansion]
+    end
   end
 
-  defp to_binary(%__MODULE__{
-         fp_rate: fp_rate,
-         capacity: capacity,
-         count: count,
-         expansion: expansion
-       }) do
-    <<capacity::unsigned-integer-size(64), fp_rate::unsigned-float, expansion,
-      count::unsigned-integer-size(64)>>
+  defp read_filters(fd, acc \\ []) do
+    with <<size::unsigned-integer-size(32)>> <- IO.binread(fd, 4),
+         <<data::binary>> <- IO.binread(fd, size),
+         bloom_filter <- Bloom.deserialize(data) do
+      read_filters(fd, [bloom_filter] ++ acc)
+    else
+      :eof -> Enum.reverse(acc)
+    end
   end
 end
