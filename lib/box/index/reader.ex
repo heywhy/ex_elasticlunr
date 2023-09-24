@@ -59,9 +59,15 @@ defmodule Box.Index.Reader do
       Logger.debug("Update reader with #{path}.")
       {:noreply, %{state | segments: segments}}
     else
-      false -> {:noreply, state}
-      %SSTable{} -> {:noreply, state}
-      :remove -> {:noreply, %{state | segments: Enum.reject(segments, &(&1.path == path))}}
+      false ->
+        {:noreply, state}
+
+      %SSTable{} ->
+        {:noreply, state}
+
+      :remove ->
+        path = Path.dirname(path)
+        {:noreply, %{state | segments: Enum.reject(segments, &(&1.path == path))}}
     end
   end
 
