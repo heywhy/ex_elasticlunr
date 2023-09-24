@@ -8,5 +8,6 @@ defmodule Elasticlunr.Book do
     field(:author, :text)
     field(:tags, {:array, :text})
     field(:views, :number)
+    field(:price, :number)
   end
 end

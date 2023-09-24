@@ -24,7 +24,7 @@ defmodule Box.SSTable.Offsets do
   @spec get(t(), binary()) :: {pos_integer(), pos_integer() | nil}
   def get(%__MODULE__{entries: {_, tree}}, key) do
     tree
-    |> find_boundary(key, nil)
+    |> find_boundary(key)
     |> case do
       {s, e} when s > e -> {s, nil}
       {s, e} = offsets when s < e -> offsets
@@ -66,6 +66,7 @@ defmodule Box.SSTable.Offsets do
     |> then(&struct!(&1, entries: Treex.balance(&1.entries)))
   end
 
+  defp find_boundary(node, key, acc \\ nil)
   defp find_boundary({key, offset, _smaller, _bigger}, key, _acc), do: {offset, offset}
 
   defp find_boundary({key1, offset, _smaller, bigger}, key, prev)

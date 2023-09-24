@@ -1,6 +1,6 @@
 defmodule Elasticlunr.Fixture do
   alias Elasticlunr.Book
-  alias Faker.{Date, Lorem, Person}
+  alias Faker.{Commerce, Date, Lorem, Person}
 
   @spec new_book(keyword()) :: Book.t()
   def new_book(opts \\ []) do
@@ -9,6 +9,7 @@ defmodule Elasticlunr.Fixture do
       id: opts[:id],
       title: Lorem.word(),
       author: Person.name(),
+      price: Commerce.price(),
       tags: ["fiction", "science"],
       release_date: Date.backward(1)
     }

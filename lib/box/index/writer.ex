@@ -46,9 +46,8 @@ defmodule Box.Index.Writer do
 
   # Callbacks
   @impl true
-  def handle_call({:save, document}, _from, %__MODULE__{schema: schema} = state) do
-    with known_fields <- Map.keys(schema.fields),
-         {document, state} <- save_document(document, known_fields, state),
+  def handle_call({:save, document}, _from, %__MODULE__{} = state) do
+    with {document, state} <- save_document(document, state),
          :ok <- Wal.flush(state.wal) do
       {:reply, {:ok, document}, write_to_disk_if_needed(state)}
     else
@@ -78,10 +77,10 @@ defmodule Box.Index.Writer do
     end
   end
 
-  def handle_call({:get, id}, _from, %__MODULE__{mem_table: mem_table} = state) do
+  def handle_call({:get, id}, _from, %__MODULE__{mem_table: mem_table, schema: schema} = state) do
     with id <- FlakeId.from_string(id),
          %Entry{deleted: false, value: value} <- MemTable.get(mem_table, id),
-         value <- :erlang.binary_to_term(value),
+         value <- Schema.binary_to_document(schema, value),
          value <- Map.put(value, :id, FlakeId.to_string(id)) do
       {:reply, value, state}
     else
@@ -97,19 +96,18 @@ defmodule Box.Index.Writer do
     Logger.info("Terminating writer process for #{schema.name} due to #{inspect(reason)}")
   end
 
-  defp save_all(documents, %{schema: schema} = state) do
-    known_fields = Map.keys(schema.fields)
-
+  defp save_all(documents, state) do
     Enum.reduce(documents, state, fn document, state ->
-      {_document, state} = save_document(document, known_fields, state)
+      {_document, state} = save_document(document, state)
       state
     end)
   end
 
-  defp save_document(document, known_fields, state) do
+  defp save_document(document, %{schema: schema} = state) do
     {id, document} =
       document
-      |> Map.take(known_fields)
+      # drop the struct key
+      |> Map.drop([:__struct__])
       |> Map.replace_lazy(:id, fn
         nil -> FlakeId.get() |> FlakeId.from_string()
         value -> FlakeId.from_string(value)
@@ -117,7 +115,7 @@ defmodule Box.Index.Writer do
       |> Map.pop!(:id)
 
     with timestamp <- Utils.now(),
-         value <- :erlang.term_to_binary(document),
+         value <- Schema.document_to_binary(schema, document),
          mem_table <- MemTable.set(state.mem_table, id, value, timestamp),
          {:ok, wal} <- Wal.set(state.wal, id, value, timestamp),
          document <- Map.put(document, :id, FlakeId.to_string(id)) do
