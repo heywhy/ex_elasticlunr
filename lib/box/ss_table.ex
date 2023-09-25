@@ -49,7 +49,12 @@ defmodule Box.SSTable do
     :ok =
       paths
       |> MergeIterator.new()
-      |> Stream.reject(& &1.deleted)
+      |> Stream.reject(fn %Entry{timestamp: ts} ->
+        DateTime.utc_now()
+        |> DateTime.diff(Utils.to_date_time(ts), :second)
+        # TODO: Make tombstone grace period configurable (currently 10 days)
+        |> Kernel.>=(864_000)
+      end)
       |> write_to_disk(path)
 
     # Delete all merged sstables

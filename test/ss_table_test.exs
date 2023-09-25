@@ -62,6 +62,11 @@ defmodule Elasticlunr.SSTableTest do
   end
 
   test "merge/1", %{dir: dir} do
+    elapsed_tombstone_ts =
+      DateTime.utc_now()
+      |> DateTime.add(-10, :day)
+      |> DateTime.to_unix(:microsecond)
+
     mem_table1 =
       MemTable.new()
       |> MemTable.set("handbag", "8786", Utils.now())
@@ -82,6 +87,7 @@ defmodule Elasticlunr.SSTableTest do
       |> MemTable.set("handicap", "70836", Utils.now())
       |> MemTable.set("handiwork", "45521", Utils.now())
       |> MemTable.remove("handkerchief", Utils.now())
+      |> MemTable.remove("handlebars", elapsed_tombstone_ts)
 
     for mem_table <- [mem_table1, mem_table2, mem_table3] do
       SSTable.flush(mem_table, dir)
@@ -91,7 +97,7 @@ defmodule Elasticlunr.SSTableTest do
     assert ss_table = SSTable.from_path(path)
     refute SSTable.contains?(ss_table, "unknown")
     assert SSTable.contains?(ss_table, "handiwork")
-    refute SSTable.contains?(ss_table, "handkerchief")
+    refute SSTable.contains?(ss_table, "handlebars")
     assert %Entry{key: "handful", value: "44662"} = SSTable.get(ss_table, "handful")
     assert %Entry{key: "handicap", value: "70836"} = SSTable.get(ss_table, "handicap")
   end
