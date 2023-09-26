@@ -25,4 +25,13 @@ defmodule Elasticlunr.Fixture do
 
     dir
   end
+
+  @spec stemmer_fixture() :: map()
+  def stemmer_fixture do
+    with path <- Path.join([__DIR__, "fixture", "stemmer_fixture.json"]),
+         {:ok, content} <- File.read(path),
+         {:ok, map} <- Jason.decode(content) do
+      map
+    end
+  end
 end

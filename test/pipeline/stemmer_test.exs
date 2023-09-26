@@ -4,7 +4,7 @@ defmodule Elasticlunr.Pipeline.StemmerTest do
   alias Elasticlunr.Token
   alias Elasticlunr.{Pipeline, Pipeline.Stemmer}
 
-  import Elasticlunr.Test.Fixture
+  import Elasticlunr.Fixture
 
   describe "running stemmer against tokens" do
     test "works as expected" do
