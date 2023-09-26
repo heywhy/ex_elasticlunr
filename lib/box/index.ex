@@ -20,6 +20,9 @@ defmodule Box.Index do
       alias Box.Index
       alias Box.Schema
 
+      Module.register_attribute(__MODULE__, :schema, [])
+      Module.register_attribute(__MODULE__, :compaction_strategy, [])
+
       fields = [:id] |> Enum.concat(Map.keys(@schema.fields)) |> Enum.uniq()
 
       defstruct fields
@@ -48,13 +51,19 @@ defmodule Box.Index do
       def delete(id), do: Index.Supervisor.delete(@name, id)
 
       @spec __schema__() :: Schema.t()
-      def __schema__, do: @schema
+      if @compaction_strategy do
+        def __schema__ do
+          struct!(@schema, compaction_strategy: @compaction_strategy)
+        end
+      else
+        def __schema__, do: @schema
+      end
 
       @spec running?() :: boolean()
       def running?, do: Index.Supervisor.running?(@name)
 
       @spec start_link(keyword()) :: GenServer.on_start()
-      def start_link(_opts), do: Index.Supervisor.start_link(schema: @schema)
+      def start_link(_opts), do: Index.Supervisor.start_link(schema: __schema__())
     end
   end
 end

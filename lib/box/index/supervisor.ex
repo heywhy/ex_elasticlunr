@@ -1,7 +1,6 @@
 defmodule Box.Index.Supervisor do
   use Supervisor
 
-  alias Box.Compaction
   alias Box.Fs
   alias Box.Index.Reader
   alias Box.Index.Writer
@@ -62,13 +61,14 @@ defmodule Box.Index.Supervisor do
   end
 
   @impl true
-  def init(%Schema{} = schema) do
+  def init(%Schema{compaction_strategy: compaction} = schema) do
     dir = create_dir!(schema)
+    {strategy, opts} = compaction
     mem_table_max_size = Application.get_env(@otp_app, :mem_table_max_size, @mem_table_max_size)
 
     children = [
       {Fs, dir},
-      {Compaction, dir: dir, schema: schema},
+      {strategy, [dir: dir, schema: schema] ++ opts},
       {Writer, [dir: dir, schema: schema, mem_table_max_size: mem_table_max_size]},
       {Reader, dir: dir, schema: schema}
     ]

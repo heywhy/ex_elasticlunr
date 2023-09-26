@@ -1,5 +1,5 @@
 import Config
 
-config :elasticlunr, storage_dir: "./test/support/storage"
+config :elasticlunr, storage_dir: System.tmp_dir()
 
 config :logger, level: :warning

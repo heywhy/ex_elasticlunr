@@ -1,12 +1,22 @@
 defmodule Box.Schema do
+  alias Box.Compaction.SizeTiered
   alias Box.Field
 
-  defstruct [:name, fields: %{}]
+  defstruct [:name, fields: %{}, compaction_strategy: {SizeTiered, []}]
 
   @type t :: %__MODULE__{
           name: binary(),
-          fields: map()
+          fields: map(),
+          compaction_strategy: {module(), keyword()}
         }
+
+  defmacro compaction(strategy, opts \\ []) do
+    config = {strategy, opts}
+
+    quote bind_quoted: [config: config] do
+      @compaction_strategy config
+    end
+  end
 
   defmacro schema(name, do: block) when is_binary(name) do
     exprs =
