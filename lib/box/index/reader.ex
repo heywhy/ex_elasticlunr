@@ -51,7 +51,7 @@ defmodule Box.Index.Reader do
         %__MODULE__{watcher: watcher, segments: segments} = state
       ) do
     with true <- SSTable.lockfile?(path),
-         :load <- action(events),
+         :create <- Fs.event_to_action(events),
          path <- Path.dirname(path),
          nil <- Enum.find(segments, &(&1.path == path)),
          ss_table <- SSTable.from_path(path),
@@ -81,13 +81,6 @@ defmodule Box.Index.Reader do
   end
 
   def handle_info({:file_event, _watcher, _arg}, %__MODULE__{} = state), do: {:noreply, state}
-
-  defp action(events) do
-    case :removed in events or :deleted in events do
-      false -> :load
-      true -> :remove
-    end
-  end
 
   defp load_segments(dir) do
     dir

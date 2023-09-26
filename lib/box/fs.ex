@@ -30,6 +30,14 @@ defmodule Box.Fs do
     end)
   end
 
+  @spec event_to_action([atom()]) :: :create | :remove
+  def event_to_action(events) when is_list(events) do
+    case :removed in events or :deleted in events do
+      false -> :create
+      true -> :remove
+    end
+  end
+
   @spec child_spec(Path.t()) :: Supervisor.child_spec()
   def child_spec(arg) do
     %{
