@@ -1,7 +1,7 @@
 defmodule Box.Compaction.SizeTieredTest do
   use ExUnit.Case
 
-  alias Box.Compaction.Leveled
+  alias Box.Compaction.SizeTiered
   alias Box.Fs
 
   import Elasticlunr.Fixture
@@ -11,7 +11,7 @@ defmodule Box.Compaction.SizeTieredTest do
     opts = [dir: dir]
 
     start_supervised!({Fs, dir})
-    pid = start_supervised!({Leveled, opts})
+    pid = start_supervised!({SizeTiered, opts})
 
     [pid: pid]
   end

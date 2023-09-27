@@ -93,7 +93,9 @@ defmodule Elasticlunr.SSTableTest do
       SSTable.flush(mem_table, dir)
     end
 
-    assert path = SSTable.merge(dir)
+    ss_tables = SSTable.list(dir)
+
+    assert path = SSTable.merge(ss_tables, dir)
     assert ss_table = SSTable.from_path(path)
     refute SSTable.contains?(ss_table, "unknown")
     assert SSTable.contains?(ss_table, "handiwork")

@@ -41,9 +41,8 @@ defmodule Box.SSTable do
     path
   end
 
-  @spec merge(Path.t()) :: Path.t() | no_return()
-  def merge(dir) do
-    paths = list(dir)
+  @spec merge([Path.t()], Path.t()) :: Path.t() | no_return()
+  def merge(paths, dir) do
     path = new_dir(dir)
 
     :ok =
@@ -68,6 +67,14 @@ defmodule Box.SSTable do
 
   @spec contains?(t(), binary()) :: boolean()
   def contains?(%__MODULE__{bloom_filter: bf}, key), do: BloomFilter.check?(bf, key)
+
+  @spec size(Path.t()) :: non_neg_integer()
+  def size(dir) do
+    dir
+    |> Shared.segment_file()
+    |> File.stat!()
+    |> then(& &1.size)
+  end
 
   @spec lockfile?(Path.t()) :: boolean()
   def lockfile?(path) do

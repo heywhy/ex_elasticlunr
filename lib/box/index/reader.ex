@@ -55,7 +55,8 @@ defmodule Box.Index.Reader do
          path <- Path.dirname(path),
          nil <- Enum.find(segments, &(&1.path == path)),
          ss_table <- SSTable.from_path(path),
-         segments <- Enum.concat([ss_table], segments) do
+         segments <- Enum.concat([ss_table], segments),
+         segments <- Enum.sort_by(segments, & &1.path, :desc) do
       Logger.debug("Update reader with #{path}.")
       {:noreply, %{state | segments: segments}}
     else
@@ -67,7 +68,13 @@ defmodule Box.Index.Reader do
 
       :remove ->
         path = Path.dirname(path)
-        {:noreply, %{state | segments: Enum.reject(segments, &(&1.path == path))}}
+
+        segments =
+          segments
+          |> Enum.reject(&(&1.path == path))
+          |> Enum.sort_by(& &1.path, :desc)
+
+        {:noreply, %{state | segments: segments}}
     end
   end
 
