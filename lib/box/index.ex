@@ -36,7 +36,7 @@ defmodule Box.Index do
       def save(%__MODULE__{} = document) do
         with document <- Map.from_struct(document),
              document <- Index.Supervisor.save(@name, document) do
-          {:ok, struct!(__MODULE__, document)}
+          struct!(__MODULE__, document)
         end
       end
 
