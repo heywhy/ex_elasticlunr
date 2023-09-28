@@ -54,9 +54,12 @@ defmodule Box.LeveledCompaction do
     Logger.info("Compacting level #{ordinal} of #{dir}")
 
     with %Level{} = level <- Enum.at(levels, 0),
-         [path] <- merge_sstables(level.paths, dir),
-         state <- empty_level(state, 0, :infinity),
-         state <- maybe_add_to_level(state, path, 1, max_size * 1) do
+         [path] <- merge_sstables(level.paths, dir) do
+      state =
+        state
+        |> empty_level(0, :infinity)
+        |> maybe_add_to_level(path, 1, max_size)
+
       Logger.info("Finished compacting level 0 of #{dir}")
       {:noreply, state}
     end
@@ -159,10 +162,10 @@ defmodule Box.LeveledCompaction do
     schedule_compaction(%{state | timer: nil}, level)
   end
 
-  defp schedule_compaction(%{timer: nil} = state, level) do
+  defp schedule_compaction(%__MODULE__{timer: nil} = state, level) do
     timer = Process.send_after(self(), {:compact_level, level}, 1_000)
 
-    struct!(state, timer: timer)
+    %{state | timer: timer}
   end
 
   defp merge_sstables(paths, dir) do

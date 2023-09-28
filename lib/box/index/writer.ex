@@ -49,9 +49,7 @@ defmodule Box.Index.Writer do
   def handle_call({:save, document}, _from, %__MODULE__{} = state) do
     with {document, state} <- save_document(document, state),
          :ok <- Wal.flush(state.wal) do
-      {:reply, {:ok, document}, write_to_disk_if_needed(state)}
-    else
-      error -> {:reply, error, state}
+      {:reply, document, write_to_disk_if_needed(state)}
     end
   end
 
@@ -59,8 +57,6 @@ defmodule Box.Index.Writer do
     with state <- save_all(documents, state),
          :ok <- Wal.flush(state.wal) do
       {:reply, :ok, write_to_disk_if_needed(state)}
-    else
-      error -> {:reply, error, state}
     end
   end
 
@@ -72,8 +68,6 @@ defmodule Box.Index.Writer do
          :ok <- Wal.flush(wal),
          state <- %{state | wal: wal, mem_table: mem_table} do
       {:reply, :ok, write_to_disk_if_needed(state)}
-    else
-      error -> {:reply, error, state}
     end
   end
 

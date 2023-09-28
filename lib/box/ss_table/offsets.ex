@@ -63,7 +63,7 @@ defmodule Box.SSTable.Offsets do
     fd
     |> fun.(fun, new())
     |> tap(fn _ -> :ok = File.close(fd) end)
-    |> then(&struct!(&1, entries: Treex.balance(&1.entries)))
+    |> then(&%{&1 | entries: Treex.balance(&1.entries)})
   end
 
   defp find_boundary(node, key, acc \\ nil)

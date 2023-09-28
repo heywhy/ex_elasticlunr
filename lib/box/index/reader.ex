@@ -87,8 +87,6 @@ defmodule Box.Index.Reader do
     {:noreply, state}
   end
 
-  def handle_info({:file_event, _watcher, _arg}, %__MODULE__{} = state), do: {:noreply, state}
-
   defp load_segments(dir) do
     dir
     |> SSTable.list()

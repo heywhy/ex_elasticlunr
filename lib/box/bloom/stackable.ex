@@ -38,7 +38,7 @@ defmodule Box.Bloom.Stackable do
       bloom_filters: [Bloom.new_optimal(capacity, fp_rate)]
     }
 
-    struct(__MODULE__, attrs)
+    struct!(__MODULE__, attrs)
   end
 
   @spec check?(t(), term()) :: boolean()
@@ -68,7 +68,7 @@ defmodule Box.Bloom.Stackable do
       ) do
     :ok = Bloom.set(bf, term)
 
-    struct!(mod, count: count + 1)
+    %{mod | count: count + 1}
   end
 
   @spec flush(t(), Path.t()) :: :ok | no_return()

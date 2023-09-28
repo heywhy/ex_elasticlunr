@@ -12,31 +12,28 @@ defmodule Box.Index.Supervisor do
   @mem_table_max_size 167_772_160
   @registry Elasticlunr.IndexRegistry
 
-  @spec save(binary(), map()) :: {:ok, map()} | {:error, :not_running}
+  @spec save(binary(), map()) :: map()
   def save(index, document) do
-    case Process.writer(index) do
-      nil -> {:error, :not_found}
-      pid -> GenServer.call(pid, {:save, document})
-    end
+    index
+    |> Process.writer()
+    |> GenServer.call({:save, document})
   end
 
-  @spec save_all(binary(), [map()]) :: :ok | {:error, :not_running}
-  def save_all(index, documents) do
-    case Process.writer(index) do
-      nil -> {:error, :not_found}
-      pid -> GenServer.call(pid, {:save_all, documents}, :infinity)
-    end
+  @spec save_all(binary(), [map()], :infinity | non_neg_integer()) :: :ok
+  def save_all(index, documents, timeout \\ :infinity) do
+    index
+    |> Process.writer()
+    |> GenServer.call({:save_all, documents}, timeout)
   end
 
-  @spec delete(binary(), binary()) :: :ok | {:error, :not_running}
+  @spec delete(binary(), binary()) :: :ok
   def delete(index, id) do
-    case Process.writer(index) do
-      nil -> {:error, :not_found}
-      pid -> GenServer.call(pid, {:delete, id})
-    end
+    index
+    |> Process.writer()
+    |> GenServer.call({:delete, id})
   end
 
-  @spec get(binary(), binary()) :: map() | nil | no_return()
+  @spec get(binary(), binary()) :: map() | nil
   def get(index, id) do
     with writer_pid <- Process.writer(index),
          nil <- GenServer.call(writer_pid, {:get, id}),
@@ -47,10 +44,9 @@ defmodule Box.Index.Supervisor do
 
   @spec running?(binary()) :: boolean()
   def running?(index) do
-    case Registry.lookup(@registry, index) do
-      [] -> false
-      [{_pid, _config}] -> true
-    end
+    @registry
+    |> Registry.lookup(index)
+    |> then(&match?([{_pid, _config}], &1))
   end
 
   @spec start_link(schema: Schema.t()) :: Supervisor.on_start()

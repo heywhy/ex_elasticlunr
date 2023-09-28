@@ -25,7 +25,7 @@ defmodule Elasticlunr.Index.WriterTest do
     document = new_book()
 
     refute document.id
-    assert {:ok, saved} = GenServer.call(pid, {:save, document})
+    assert saved = GenServer.call(pid, {:save, document})
     assert saved.id
     assert document.title == saved.title
   end
@@ -38,22 +38,22 @@ defmodule Elasticlunr.Index.WriterTest do
   end
 
   test "update document", %{pid: pid} do
-    {:ok, document} = GenServer.call(pid, {:save, new_book()})
+    document = GenServer.call(pid, {:save, new_book()})
 
-    assert {:ok, saved} = GenServer.call(pid, {:save, document})
+    assert saved = GenServer.call(pid, {:save, document})
     assert document.id == saved.id
     assert document.title == saved.title
   end
 
   test "retrieve document", %{pid: pid} do
-    {:ok, document} = GenServer.call(pid, {:save, new_book()})
+    document = GenServer.call(pid, {:save, new_book()})
 
     assert ^document = GenServer.call(pid, {:get, document.id})
     refute GenServer.call(pid, {:get, "unknown"})
   end
 
   test "delete document", %{pid: pid} do
-    {:ok, document} = GenServer.call(pid, {:save, new_book()})
+    document = GenServer.call(pid, {:save, new_book()})
 
     assert ^document = GenServer.call(pid, {:get, document.id})
     assert :ok = GenServer.call(pid, {:delete, document.id})

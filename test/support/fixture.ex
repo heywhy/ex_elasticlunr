@@ -1,7 +1,7 @@
 defmodule Elasticlunr.Fixture do
-  alias Box.Utils
   alias Box.MemTable
   alias Box.SSTable
+  alias Box.Utils
   alias Elasticlunr.Book
   alias Faker.{Commerce, Date, Lorem, Person, Pokemon}
 

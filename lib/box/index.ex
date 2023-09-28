@@ -15,39 +15,37 @@ defmodule Box.Index do
     end
   end
 
+  # credo:disable-for-next-line
   defmacro __before_compile__(_env) do
     quote do
       alias Box.Index
       alias Box.Schema
 
-      Module.register_attribute(__MODULE__, :schema, [])
-      Module.register_attribute(__MODULE__, :compaction_strategy, [])
-
       fields = [:id] |> Enum.concat(Map.keys(@schema.fields)) |> Enum.uniq()
 
       defstruct fields
 
-      @spec get(binary()) :: struct() | nil | no_return()
+      @spec get(binary()) :: struct() | nil
       def get(id) do
         with %{} = document <- Index.Supervisor.get(@name, id) do
           struct!(__MODULE__, document)
         end
       end
 
-      @spec save(struct()) :: {:ok, struct()} | {:error, :not_running}
+      @spec save(struct()) :: struct()
       def save(%__MODULE__{} = document) do
         with document <- Map.from_struct(document),
-             {:ok, document} <- Index.Supervisor.save(@name, document) do
+             document <- Index.Supervisor.save(@name, document) do
           {:ok, struct!(__MODULE__, document)}
         end
       end
 
-      @spec save_all([struct()]) :: :ok | {:error, :not_running}
+      @spec save_all([struct()]) :: :ok
       def save_all([%__MODULE__{} | _rest] = documents) do
         Index.Supervisor.save_all(@name, documents)
       end
 
-      @spec delete(binary()) :: :ok | {:error, :not_running}
+      @spec delete(binary()) :: :ok
       def delete(id), do: Index.Supervisor.delete(@name, id)
 
       @spec __schema__() :: Schema.t()

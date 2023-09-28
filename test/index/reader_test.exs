@@ -26,7 +26,7 @@ defmodule Elasticlunr.Index.ReaderTest do
     writer = start_supervised!({Writer, opts})
     pid = start_supervised!({Reader, dir: dir})
 
-    {:ok, document} = GenServer.call(writer, {:save, new_book()})
+    document = GenServer.call(writer, {:save, new_book()})
 
     [dir: dir, pid: pid, writer: writer, document: document]
   end
@@ -45,7 +45,7 @@ defmodule Elasticlunr.Index.ReaderTest do
   end
 
   test "update internals when a segment is created", %{pid: pid, writer: writer} do
-    {:ok, document} = GenServer.call(writer, {:save, new_book()})
+    document = GenServer.call(writer, {:save, new_book()})
 
     assert %Entry{key: key} = eventually(fn -> GenServer.call(pid, {:get, document.id}) end)
     assert key == document.id

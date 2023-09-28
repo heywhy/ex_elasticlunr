@@ -41,8 +41,7 @@ defmodule Box.LeveledCompaction.Level do
   end
 
   @spec pop_sstable(t()) :: {Path.t(), t()}
-  def pop_sstable(%__MODULE__{size: curr_size, paths: paths} = level) do
-    {path, paths} = List.pop_at(paths, -1)
+  def pop_sstable(%__MODULE__{size: curr_size, paths: [path | paths]} = level) do
     size = SSTable.size(path)
     {path, %{level | paths: paths, size: curr_size - size}}
   end
