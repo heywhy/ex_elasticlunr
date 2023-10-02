@@ -36,11 +36,29 @@ defmodule Elasticlunr.Index.ReaderTest do
     refute GenServer.call(pid, {:get, "unknown"})
   end
 
-  test "update internals when a segment is deleted", %{dir: dir, pid: pid, document: document} do
-    dir
-    |> SSTable.list()
-    |> Enum.each(&File.rm_rf!/1)
+  test "having key in multiple sstables returns most recent", %{
+    dir: dir,
+    pid: pid,
+    writer: writer,
+    document: document
+  } do
+    for _ <- 1..4 do
+      GenServer.call(writer, {:save, new_book(id: document.id)})
+    end
 
+    assert eventually(fn -> SSTable.list(dir) |> Enum.count() == 5 end)
+    assert eventually(fn -> GenServer.call(pid, {:get, document.id}) end)
+  end
+
+  test "update internals when a segment is deleted", %{dir: dir, pid: pid, document: document} do
+    Fs.watch!(dir)
+
+    ss_tables = SSTable.list(dir)
+
+    assert eventually(fn -> GenServer.call(pid, {:get, document.id}) end)
+    assert Enum.each(ss_tables, &File.rm_rf!/1)
+    assert wait_for_lockfile_event()
+    assert_receive {:remove_lockfile, _dir, _path}
     assert eventually(fn -> GenServer.call(pid, {:get, document.id}) == nil end)
   end
 
@@ -49,5 +67,18 @@ defmodule Elasticlunr.Index.ReaderTest do
 
     assert %Entry{key: key} = eventually(fn -> GenServer.call(pid, {:get, document.id}) end)
     assert key == document.id
+  end
+
+  defp wait_for_lockfile_event do
+    receive do
+      {:file_event, _watcher, {path, events}} ->
+        path
+        |> SSTable.lockfile?()
+        |> Kernel.and(Fs.event_to_action(events) == :remove)
+        |> case do
+          false -> wait_for_lockfile_event()
+          true -> send(self(), {:remove_lockfile, Path.dirname(path), path})
+        end
+    end
   end
 end

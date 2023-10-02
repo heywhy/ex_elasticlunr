@@ -32,15 +32,18 @@ defmodule Box.Index.Reader do
   # Callbacks
   @impl true
   def handle_call({:get, id}, _from, %__MODULE__{segments: segments} = state) do
-    fun = fn ss_table, key, acc ->
-      case SSTable.get(ss_table, key) do
-        nil -> {:cont, acc}
-        %Entry{key: key} = entry -> {:halt, %{entry | key: FlakeId.to_string(key)}}
-      end
-    end
-
     id = FlakeId.from_string(id)
-    result = Enum.reduce_while(segments, nil, &fun.(&1, id, &2))
+
+    result =
+      segments
+      |> Enum.filter(&SSTable.contains?(&1, id))
+      |> Task.async_stream(&SSTable.get(&1, id))
+      |> Stream.map(fn {:ok, entry} -> entry end)
+      |> Enum.max_by(& &1.timestamp, &Kernel.>=/2, fn -> nil end)
+      |> case do
+        nil -> nil
+        %Entry{key: key} = entry -> %{entry | key: FlakeId.to_string(key)}
+      end
 
     {:reply, result, state}
   end
@@ -55,8 +58,7 @@ defmodule Box.Index.Reader do
          path <- Path.dirname(path),
          nil <- Enum.find(segments, &(&1.path == path)),
          ss_table <- SSTable.from_path(path),
-         segments <- Enum.concat([ss_table], segments),
-         segments <- Enum.sort_by(segments, & &1.path, :desc) do
+         segments <- Enum.concat([ss_table], segments) do
       Logger.debug("Update reader with #{path}.")
       {:noreply, %{state | segments: segments}}
     else
@@ -68,11 +70,7 @@ defmodule Box.Index.Reader do
 
       :remove ->
         path = Path.dirname(path)
-
-        segments =
-          segments
-          |> Enum.reject(&(&1.path == path))
-          |> Enum.sort_by(& &1.path, :desc)
+        segments = Enum.reject(segments, &(&1.path == path))
 
         {:noreply, %{state | segments: segments}}
     end
@@ -90,8 +88,6 @@ defmodule Box.Index.Reader do
   defp load_segments(dir) do
     dir
     |> SSTable.list()
-    # Reverse list so that we have the latest segment at the top
-    |> Enum.reverse()
     |> Enum.map(&SSTable.from_path/1)
   end
 end
