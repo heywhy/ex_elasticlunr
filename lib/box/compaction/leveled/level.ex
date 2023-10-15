@@ -1,4 +1,4 @@
-defmodule Box.LeveledCompaction.Level do
+defmodule Box.Compaction.Leveled.Level do
   alias Box.SSTable
 
   @enforce_keys [:ordinal, :max_size]

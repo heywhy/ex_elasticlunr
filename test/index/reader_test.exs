@@ -58,7 +58,7 @@ defmodule Elasticlunr.Index.ReaderTest do
     assert eventually(fn -> GenServer.call(pid, {:get, document.id}) end)
     assert Enum.each(ss_tables, &File.rm_rf!/1)
     assert wait_for_lockfile_event()
-    assert_receive {:remove_lockfile, _dir, _path}
+    assert_received {:remove_lockfile, _dir, _path}
     assert eventually(fn -> GenServer.call(pid, {:get, document.id}) == nil end)
   end
 

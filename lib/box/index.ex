@@ -1,6 +1,8 @@
 defmodule Box.Index do
   defmacro __using__(_opts) do
     quote do
+      alias Box.Compaction
+
       import Box.Schema
 
       @before_compile Box.Index

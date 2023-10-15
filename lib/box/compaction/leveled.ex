@@ -1,8 +1,8 @@
-defmodule Box.LeveledCompaction do
+defmodule Box.Compaction.Leveled do
   use GenServer
 
   alias Box.Fs
-  alias Box.LeveledCompaction.Level
+  alias Box.Compaction.Leveled.Level
   alias Box.SSTable
 
   require Logger

@@ -5,11 +5,14 @@ defmodule Elasticlunr.Application do
 
   use Application
 
+  alias Box.Compaction
+
   @impl true
   def start(_type, _args) do
     children = [
       {Registry, name: Box.Fs, keys: :unique},
-      {Registry, name: Elasticlunr.IndexRegistry, keys: :unique}
+      {Registry, name: Elasticlunr.IndexRegistry, keys: :unique},
+      Compaction.Scheduler
       # Starts a worker by calling: Elasticlunr.Worker.start_link(arg)
       # {Elasticlunr.Worker, arg}
     ]

@@ -1,5 +1,5 @@
 defmodule Box.Schema do
-  alias Box.Compaction.SizeTiered
+  alias Box.CompactionStrategy.SizeTiered
   alias Box.Field
 
   defstruct [:name, fields: %{}, compaction_strategy: {SizeTiered, []}]
