@@ -44,6 +44,9 @@ defmodule Box.Bloom.Stackable do
   @spec check?(t(), term()) :: boolean()
   def check?(%__MODULE__{bloom_filters: bfs}, term), do: Enum.any?(bfs, &Bloom.check?(&1, term))
 
+  @spec count(t()) :: pos_integer()
+  def count(%__MODULE__{count: count}), do: count
+
   @spec set(t(), term()) :: t()
   def set(
         %__MODULE__{

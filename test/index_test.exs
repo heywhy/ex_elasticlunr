@@ -1,6 +1,7 @@
 defmodule Elasticlunr.IndexTest do
   use ExUnit.Case
 
+  alias Box.Utils
   alias Elasticlunr.Book
   alias Faker.{Date, Lorem, Person}
 
@@ -29,7 +30,7 @@ defmodule Elasticlunr.IndexTest do
   end
 
   test "can save multiple documents" do
-    documents = [new_book(id: FlakeId.get()), new_book(id: FlakeId.get())]
+    documents = [new_book(id: Utils.new_id()), new_book(id: Utils.new_id())]
 
     assert :ok = Book.save_all(documents)
     assert Enum.all?(documents, &match?(%{id: _id}, Book.get(&1.id)))

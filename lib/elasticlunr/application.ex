@@ -12,6 +12,8 @@ defmodule Elasticlunr.Application do
     children = [
       {Registry, name: Box.Fs, keys: :unique},
       {Registry, name: Elasticlunr.IndexRegistry, keys: :unique},
+      {Task.Supervisor, name: Elasticlunr.FlushMemTableSupervisor},
+      FlakeIdWorker,
       Compaction.Scheduler
       # Starts a worker by calling: Elasticlunr.Worker.start_link(arg)
       # {Elasticlunr.Worker, arg}

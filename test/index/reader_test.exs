@@ -5,7 +5,6 @@ defmodule Elasticlunr.Index.ReaderTest do
   alias Box.Index.Reader
   alias Box.Index.Writer
   alias Box.SSTable
-  alias Box.SSTable.Entry
   alias Elasticlunr.Book
 
   import Elasticlunr.Fixture
@@ -13,18 +12,19 @@ defmodule Elasticlunr.Index.ReaderTest do
 
   setup do
     dir = tmp_dir!()
+    schema = Book.__schema__()
 
     opts = [
       dir: dir,
+      schema: schema,
       # specify smaller value so that memtable can be immediately flushed
-      mem_table_max_size: 10,
-      schema: Book.__schema__()
+      mem_table_max_size: 10
     ]
 
     start_supervised!({Fs, dir})
 
     writer = start_supervised!({Writer, opts})
-    pid = start_supervised!({Reader, dir: dir})
+    pid = start_supervised!({Reader, dir: dir, schema: schema})
 
     document = GenServer.call(writer, {:save, new_book()})
 
@@ -32,7 +32,7 @@ defmodule Elasticlunr.Index.ReaderTest do
   end
 
   test "retrieve document", %{pid: pid, document: document} do
-    assert %Entry{} = eventually(fn -> GenServer.call(pid, {:get, document.id}) end)
+    assert ^document = eventually(fn -> GenServer.call(pid, {:get, document.id}) end)
     refute GenServer.call(pid, {:get, "unknown"})
   end
 
@@ -65,8 +65,8 @@ defmodule Elasticlunr.Index.ReaderTest do
   test "update internals when a segment is created", %{pid: pid, writer: writer} do
     document = GenServer.call(writer, {:save, new_book()})
 
-    assert %Entry{key: key} = eventually(fn -> GenServer.call(pid, {:get, document.id}) end)
-    assert key == document.id
+    assert entry = eventually(fn -> GenServer.call(pid, {:get, document.id}) end)
+    assert entry.id == document.id
   end
 
   defp wait_for_lockfile_event do

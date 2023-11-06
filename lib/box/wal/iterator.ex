@@ -41,14 +41,12 @@ defimpl Enumerable, for: Box.Wal.Iterator do
 
   def reduce(%Iterator{fd: fd, offset: offset} = iterator, {:cont, acc}, reducer) do
     with {:ok, _new_position} <- :file.position(fd, offset),
-         %Entry{} = entry <- Entry.read(fd) do
-      new_offset =
-        case IO.binread(fd, 1) do
-          :eof -> :eof
-          _ -> offset + Entry.size(entry)
-        end
-
+         %Entry{} = entry <- Entry.read(fd),
+         new_offset <- offset + Entry.size(entry) do
       reduce(%{iterator | offset: new_offset}, reducer.(entry, acc), reducer)
+    else
+      :eof -> reduce(%{iterator | offset: :eof}, {:cont, acc}, reducer)
+      error -> error
     end
   end
 end

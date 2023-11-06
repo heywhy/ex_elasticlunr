@@ -61,7 +61,7 @@ defmodule Box.Index.Writer do
   end
 
   def handle_call({:delete, id}, _from, %__MODULE__{wal: wal, mem_table: mem_table} = state) do
-    with id <- FlakeId.from_string(id),
+    with id <- Utils.id_from_string(id),
          timestamp <- Utils.now(),
          mem_table <- MemTable.remove(mem_table, id, timestamp),
          {:ok, wal} <- Wal.remove(wal, id, timestamp),
@@ -72,10 +72,10 @@ defmodule Box.Index.Writer do
   end
 
   def handle_call({:get, id}, _from, %__MODULE__{mem_table: mem_table, schema: schema} = state) do
-    with id <- FlakeId.from_string(id),
+    with id <- Utils.id_from_string(id),
          %Entry{deleted: false, value: value} <- MemTable.get(mem_table, id),
          value <- Schema.binary_to_document(schema, value),
-         value <- Map.put(value, :id, FlakeId.to_string(id)) do
+         value <- Map.put(value, :id, Utils.id_to_string(id)) do
       {:reply, value, state}
     else
       %Entry{deleted: true} -> {:reply, nil, state}
@@ -103,8 +103,8 @@ defmodule Box.Index.Writer do
       # drop the struct key
       |> Map.drop([:__struct__])
       |> Map.replace_lazy(:id, fn
-        nil -> FlakeId.get() |> FlakeId.from_string()
-        value -> FlakeId.from_string(value)
+        nil -> Utils.new_id()
+        value -> Utils.id_from_string(value)
       end)
       |> Map.pop!(:id)
 
@@ -112,7 +112,7 @@ defmodule Box.Index.Writer do
          value <- Schema.document_to_binary(schema, document),
          mem_table <- MemTable.set(state.mem_table, id, value, timestamp),
          {:ok, wal} <- Wal.set(state.wal, id, value, timestamp),
-         document <- Map.put(document, :id, FlakeId.to_string(id)) do
+         document <- Map.put(document, :id, Utils.id_to_string(id)) do
       {document, %{state | wal: wal, mem_table: mem_table}}
     end
   end

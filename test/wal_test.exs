@@ -4,9 +4,10 @@ defmodule Elasticlunr.WalTest do
   alias Box.MemTable
   alias Box.MemTable.Entry
   alias Box.Wal
+  alias Box.Utils
 
   setup do
-    dir = System.tmp_dir!() |> Path.join(FlakeId.get())
+    dir = System.tmp_dir!() |> Path.join(Utils.new_id() |> Utils.id_to_string())
 
     :ok = File.mkdir!(dir)
 

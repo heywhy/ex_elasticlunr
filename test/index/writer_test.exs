@@ -3,6 +3,7 @@ defmodule Elasticlunr.Index.WriterTest do
 
   alias Box.Index.Writer
   alias Box.SSTable
+  alias Box.Utils
   alias Elasticlunr.Book
 
   import Elasticlunr.Fixture
@@ -31,7 +32,7 @@ defmodule Elasticlunr.Index.WriterTest do
   end
 
   test "save multiple documents", %{pid: pid} do
-    documents = [new_book(id: FlakeId.get()), new_book(id: FlakeId.get())]
+    documents = [new_book(id: Utils.new_id()), new_book(id: Utils.new_id())]
 
     assert :ok = GenServer.call(pid, {:save_all, documents})
     assert Enum.all?(documents, &match?(%{id: _id}, GenServer.call(pid, {:get, &1.id})))

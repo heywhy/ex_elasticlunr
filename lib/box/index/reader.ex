@@ -2,37 +2,45 @@ defmodule Box.Index.Reader do
   use GenServer
 
   alias Box.Fs
+  alias Box.Schema
   alias Box.SSTable
   alias Box.SSTable.Entry
+  alias Box.Utils
 
   require Logger
 
-  defstruct [:dir, :segments, :watcher]
+  defstruct [:dir, :schema, :segments, :watcher]
 
   @type t :: %__MODULE__{
           dir: Path.t(),
           watcher: pid(),
+          schema: Schema.t(),
           segments: [SSTable.t()]
         }
 
   @spec start_link(keyword()) :: GenServer.on_start()
-  def start_link(opts), do: GenServer.start_link(__MODULE__, opts)
+  def start_link(opts) do
+    opts = Keyword.validate!(opts, [:dir, :schema])
+
+    GenServer.start_link(__MODULE__, opts)
+  end
 
   @impl true
   def init(opts) do
     with dir <- Keyword.fetch!(opts, :dir),
+         schema <- Keyword.fetch!(opts, :schema),
          # TODO: pushing this action to handle_continue might improve performance
          segments <- load_segments(dir),
          watcher <- Fs.watch!(dir),
-         attrs <- [dir: dir, watcher: watcher, segments: segments] do
+         attrs <- [dir: dir, schema: schema, watcher: watcher, segments: segments] do
       {:ok, struct!(__MODULE__, attrs)}
     end
   end
 
   # Callbacks
   @impl true
-  def handle_call({:get, id}, _from, %__MODULE__{segments: segments} = state) do
-    id = FlakeId.from_string(id)
+  def handle_call({:get, id}, _from, %__MODULE__{schema: schema, segments: segments} = state) do
+    id = Utils.id_from_string(id)
 
     result =
       segments
@@ -42,7 +50,8 @@ defmodule Box.Index.Reader do
       |> Enum.max_by(& &1.timestamp, &Kernel.>=/2, fn -> nil end)
       |> case do
         nil -> nil
-        %Entry{key: key} = entry -> %{entry | key: FlakeId.to_string(key)}
+        %Entry{key: ^id, deleted: true} -> nil
+        %Entry{key: ^id} = entry -> entry_to_document(entry, schema)
       end
 
     {:reply, result, state}
@@ -89,5 +98,11 @@ defmodule Box.Index.Reader do
     dir
     |> SSTable.list()
     |> Enum.map(&SSTable.from_path/1)
+  end
+
+  defp entry_to_document(%Entry{key: key, value: value}, schema) do
+    schema
+    |> Schema.binary_to_document(value)
+    |> Map.put(:id, Utils.id_to_string(key))
   end
 end

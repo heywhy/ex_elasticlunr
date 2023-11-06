@@ -71,6 +71,7 @@ defmodule Elasticlunr.MixProject do
       {:flake_id, "~> 0.1"},
       {:liveness, "~> 1.0", only: :test},
       {:stemmer, "~> 1.0"},
+      {:telemetry, "~> 1.2"},
       {:treex, "~> 0.1"},
       {:uniq, "~> 0.4"}
     ]

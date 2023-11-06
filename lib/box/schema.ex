@@ -21,7 +21,7 @@ defmodule Box.Schema do
   defmacro schema(name, do: block) when is_binary(name) do
     exprs =
       case block do
-        {:__block__, [], exprs} -> exprs
+        {:__block__, _opts, exprs} -> exprs
         expr -> [expr]
       end
 
@@ -101,6 +101,13 @@ defmodule Box.Schema do
       value::binary>>
   end
 
+  defp field_to_binary(%Field{type: {:array, :number}, name: name}, value) do
+    value = Enum.reduce(value, <<>>, fn a, b -> b <> <<a::float-size(64)>> end)
+
+    <<6, byte_size(name), byte_size(value)::unsigned-integer-size(64), name::binary,
+      value::binary>>
+  end
+
   defp extract_document(<<>>, acc), do: acc
 
   defp extract_document(
@@ -148,6 +155,24 @@ defmodule Box.Schema do
 
       <<size::unsigned-integer-size(64), value::binary-size(size), rest::binary>>, fun, acc ->
         fun.(rest, fun, [value] ++ acc)
+    end
+
+    value = fun.(value, fun, []) |> Enum.reverse()
+
+    extract_document(rest, Map.put(acc, field, value))
+  end
+
+  defp extract_document(
+         <<6, k_size::unsigned-integer, v_size::unsigned-integer-size(64),
+           field::binary-size(k_size), value::binary-size(v_size), rest::binary>>,
+         acc
+       ) do
+    fun = fn
+      <<>>, _fun, acc ->
+        acc
+
+      <<num::float-size(64), rest::binary>>, fun, acc ->
+        fun.(rest, fun, [num] ++ acc)
     end
 
     value = fun.(value, fun, []) |> Enum.reverse()

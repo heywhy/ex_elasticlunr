@@ -80,7 +80,7 @@ defmodule Box.Wal.Entry do
     end
   end
 
-  @spec read(File.io_device()) :: t()
+  @spec read(File.io_device()) :: t() | :eof
   def read(fd) do
     with <<timestamp::big-unsigned-integer-size(64)>> <- IO.binread(fd, 8),
          <<key_size::unsigned-integer-size(64)>> <- IO.binread(fd, 8),

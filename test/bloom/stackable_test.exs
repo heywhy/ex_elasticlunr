@@ -2,12 +2,13 @@ defmodule Elasticlunr.Bloom.StackableTest do
   use ExUnit.Case, async: true
 
   alias Box.Bloom.Stackable
+  alias Box.Utils
 
   import Elasticlunr.Fixture
 
   test "set/2" do
+    id = Utils.new_id()
     bloom_filter = Stackable.new()
-    id = FlakeId.get() |> FlakeId.from_string()
 
     assert %Stackable{count: 1} = bloom_filter = Stackable.set(bloom_filter, id)
     assert %Stackable{count: 2} = Stackable.set(bloom_filter, "hello")
@@ -16,16 +17,16 @@ defmodule Elasticlunr.Bloom.StackableTest do
   test "set/2 increases stack" do
     bloom_filter =
       Stackable.new(capacity: 1)
-      |> Stackable.set(FlakeId.get() |> FlakeId.from_string())
-      |> Stackable.set(FlakeId.get() |> FlakeId.from_string())
+      |> Stackable.set(Utils.new_id())
+      |> Stackable.set(Utils.new_id())
 
     assert %Stackable{capacity: 2, bloom_filters: bfs} = bloom_filter
     assert Enum.count(bfs) == 2
   end
 
   test "check?/2" do
+    id = Utils.new_id()
     bloom_filter = Stackable.new()
-    id = FlakeId.get() |> FlakeId.from_string()
 
     bloom_filter = Stackable.set(bloom_filter, id)
 
@@ -35,8 +36,8 @@ defmodule Elasticlunr.Bloom.StackableTest do
 
   test "flush/1" do
     dir = tmp_dir!()
-    id1 = FlakeId.get() |> FlakeId.from_string()
-    id2 = FlakeId.get() |> FlakeId.from_string()
+    id1 = Utils.new_id()
+    id2 = Utils.new_id()
 
     bloom_filter =
       Stackable.new(capacity: 1)
@@ -48,8 +49,8 @@ defmodule Elasticlunr.Bloom.StackableTest do
 
   test "from_path/1" do
     dir = tmp_dir!()
-    id1 = FlakeId.get() |> FlakeId.from_string()
-    id2 = FlakeId.get() |> FlakeId.from_string()
+    id1 = Utils.new_id()
+    id2 = Utils.new_id()
 
     bloom_filter =
       Stackable.new(capacity: 1)

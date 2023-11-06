@@ -8,6 +8,7 @@ defmodule Box.SSTable do
   alias Box.SSTable.RangeIterator
   alias Box.SSTable.Shared
   alias Box.Utils
+  alias Elasticlunr.Telemeter
 
   defstruct [:path, :bloom_filter, :offsets]
 
@@ -18,27 +19,45 @@ defmodule Box.SSTable do
         }
 
   @lockfile "_.lock"
+  @load_event :load_sstable
+  @flush_event :flush_sstable
 
   @spec from_path(Path.t()) :: t() | no_return()
   def from_path(path) do
-    with path <- Path.absname(path) |> Path.expand(),
-         offsets <- Offsets.from_path(path),
-         bloom_filter <- BloomFilter.from_path(path) do
-      new(path, bloom_filter, offsets)
-    end
+    metadata = %{
+      index: index_from_path(path),
+      sstable: Path.basename(path)
+    }
+
+    Telemeter.track(@load_event, metadata, fn ->
+      with path <- Path.absname(path) |> Path.expand(),
+           offsets <- Offsets.from_path(path),
+           bloom_filter <- BloomFilter.from_path(path),
+           result <- new(path, bloom_filter, offsets) do
+        {result, %{entries: BloomFilter.count(bloom_filter)}}
+      end
+    end)
   end
 
   @spec flush(MemTable.t(), Path.t()) :: Path.t() | no_return()
   def flush(%MemTable{} = mem_table, dir) do
     path = new_dir(dir)
 
-    :ok =
-      mem_table
-      |> MemTable.stream()
-      |> Stream.map(&Entry.from/1)
-      |> write_to_disk(path)
+    metadata = %{
+      index: index_from_path(path),
+      sstable: Path.basename(path),
+      entries: MemTable.length(mem_table)
+    }
 
-    path
+    Telemeter.track(@flush_event, metadata, fn ->
+      :ok =
+        mem_table
+        |> MemTable.stream()
+        |> Stream.map(&Entry.from/1)
+        |> write_to_disk(path)
+
+      path
+    end)
   end
 
   @spec merge([Path.t()], Path.t()) :: Path.t() | no_return()
@@ -156,4 +175,10 @@ defmodule Box.SSTable do
   end
 
   defp gen_lockfile(path), do: Path.join(path, @lockfile) |> File.touch!()
+
+  defp index_from_path(path) do
+    Path.join([path, "..", ".."])
+    |> Path.expand()
+    |> Path.basename()
+  end
 end

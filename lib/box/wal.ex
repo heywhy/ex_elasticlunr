@@ -2,6 +2,7 @@ defmodule Box.Wal do
   alias Box.MemTable
   alias Box.Utils
   alias Box.Wal.Entry
+  alias Elasticlunr.Telemeter
 
   alias __MODULE__.Iterator
 
@@ -13,6 +14,9 @@ defmodule Box.Wal do
         }
 
   @opts [:append, :binary]
+
+  @load_event :load_wal
+  @close_event :close_wal
 
   defp new(path) do
     path = Path.absname(path)
@@ -56,16 +60,29 @@ defmodule Box.Wal do
       end
     end
 
-    Enum.reduce(list(dir), {create(dir), MemTable.new()}, fn path, acc ->
-      wal = from_path(path)
+    wals = list(dir)
+    metadata = %{index: Path.basename(dir), count: Enum.count(wals)}
 
-      result = Enum.reduce(iterator(wal), acc, reducer)
+    Telemeter.track(@load_event, metadata, fn ->
+      {wal, mem_table, total_size} =
+        Enum.reduce(
+          wals,
+          {create(dir), MemTable.new(), 0},
+          fn path, {new_wal, mem_table, total_size} ->
+            wal = from_path(path)
+            %File.Stat{size: size} = File.stat!(path)
 
-      :ok = close(wal)
+            result = Enum.reduce(iterator(wal), {new_wal, mem_table}, reducer)
 
-      File.rm!(path)
+            :ok = close(wal)
 
-      result
+            File.rm!(path)
+
+            Tuple.append(result, total_size + size)
+          end
+        )
+
+      {{wal, mem_table}, %{total_size: total_size}}
     end)
   end
 
@@ -76,9 +93,19 @@ defmodule Box.Wal do
   def iterator(%__MODULE__{path: path}), do: Iterator.new(path)
 
   @spec close(t()) :: :ok | no_return()
-  def close(%__MODULE__{fd: fd} = wal) do
-    :ok = flush(wal)
-    :ok = File.close(fd)
+  def close(%__MODULE__{fd: fd, path: path} = wal) do
+    metadata = %{
+      index: Path.basename(path),
+      file: Path.basename(path)
+    }
+
+    Telemeter.track(@close_event, metadata, fn ->
+      :ok = flush(wal)
+      :ok = File.close(fd)
+      %File.Stat{size: size} = File.stat!(path)
+
+      {:ok, %{size: size}}
+    end)
   end
 
   @spec delete(t()) :: :ok | no_return()
