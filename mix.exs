@@ -2,7 +2,7 @@ defmodule Elasticlunr.MixProject do
   use Mix.Project
 
   @version "0.6.4"
-  @source_url "https://github.com/heywhy/ex_elasticlunr"
+  @scm_url "https://github.com/heywhy/ex_elasticlunr"
 
   def project do
     [
@@ -11,10 +11,20 @@ defmodule Elasticlunr.MixProject do
       elixir: "~> 1.11",
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
-      description: description(),
-      package: package(),
       deps: deps(),
-      source_url: @source_url,
+      aliases: aliases(),
+      package: [
+        files: ["lib", "mix.exs", "CHANGELOG.md", "README.md", "c_src", "Makefile"],
+        maintainers: ["Atanda Rasheed"],
+        licenses: ["MIT License"],
+        links: %{
+          "GitHub" => @scm_url,
+          "Docs" => "https://hexdocs.pm/elasticlunr"
+        }
+      ],
+      description: """
+      Elasticlunr is a lightweight full-text search engine. It's a port of Elasticlunr.js with more improvements.
+      """,
 
       # Compilers
       # compilers: [:elixir_make] ++ Mix.compilers(),
@@ -29,8 +39,12 @@ defmodule Elasticlunr.MixProject do
         "coveralls.json": :test
       ],
 
-      # Dialyxir
-      dialyzer: [plt_add_deps: :apps_direct, plt_ignore_apps: [:erbloom]],
+      # Dialyzer
+      dialyzer: [
+        plt_file: {:no_warn, "priv/plts/dialyzer.plt"},
+        plt_add_deps: :apps_direct,
+        plt_ignore_apps: [:erbloom]
+      ],
 
       # Docs
       name: "Elasticlunr",
@@ -69,7 +83,10 @@ defmodule Elasticlunr.MixProject do
       {:faker, "~> 0.16", only: :test},
       {:file_system, "~> 0.2"},
       {:flake_id, "~> 0.1"},
+      {:git_hooks, "~> 0.7", only: :dev, runtime: false},
+      {:git_ops, "~> 2.5", only: :dev},
       {:liveness, "~> 1.0", only: :test},
+      {:mimic, "~> 1.7", only: :test},
       {:stemmer, "~> 1.0"},
       {:telemetry, "~> 1.2"},
       {:treex, "~> 0.1"},
@@ -77,19 +94,10 @@ defmodule Elasticlunr.MixProject do
     ]
   end
 
-  defp description do
-    "Elasticlunr is a lightweight full-text search engine. It's a port of Elasticlunr.js with more improvements."
-  end
-
-  defp package do
+  defp aliases do
     [
-      files: ["lib", "mix.exs", "README.md", "c_src", "Makefile"],
-      maintainers: ["Atanda Rasheed"],
-      licenses: ["MIT License"],
-      links: %{
-        "GitHub" => @source_url,
-        "Docs" => "https://hexdocs.pm/elasticlunr"
-      }
+      "ops.release": ["cmd mix test --color", "git_ops.release"],
+      setup: ["deps.get", "git_hooks.install"]
     ]
   end
 end

@@ -204,7 +204,7 @@ defmodule Elasticlunr.Core.Field do
     end
   end
 
-  @spec tokens(Elasticlunr.Field.t()) :: Enumerable.t()
+  @spec tokens(t()) :: Enum.t()
   def tokens(%__MODULE__{} = field) do
     flnorm = flnorm_lookup(field)
 

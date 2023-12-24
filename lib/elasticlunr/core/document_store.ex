@@ -1,5 +1,5 @@
 defmodule Elasticlunr.DocumentStore do
-  alias Elasticlunr.{Field, Index}
+  alias Elasticlunr.Core.{Field, Index}
 
   defstruct save: true, documents: %{}, document_info: %{}, length: 0
 
