@@ -1,8 +1,8 @@
 defmodule Elasticlunr.IndexTest do
   use ExUnit.Case
 
-  alias Box.Utils
   alias Elasticlunr.Book
+  alias Elasticlunr.Utils
   alias Faker.{Date, Lorem, Person}
 
   import Elasticlunr.Fixture

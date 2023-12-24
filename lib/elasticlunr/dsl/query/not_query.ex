@@ -1,7 +1,7 @@
 defmodule Elasticlunr.Dsl.NotQuery do
   use Elasticlunr.Dsl.Query
 
-  alias Elasticlunr.Index
+  alias Elasticlunr.Core.Index
   alias Elasticlunr.Dsl.{Query, QueryRepository}
 
   defstruct ~w[inner_query]a

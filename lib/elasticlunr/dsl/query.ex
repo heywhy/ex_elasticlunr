@@ -1,5 +1,6 @@
 defmodule Elasticlunr.Dsl.Query do
-  alias Elasticlunr.{Field, Index, Dsl.QueryRepository}
+  alias Elasticlunr.Dsl.QueryRepository
+  alias Elasticlunr.Core.{Field, Index}
 
   @type score_results ::
           list(%{

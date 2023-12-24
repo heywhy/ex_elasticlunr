@@ -1,8 +1,9 @@
 defmodule Elasticlunr.Dsl.TermsQuery do
   use Elasticlunr.Dsl.Query
 
+  alias Elasticlunr.Core.Index
   alias Elasticlunr.Dsl.Query
-  alias Elasticlunr.{Index, Token}
+  alias Elasticlunr.Token
 
   defstruct ~w[minimum_should_match expand field terms boost fuzziness]a
 

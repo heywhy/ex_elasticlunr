@@ -1,10 +1,10 @@
 defmodule Elasticlunr.SSTableTest do
   use ExUnit.Case, async: true
 
-  alias Box.MemTable
-  alias Box.SSTable
-  alias Box.SSTable.Entry
-  alias Box.Utils
+  alias Elasticlunr.MemTable
+  alias Elasticlunr.SSTable
+  alias Elasticlunr.SSTable.Entry
+  alias Elasticlunr.Utils
 
   import Elasticlunr.Fixture
 

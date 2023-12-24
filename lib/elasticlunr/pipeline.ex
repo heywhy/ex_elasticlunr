@@ -33,10 +33,7 @@ defmodule Elasticlunr.Pipeline do
   def run(%__MODULE__{callback: []}, tokens), do: tokens
 
   def run(%__MODULE__{callback: callback}, tokens) do
-    callback
-    |> Enum.reduce(tokens, fn module, acc ->
-      excute_runner(acc, module)
-    end)
+    Enum.reduce(callback, tokens, &execute_runner(&2, &1))
   end
 
   @spec insert_before(t(), module(), module()) :: t()
@@ -77,17 +74,14 @@ defmodule Elasticlunr.Pipeline do
     %{pipeline | callback: callback}
   end
 
-  defp excute_runner(tokens, module) do
+  defp execute_runner(tokens, module) do
     Enum.reduce(tokens, [], fn token, state ->
       output = execute(module, token)
 
       output =
         case is_list(output) do
-          true ->
-            output
-
-          false ->
-            [output]
+          true -> output
+          false -> [output]
         end
 
       output = Enum.filter(output, &(not is_nil(&1)))

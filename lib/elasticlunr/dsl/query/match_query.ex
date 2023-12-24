@@ -1,7 +1,7 @@
 defmodule Elasticlunr.Dsl.MatchQuery do
   use Elasticlunr.Dsl.Query
 
-  alias Elasticlunr.{Index}
+  alias Elasticlunr.Core.Index
   alias Elasticlunr.Dsl.{MatchAllQuery, Query, QueryRepository, TermsQuery}
 
   defstruct ~w[expand field query boost fuzziness minimum_should_match operator]a

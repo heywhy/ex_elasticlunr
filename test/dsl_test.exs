@@ -1,7 +1,8 @@
 defmodule Elasticlunr.DslTest do
   use ExUnit.Case
 
-  alias Elasticlunr.{Index, Pipeline, Token}
+  alias Elasticlunr.Core.Index
+  alias Elasticlunr.{Pipeline, Token}
   alias Elasticlunr.Dsl.{BoolQuery, MatchAllQuery, MatchQuery, NotQuery, TermsQuery}
   alias Elasticlunr.Dsl.QueryRepository
 

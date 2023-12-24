@@ -1,7 +1,7 @@
 defmodule Elasticlunr.Dsl.BoolQuery do
   use Elasticlunr.Dsl.Query
 
-  alias Elasticlunr.Index
+  alias Elasticlunr.Core.Index
   alias Elasticlunr.Dsl.{NotQuery, Query, QueryRepository}
 
   defstruct ~w[rewritten should must must_not filter minimum_should_match]a

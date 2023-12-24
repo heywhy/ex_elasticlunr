@@ -1,9 +1,9 @@
-defmodule Box.Compaction.LeveledTest do
+defmodule Elasticlunr.Compaction.LeveledTest do
   use ExUnit.Case
 
-  alias Box.Fs
-  alias Box.Compaction.Leveled
-  alias Box.SSTable
+  alias Elasticlunr.Compaction.Leveled
+  alias Elasticlunr.Fs
+  alias Elasticlunr.SSTable
 
   import Elasticlunr.Fixture
   import Liveness

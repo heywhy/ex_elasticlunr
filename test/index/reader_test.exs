@@ -1,11 +1,11 @@
 defmodule Elasticlunr.Index.ReaderTest do
   use ExUnit.Case, async: true
 
-  alias Box.Fs
-  alias Box.Index.Reader
-  alias Box.Index.Writer
-  alias Box.SSTable
   alias Elasticlunr.Book
+  alias Elasticlunr.Fs
+  alias Elasticlunr.Index.Reader
+  alias Elasticlunr.Index.Writer
+  alias Elasticlunr.SSTable
 
   import Elasticlunr.Fixture
   import Liveness

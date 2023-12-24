@@ -1,8 +1,8 @@
 defmodule Elasticlunr.MemTableTest do
   use ExUnit.Case, async: true
 
-  alias Box.MemTable
-  alias Box.MemTable.Entry
+  alias Elasticlunr.MemTable
+  alias Elasticlunr.MemTable.Entry
 
   setup do
     mem_table =

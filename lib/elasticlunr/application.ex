@@ -5,12 +5,12 @@ defmodule Elasticlunr.Application do
 
   use Application
 
-  alias Box.Compaction
+  alias Elasticlunr.Compaction
 
   @impl true
   def start(_type, _args) do
     children = [
-      {Registry, name: Box.Fs, keys: :unique},
+      {Registry, name: Elasticlunr.Fs, keys: :unique},
       {Registry, name: Elasticlunr.IndexRegistry, keys: :unique},
       {Task.Supervisor, name: Elasticlunr.FlushMemTableSupervisor},
       FlakeIdWorker,

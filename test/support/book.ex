@@ -1,5 +1,5 @@
 defmodule Elasticlunr.Book do
-  use Box.Index
+  use Elasticlunr.Index
 
   compaction(Compaction.Leveled, files_num_trigger: 5)
 

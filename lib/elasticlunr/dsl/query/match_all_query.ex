@@ -1,7 +1,7 @@
 defmodule Elasticlunr.Dsl.MatchAllQuery do
   use Elasticlunr.Dsl.Query
 
-  alias Elasticlunr.Index
+  alias Elasticlunr.Core.Index
 
   defstruct ~w[boost]a
   @type t :: %__MODULE__{boost: integer()}

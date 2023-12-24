@@ -1,7 +1,8 @@
 defmodule Elasticlunr.FieldTest do
   use ExUnit.Case
 
-  alias Elasticlunr.{DB, Field, Pipeline, Token}
+  alias Elasticlunr.Core.Field
+  alias Elasticlunr.{DB, Pipeline, Token}
 
   setup context do
     opts = [

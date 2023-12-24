@@ -1,5 +1,5 @@
 defmodule Elasticlunr.Dsl.QueryRepository do
-  alias Elasticlunr.Index
+  alias Elasticlunr.Core.Index
   alias Elasticlunr.Dsl.{BoolQuery, MatchAllQuery, MatchQuery, NotQuery, TermsQuery}
 
   def get("not"), do: NotQuery

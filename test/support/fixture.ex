@@ -1,8 +1,8 @@
 defmodule Elasticlunr.Fixture do
-  alias Box.MemTable
-  alias Box.SSTable
-  alias Box.Utils
   alias Elasticlunr.Book
+  alias Elasticlunr.MemTable
+  alias Elasticlunr.SSTable
+  alias Elasticlunr.Utils
   alias Faker.{Commerce, Date, Lorem, Person, Pokemon}
 
   @spec new_book(keyword()) :: Book.t()

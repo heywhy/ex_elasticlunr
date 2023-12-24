@@ -1,8 +1,8 @@
 defmodule Elasticlunr.Bloom.StackableTest do
   use ExUnit.Case, async: true
 
-  alias Box.Bloom.Stackable
-  alias Box.Utils
+  alias Elasticlunr.Bloom.Stackable
+  alias Elasticlunr.Utils
 
   import Elasticlunr.Fixture
 

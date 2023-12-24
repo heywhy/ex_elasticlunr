@@ -1,10 +1,10 @@
 defmodule Elasticlunr.WalTest do
   use ExUnit.Case, async: true
 
-  alias Box.MemTable
-  alias Box.MemTable.Entry
-  alias Box.Wal
-  alias Box.Utils
+  alias Elasticlunr.MemTable
+  alias Elasticlunr.MemTable.Entry
+  alias Elasticlunr.Utils
+  alias Elasticlunr.Wal
 
   setup do
     dir = System.tmp_dir!() |> Path.join(Utils.new_id() |> Utils.id_to_string())

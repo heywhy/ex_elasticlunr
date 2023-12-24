@@ -9,8 +9,9 @@ defmodule Elasticlunr.Index.IdPipeline do
   def call(%Token{} = token), do: token
 end
 
-defmodule Elasticlunr.Index do
-  alias Elasticlunr.{DB, Field, Pipeline}
+defmodule Elasticlunr.Core.Index do
+  alias Elasticlunr.Core.Field
+  alias Elasticlunr.{DB, Pipeline}
   alias Elasticlunr.Index.IdPipeline
   alias Elasticlunr.Dsl.{Query, QueryRepository}
   alias Uniq.UUID
@@ -33,7 +34,13 @@ defmodule Elasticlunr.Index do
         }
 
   @type search_query :: binary() | map()
-  @type search_result :: any()
+  @type search_result :: %{
+          matched: pos_integer(),
+          positions: map(),
+          ref: binary(),
+          score: float()
+        }
+  @type search_results :: list(search_result())
 
   @spec new(keyword()) :: t()
   def new(opts \\ []) do
@@ -174,7 +181,7 @@ defmodule Elasticlunr.Index do
     %{index | documents_size: size}
   end
 
-  @spec search(t(), search_query(), map() | nil) :: list(search_result())
+  @spec search(t(), search_query(), map() | nil) :: search_results()
   def search(index, query, opts \\ nil)
   def search(%__MODULE__{}, nil, _opts), do: []
 

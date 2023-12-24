@@ -1,4 +1,4 @@
-defmodule Elasticlunr.Field do
+defmodule Elasticlunr.Core.Field do
   alias Elasticlunr.{DB, Pipeline, Token, Utils}
 
   @fields ~w[db name pipeline query_pipeline store store_positions]a

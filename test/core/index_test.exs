@@ -1,7 +1,8 @@
 defmodule Elasticlunr.IndexsTest do
   use ExUnit.Case
 
-  alias Elasticlunr.{Field, Index, Pipeline, Token}
+  alias Elasticlunr.Core.{Field, Index}
+  alias Elasticlunr.{Pipeline, Token}
   alias Faker.Address.En, as: Address
 
   describe "creating an index" do

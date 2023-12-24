@@ -1,10 +1,10 @@
 defmodule Elasticlunr.Index.WriterTest do
   use ExUnit.Case, async: true
 
-  alias Box.Index.Writer
-  alias Box.SSTable
-  alias Box.Utils
   alias Elasticlunr.Book
+  alias Elasticlunr.Index.Writer
+  alias Elasticlunr.SSTable
+  alias Elasticlunr.Utils
 
   import Elasticlunr.Fixture
 

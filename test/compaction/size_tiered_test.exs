@@ -1,8 +1,8 @@
-defmodule Box.Compaction.SizeTieredTest do
+defmodule ElasticlunrCompaction.SizeTieredTest do
   use ExUnit.Case
 
-  alias Box.Compaction.SizeTiered
-  alias Box.Fs
+  alias Elasticlunr.Compaction.SizeTiered
+  alias Elasticlunr.Fs
 
   import Elasticlunr.Fixture
 
