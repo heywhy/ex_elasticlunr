@@ -1,6 +1,4 @@
 defmodule Elasticlunr.Index.Writer do
-  use GenServer
-
   alias Elasticlunr.MemTable
   alias Elasticlunr.MemTable.Entry
   alias Elasticlunr.Schema
@@ -20,17 +18,8 @@ defmodule Elasticlunr.Index.Writer do
           mt_max_size: pos_integer()
         }
 
-  @spec start_link(keyword()) :: GenServer.on_start()
-  def start_link(opts), do: GenServer.start_link(__MODULE__, opts)
-
-  @impl true
-  def init(opts) do
-    Process.flag(:trap_exit, true)
-
-    dir = Keyword.fetch!(opts, :dir)
-    schema = Keyword.fetch!(opts, :schema)
-    mt_max_size = Keyword.fetch!(opts, :mem_table_max_size)
-
+  @spec new(Path.t(), Schema.t(), pos_integer()) :: t()
+  def new(dir, schema, mt_max_size) do
     {wal, mem_table} = Wal.load_from_dir(dir)
 
     attrs = [
@@ -41,63 +30,71 @@ defmodule Elasticlunr.Index.Writer do
       mt_max_size: mt_max_size
     ]
 
-    {:ok, struct!(__MODULE__, attrs)}
+    struct!(__MODULE__, attrs)
   end
 
-  # Callbacks
-  @impl true
-  def handle_call({:save, document}, _from, %__MODULE__{} = state) do
-    with {document, state} <- save_document(document, state),
-         :ok <- Wal.flush(state.wal) do
-      {:reply, document, write_to_disk_if_needed(state)}
+  @spec buffer_filled?(t()) :: boolean()
+  def buffer_filled?(%__MODULE__{mem_table: mem_table, mt_max_size: mt_max_size}) do
+    MemTable.size(mem_table) >= mt_max_size
+  end
+
+  @spec close(t()) :: :ok | no_return()
+  def close(%__MODULE__{wal: wal}) do
+    Wal.close(wal)
+  end
+
+  @spec flush(t()) :: t() | no_return()
+  def flush(%__MODULE__{dir: dir, mem_table: mem_table, wal: wal} = writer) do
+    _path = SSTable.flush(mem_table, dir)
+    :ok = Wal.delete(wal)
+    %{writer | wal: Wal.create(dir), mem_table: MemTable.new()}
+  end
+
+  @spec get(t(), String.t()) :: nil | map()
+  def get(%__MODULE__{mem_table: mem_table, schema: schema}, id) do
+    with id <- Utils.id_from_string(id),
+         %Entry{deleted: false, value: value} <- MemTable.get(mem_table, id),
+         value <- Schema.binary_to_document(schema, value) do
+      Map.put(value, :id, Utils.id_to_string(id))
+    else
+      %Entry{deleted: true} -> nil
+      nil -> nil
     end
   end
 
-  def handle_call({:save_all, documents}, _from, %__MODULE__{} = state) do
-    with state <- save_all(documents, state),
-         :ok <- Wal.flush(state.wal) do
-      {:reply, :ok, write_to_disk_if_needed(state)}
-    end
-  end
-
-  def handle_call({:delete, id}, _from, %__MODULE__{wal: wal, mem_table: mem_table} = state) do
+  @spec remove(t(), String.t()) :: {:ok, t()} | {:error, term()}
+  def remove(%__MODULE__{mem_table: mem_table, wal: wal} = writer, id) do
     with id <- Utils.id_from_string(id),
          timestamp <- Utils.now(),
          mem_table <- MemTable.remove(mem_table, id, timestamp),
          {:ok, wal} <- Wal.remove(wal, id, timestamp),
          :ok <- Wal.flush(wal),
-         state <- %{state | wal: wal, mem_table: mem_table} do
-      {:reply, :ok, write_to_disk_if_needed(state)}
+         writer <- %{writer | wal: wal, mem_table: mem_table} do
+      {:ok, writer}
     end
   end
 
-  def handle_call({:get, id}, _from, %__MODULE__{mem_table: mem_table, schema: schema} = state) do
-    with id <- Utils.id_from_string(id),
-         %Entry{deleted: false, value: value} <- MemTable.get(mem_table, id),
-         value <- Schema.binary_to_document(schema, value),
-         value <- Map.put(value, :id, Utils.id_to_string(id)) do
-      {:reply, value, state}
-    else
-      %Entry{deleted: true} -> {:reply, nil, state}
-      nil -> {:reply, nil, state}
-    end
+  @spec save(t(), map()) :: {map(), t()} | no_return()
+  def save(%__MODULE__{} = writer, %{} = document) do
+    {document, writer} = save_document(document, writer)
+
+    :ok = Wal.flush(writer.wal)
+
+    {document, writer}
   end
 
-  @impl true
-  def terminate(reason, %__MODULE__{wal: wal, schema: schema}) do
-    :ok = Wal.close(wal)
-
-    Logger.info("Terminating writer process for #{schema.name} due to #{inspect(reason)}")
-  end
-
-  defp save_all(documents, state) do
-    Enum.reduce(documents, state, fn document, state ->
-      {_document, state} = save_document(document, state)
-      state
+  @spec save_all(t(), [map()]) :: t() | no_return()
+  def save_all(%__MODULE__{} = writer, documents) do
+    documents
+    |> Enum.reduce(writer, fn document, writer ->
+      document
+      |> save_document(writer)
+      |> elem(1)
     end)
+    |> tap(&(:ok = Wal.flush(&1.wal)))
   end
 
-  defp save_document(document, %{schema: schema} = state) do
+  defp save_document(document, %{schema: schema} = writer) do
     {id, document} =
       document
       # drop the struct key
@@ -110,29 +107,10 @@ defmodule Elasticlunr.Index.Writer do
 
     with timestamp <- Utils.now(),
          value <- Schema.document_to_binary(schema, document),
-         mem_table <- MemTable.set(state.mem_table, id, value, timestamp),
-         {:ok, wal} <- Wal.set(state.wal, id, value, timestamp),
+         mem_table <- MemTable.set(writer.mem_table, id, value, timestamp),
+         {:ok, wal} <- Wal.set(writer.wal, id, value, timestamp),
          document <- Map.put(document, :id, Utils.id_to_string(id)) do
-      {document, %{state | wal: wal, mem_table: mem_table}}
-    end
-  end
-
-  defp write_to_disk_if_needed(
-         %__MODULE__{
-           dir: dir,
-           wal: wal,
-           mem_table: mem_table,
-           mt_max_size: mt_max_size
-         } =
-           state
-       ) do
-    with true <- MemTable.size(mem_table) >= mt_max_size,
-         # TODO: Asynchronously flush to disk
-         _path <- SSTable.flush(mem_table, dir),
-         :ok <- Wal.delete(wal) do
-      %{state | wal: Wal.create(dir), mem_table: MemTable.new()}
-    else
-      false -> state
+      {document, %{writer | wal: wal, mem_table: mem_table}}
     end
   end
 end

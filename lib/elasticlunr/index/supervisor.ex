@@ -2,8 +2,8 @@ defmodule Elasticlunr.Index.Supervisor do
   use Supervisor
 
   alias Elasticlunr.Fs
-  alias Elasticlunr.Index.Reader
-  alias Elasticlunr.Index.Writer
+  alias Elasticlunr.Index.ReaderServer
+  alias Elasticlunr.Index.WriterServer
   alias Elasticlunr.Process
   alias Elasticlunr.Schema
 
@@ -65,8 +65,8 @@ defmodule Elasticlunr.Index.Supervisor do
     children = [
       {Fs, dir},
       {strategy, [dir: dir, schema: schema] ++ opts},
-      {Writer, [dir: dir, schema: schema, mem_table_max_size: mem_table_max_size]},
-      {Reader, dir: dir, schema: schema}
+      {WriterServer, [dir: dir, schema: schema, mem_table_max_size: mem_table_max_size]},
+      {ReaderServer, dir: dir, schema: schema}
     ]
 
     Supervisor.init(children, strategy: :one_for_all)

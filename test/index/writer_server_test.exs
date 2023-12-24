@@ -1,8 +1,8 @@
-defmodule Elasticlunr.Index.WriterTest do
+defmodule Elasticlunr.Index.WriterServerTest do
   use ExUnit.Case, async: true
 
   alias Elasticlunr.Book
-  alias Elasticlunr.Index.Writer
+  alias Elasticlunr.Index.WriterServer
   alias Elasticlunr.SSTable
   alias Elasticlunr.Utils
 
@@ -17,7 +17,7 @@ defmodule Elasticlunr.Index.WriterTest do
       schema: Book.__schema__()
     ]
 
-    pid = start_supervised!({Writer, opts})
+    pid = start_supervised!({WriterServer, opts})
 
     [dir: dir, pid: pid]
   end

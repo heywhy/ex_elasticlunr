@@ -1,10 +1,10 @@
-defmodule Elasticlunr.Index.ReaderTest do
+defmodule Elasticlunr.Index.ReaderServerTest do
   use ExUnit.Case, async: true
 
   alias Elasticlunr.Book
   alias Elasticlunr.Fs
-  alias Elasticlunr.Index.Reader
-  alias Elasticlunr.Index.Writer
+  alias Elasticlunr.Index.ReaderServer
+  alias Elasticlunr.Index.WriterServer
   alias Elasticlunr.SSTable
 
   import Elasticlunr.Fixture
@@ -23,8 +23,8 @@ defmodule Elasticlunr.Index.ReaderTest do
 
     start_supervised!({Fs, dir})
 
-    writer = start_supervised!({Writer, opts})
-    pid = start_supervised!({Reader, dir: dir, schema: schema})
+    writer = start_supervised!({WriterServer, opts})
+    pid = start_supervised!({ReaderServer, dir: dir, schema: schema})
 
     document = GenServer.call(writer, {:save, new_book()})
 
