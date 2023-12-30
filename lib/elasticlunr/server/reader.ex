@@ -1,4 +1,4 @@
-defmodule Elasticlunr.Index.ReaderServer do
+defmodule Elasticlunr.Server.Reader do
   use GenServer
 
   alias Elasticlunr.Fs

@@ -2,10 +2,10 @@ defmodule Elasticlunr.Index.Supervisor do
   use Supervisor
 
   alias Elasticlunr.Fs
-  alias Elasticlunr.Index.ReaderServer
-  alias Elasticlunr.Index.WriterServer
   alias Elasticlunr.Process
   alias Elasticlunr.Schema
+  alias Elasticlunr.Server.Reader
+  alias Elasticlunr.Server.Writer
 
   @otp_app :elasticlunr
   # default to 160mb
@@ -65,8 +65,8 @@ defmodule Elasticlunr.Index.Supervisor do
     children = [
       {Fs, dir},
       {strategy, [dir: dir, schema: schema] ++ opts},
-      {WriterServer, [dir: dir, schema: schema, mem_table_max_size: mem_table_max_size]},
-      {ReaderServer, dir: dir, schema: schema}
+      {Writer, [dir: dir, schema: schema, mem_table_max_size: mem_table_max_size]},
+      {Reader, dir: dir, schema: schema}
     ]
 
     Supervisor.init(children, strategy: :one_for_all)

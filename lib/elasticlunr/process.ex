@@ -1,28 +1,28 @@
 defmodule Elasticlunr.Process do
-  alias Elasticlunr.Index.ReaderServer
-  alias Elasticlunr.Index.WriterServer
+  alias Elasticlunr.Server.Reader
+  alias Elasticlunr.Server.Writer
 
   @registry Elasticlunr.IndexRegistry
 
-  @spec reader(binary()) :: pid() | nil
+  @spec reader(String.t()) :: pid() | nil
   def reader(index) do
     {:via, Registry, {@registry, index}}
     |> Supervisor.which_children()
-    |> Enum.find(&(elem(&1, 0) == ReaderServer))
+    |> Enum.find(&(elem(&1, 0) == Reader))
     |> case do
       nil -> nil
-      {ReaderServer, pid, :worker, [ReaderServer]} -> pid
+      {Reader, pid, :worker, [Reader]} -> pid
     end
   end
 
-  @spec writer(binary()) :: pid() | nil
+  @spec writer(String.t()) :: pid() | nil
   def writer(index) do
     {:via, Registry, {@registry, index}}
     |> Supervisor.which_children()
-    |> Enum.find(&(elem(&1, 0) == WriterServer))
+    |> Enum.find(&(elem(&1, 0) == Writer))
     |> case do
       nil -> nil
-      {WriterServer, pid, :worker, [WriterServer]} -> pid
+      {Writer, pid, :worker, [Writer]} -> pid
     end
   end
 end

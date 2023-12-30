@@ -1,4 +1,4 @@
-defmodule Elasticlunr.Index.WriterServer do
+defmodule Elasticlunr.Server.Writer do
   use GenServer
 
   alias Elasticlunr.Index.Writer
