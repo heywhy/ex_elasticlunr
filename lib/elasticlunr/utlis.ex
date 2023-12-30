@@ -1,4 +1,17 @@
 defmodule Elasticlunr.Utils do
+  @otp_app :elasticlunr
+
+  @spec storage_dir() :: Path.t()
+  def storage_dir do
+    @otp_app
+    |> Application.fetch_env!(:storage_dir)
+    |> case do
+      path when is_binary(path) -> path
+      {:system, varname} -> System.fetch_env!(varname)
+      {:system, varname, default} -> System.get_env(varname, default)
+    end
+  end
+
   @spec new_id() :: binary()
   def new_id, do: FlakeIdWorker.get()
 

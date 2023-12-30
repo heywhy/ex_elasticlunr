@@ -72,6 +72,7 @@ defmodule Elasticlunr.MixProject do
     [
       {:benchee, "~> 1.0", only: :dev},
       {:benchee_html, "~> 1.0", only: :dev},
+      {:castore, "~> 1.0", only: :test},
       {:cc_precompiler, "~> 0.1", runtime: false},
       {:credo, "~> 1.5", only: :dev, runtime: false},
       {:dialyxir, "~> 1.1", only: :dev, runtime: false},

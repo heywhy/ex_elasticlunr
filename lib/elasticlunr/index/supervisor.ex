@@ -6,6 +6,7 @@ defmodule Elasticlunr.Index.Supervisor do
   alias Elasticlunr.Schema
   alias Elasticlunr.Server.Reader
   alias Elasticlunr.Server.Writer
+  alias Elasticlunr.Utils
 
   @otp_app :elasticlunr
   # default to 160mb
@@ -76,9 +77,7 @@ defmodule Elasticlunr.Index.Supervisor do
 
   defp create_dir!(schema) do
     dir =
-      @otp_app
-      |> Application.fetch_env!(:storage_dir)
-      |> expand_dir()
+      Utils.storage_dir()
       |> Path.join(schema.name)
 
     with false <- File.dir?(dir),
@@ -88,8 +87,4 @@ defmodule Elasticlunr.Index.Supervisor do
       true -> dir
     end
   end
-
-  defp expand_dir(dir) when is_binary(dir), do: Path.expand(dir)
-  defp expand_dir({:system, varname}), do: System.fetch_env!(varname)
-  defp expand_dir({:system, varname, default}), do: System.get_env(varname, default)
 end

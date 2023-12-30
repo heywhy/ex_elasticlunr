@@ -3,13 +3,12 @@ defmodule Elasticlunr.WalTest do
 
   alias Elasticlunr.MemTable
   alias Elasticlunr.MemTable.Entry
-  alias Elasticlunr.Utils
   alias Elasticlunr.Wal
 
-  setup do
-    dir = System.tmp_dir!() |> Path.join(Utils.new_id() |> Utils.id_to_string())
+  import Elasticlunr.Fixture
 
-    :ok = File.mkdir!(dir)
+  setup do
+    dir = tmp_dir!()
 
     on_exit(fn -> File.rm_rf!(dir) end)
 

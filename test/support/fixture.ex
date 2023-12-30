@@ -31,7 +31,7 @@ defmodule Elasticlunr.Fixture do
   @spec tmp_dir!() :: Path.t()
   def tmp_dir! do
     dir =
-      System.tmp_dir!()
+      Utils.storage_dir()
       |> Path.join(Utils.new_id() |> Utils.id_to_string())
 
     :ok = File.mkdir!(dir)
