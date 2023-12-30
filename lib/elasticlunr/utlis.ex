@@ -10,6 +10,7 @@ defmodule Elasticlunr.Utils do
       {:system, varname} -> System.fetch_env!(varname)
       {:system, varname, default} -> System.get_env(varname, default)
     end
+    |> Path.expand()
   end
 
   @spec new_id() :: binary()
