@@ -78,8 +78,8 @@ defmodule Elasticlunr.Index.Supervisor do
     dir =
       @otp_app
       |> Application.fetch_env!(:storage_dir)
+      |> expand_dir()
       |> Path.join(schema.name)
-      |> Path.absname()
 
     with false <- File.dir?(dir),
          :ok <- File.mkdir_p!(dir) do
@@ -88,4 +88,8 @@ defmodule Elasticlunr.Index.Supervisor do
       true -> dir
     end
   end
+
+  defp expand_dir(dir) when is_binary(dir), do: Path.expand(dir)
+  defp expand_dir({:system, varname}), do: System.fetch_env!(varname)
+  defp expand_dir({:system, varname, default}), do: System.get_env(varname, default)
 end

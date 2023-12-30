@@ -3,13 +3,13 @@ name: Test
 on: push
 
 env:
-  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  STORAGE_PATH: ./storage
 
 jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: erlef/setup-beam@v1
         id: beam
         with:
@@ -22,9 +22,7 @@ jobs:
         uses: actions/cache@v3
         id: mix-cache
         with:
-          path: |
-            deps
-            _build
+          path: deps
           key: ${{ runner.os }}-${{ steps.beam.outputs.elixir-version }}-${{ steps.beam.outputs.otp-version }}-${{ hashFiles('mix.lock') }}
 
       - name: Install Dependencies
@@ -37,10 +35,8 @@ jobs:
           mix credo
 
       - name: Run Tests
-        env:
-          MIX_ENV: test
         run: mix coveralls.json
-
+      
       - name: Upload Coverage Reports
         uses: codecov/codecov-action@v3
         with:

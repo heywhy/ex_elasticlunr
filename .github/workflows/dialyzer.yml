@@ -6,7 +6,7 @@ jobs:
   analyze:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: erlef/setup-beam@v1
         id: beam
         with:
@@ -17,9 +17,7 @@ jobs:
         uses: actions/cache@v3
         id: mix-cache
         with:
-          path: |
-            deps
-            _build
+          path: deps
           key: ${{ runner.os }}-${{ steps.beam.outputs.elixir-version }}-${{ steps.beam.outputs.otp-version }}-${{ hashFiles('mix.lock') }}
 
       - name: Restore PLT cache
@@ -31,8 +29,8 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-${{ steps.beam.outputs.elixir-version }}-${{ steps.beam.outputs.otp-version }}-plt
           path: |
-            priv/plts
-            _build/dev/dialyxir_erlang*
+            _build/dev/*.plt
+            _build/dev/*.plt.hash
 
       - name: Install Dependencies
         if: steps.mix-cache.outputs.cache-hit != 'true'

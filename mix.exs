@@ -41,7 +41,6 @@ defmodule Elasticlunr.MixProject do
 
       # Dialyzer
       dialyzer: [
-        plt_file: {:no_warn, "priv/plts/dialyzer.plt"},
         plt_add_deps: :apps_direct,
         plt_ignore_apps: [:erbloom]
       ],
