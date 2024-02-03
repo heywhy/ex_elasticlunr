@@ -87,7 +87,7 @@ defmodule Elasticlunr.Wal do
   end
 
   @spec flush(t()) :: :ok | {:error, atom()}
-  def flush(%__MODULE__{fd: fd}), do: :file.sync(fd)
+  def flush(%__MODULE__{fd: fd}), do: :file.datasync(fd)
 
   @spec iterator(t()) :: Enumerable.t()
   def iterator(%__MODULE__{path: path}), do: Iterator.new(path)
