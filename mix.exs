@@ -81,7 +81,7 @@ defmodule Elasticlunr.MixProject do
       {:ex_doc, "~> 0.25", only: :dev, runtime: false},
       {:excoveralls, "~> 0.14", only: :test},
       {:faker, "~> 0.16", only: :test},
-      {:file_system, "~> 0.2"},
+      {:file_system, "~> 1.0"},
       {:flake_id, "~> 0.1"},
       {:git_hooks, "~> 0.7", only: :dev, runtime: false},
       {:git_ops, "~> 2.5", only: :dev},
