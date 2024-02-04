@@ -312,8 +312,8 @@ defmodule Elasticlunr.Dsl.BoolQuery do
 
   defp extract_minimum_should_match(opts) do
     default_value =
-      case not is_empty_clause?(opts[:should]) and
-             (is_empty_clause?(opts[:must]) or is_empty_clause?(opts[:filter])) do
+      case not empty_clause?(opts[:should]) and
+             (empty_clause?(opts[:must]) or empty_clause?(opts[:filter])) do
         true -> 1
         false -> 0
       end
@@ -321,7 +321,7 @@ defmodule Elasticlunr.Dsl.BoolQuery do
     Keyword.get(opts, :minimum_should_match, default_value)
   end
 
-  defp is_empty_clause?(nil), do: true
-  defp is_empty_clause?(list) when is_list(list), do: Enum.empty?(list)
-  defp is_empty_clause?(%{}), do: false
+  defp empty_clause?(nil), do: true
+  defp empty_clause?(list) when is_list(list), do: Enum.empty?(list)
+  defp empty_clause?(%{}), do: false
 end

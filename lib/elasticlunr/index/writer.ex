@@ -2,7 +2,6 @@ defmodule Elasticlunr.Index.Writer do
   alias Elasticlunr.MemTable
   alias Elasticlunr.MemTable.Entry
   alias Elasticlunr.Schema
-  alias Elasticlunr.SSTable
   alias Elasticlunr.Utils
   alias Elasticlunr.Wal
 
@@ -33,6 +32,11 @@ defmodule Elasticlunr.Index.Writer do
     struct!(__MODULE__, attrs)
   end
 
+  @spec clone(t()) :: t()
+  def clone(%__MODULE__{dir: dir} = writer) do
+    %{writer | wal: Wal.create(dir), mem_table: MemTable.new()}
+  end
+
   @spec buffer_filled?(t()) :: boolean()
   def buffer_filled?(%__MODULE__{mem_table: mem_table, mt_max_size: mt_max_size}) do
     MemTable.size(mem_table) >= mt_max_size
@@ -41,13 +45,6 @@ defmodule Elasticlunr.Index.Writer do
   @spec close(t()) :: :ok | no_return()
   def close(%__MODULE__{wal: wal}) do
     Wal.close(wal)
-  end
-
-  @spec flush(t()) :: t() | no_return()
-  def flush(%__MODULE__{dir: dir, mem_table: mem_table, wal: wal} = writer) do
-    _path = SSTable.flush(mem_table, dir)
-    :ok = Wal.delete(wal)
-    %{writer | wal: Wal.create(dir), mem_table: MemTable.new()}
   end
 
   @spec get(t(), String.t()) :: nil | map()

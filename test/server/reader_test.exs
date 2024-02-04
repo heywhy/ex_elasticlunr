@@ -31,7 +31,9 @@ defmodule Elasticlunr.Server.ReaderTest do
     [dir: dir, pid: pid, writer: writer, document: document]
   end
 
-  test "retrieve document", %{pid: pid, document: document} do
+  test "retrieve document", %{pid: pid, document: document, writer: writer} do
+    GenServer.call(writer, {:save, new_book()})
+
     assert ^document = eventually(fn -> GenServer.call(pid, {:get, document.id}) end)
     refute GenServer.call(pid, {:get, "unknown"})
   end
@@ -46,12 +48,22 @@ defmodule Elasticlunr.Server.ReaderTest do
       GenServer.call(writer, {:save, new_book(id: document.id)})
     end
 
+    # Add an extra write to force extra generated sstable
+    GenServer.call(writer, {:save, new_book()})
+
     assert eventually(fn -> SSTable.list(dir) |> Enum.count() == 5 end)
     assert eventually(fn -> GenServer.call(pid, {:get, document.id}) end)
   end
 
-  test "update internals when a segment is deleted", %{dir: dir, pid: pid, document: document} do
+  test "update internals when a segment is deleted", %{
+    dir: dir,
+    pid: pid,
+    document: document,
+    writer: writer
+  } do
     Fs.watch!(dir)
+
+    GenServer.call(writer, {:save, new_book()})
 
     ss_tables = SSTable.list(dir)
 
@@ -64,6 +76,9 @@ defmodule Elasticlunr.Server.ReaderTest do
 
   test "update internals when a segment is created", %{pid: pid, writer: writer} do
     document = GenServer.call(writer, {:save, new_book()})
+
+    # Add an extra write to force generate sstable
+    GenServer.call(writer, {:save, new_book()})
 
     assert entry = eventually(fn -> GenServer.call(pid, {:get, document.id}) end)
     assert entry.id == document.id
