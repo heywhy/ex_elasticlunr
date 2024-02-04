@@ -61,23 +61,28 @@ defmodule Elasticlunr.Server.Writer do
   end
 
   @impl true
-  def handle_info({ref, :ok}, state) do
+  def handle_info({ref, :ok}, %__MODULE__{task: %Task{ref: ref}} = state) do
     Process.demonitor(ref, [:flush])
 
     {:noreply, %{state | task: nil, tmp: nil}}
   end
 
-  def handle_info({:DOWN, _ref, _, _, reason}, state) do
+  def handle_info({:DOWN, ref, _, _, reason}, %__MODULE__{task: %Task{ref: ref}} = state) do
     Logger.error("Flushing memtable failed due to #{inspect(reason)}")
 
     {:noreply, %{state | task: nil, tmp: nil}}
   end
 
-  def handle_info({:EXIT, _pid, reason}, state) do
+  def handle_info({:EXIT, pid, reason}, %__MODULE__{task: %Task{pid: pid}} = state) do
+    # TODO: consider blocking writes if task fails due to error
     case reason do
       :normal -> {:noreply, %{state | task: nil, tmp: nil}}
       reason -> {:stop, reason, state}
     end
+  end
+
+  def handle_info({:EXIT, _pid, _reason}, %__MODULE__{} = state) do
+    {:noreply, state}
   end
 
   @impl true
@@ -123,4 +128,5 @@ defmodule Elasticlunr.Server.Writer do
       :ok = Wal.delete(wal)
     end)
   end
+
 end
