@@ -71,17 +71,16 @@ defmodule Elasticlunr.Server.Writer do
     {:noreply, %{state | task: nil, tmp: nil}}
   end
 
-  def handle_info({:EXIT, _pid, _reason}, state) do
-    {:noreply, %{state | task: nil, tmp: nil}}
+  def handle_info({:EXIT, _pid, reason}, state) do
+    case reason do
+      :normal -> {:noreply, %{state | task: nil, tmp: nil}}
+      reason -> {:stop, reason, state}
+    end
   end
 
   @impl true
   def terminate(reason, %__MODULE__{task: task, writer: writer}) do
-    case task do
-      nil -> :ok
-      task -> Task.await(task)
-    end
-
+    :ok = wait_for_task(task)
     :ok = Writer.close(writer)
 
     %Writer{schema: schema} = writer
@@ -105,10 +104,12 @@ defmodule Elasticlunr.Server.Writer do
     end
   end
 
+  def wait_for_task(nil), do: :ok
+
   def wait_for_task(task) do
     case Task.yield(task) || Task.ignore(task) do
       {:ok, _} -> :ok
-      _ -> wait_for_task(task)
+      nil -> wait_for_task(task)
     end
   end
 
