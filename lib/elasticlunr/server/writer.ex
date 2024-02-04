@@ -9,7 +9,9 @@ defmodule Elasticlunr.Server.Writer do
   defstruct [:task, :tmp, :writer]
 
   @spec start_link(keyword()) :: GenServer.on_start()
-  def start_link(opts), do: GenServer.start_link(__MODULE__, opts)
+  def start_link(opts) do
+    GenServer.start_link(__MODULE__, [hibernate_after: 5_000] ++ opts)
+  end
 
   @impl true
   def init(opts) do
@@ -97,7 +99,7 @@ defmodule Elasticlunr.Server.Writer do
       false ->
         state
 
-      %Task{} ->
+      %Task{} = task ->
         Logger.info("Current memtable is full; waiting...")
         wait_for_task(task)
         write_to_disk_if_needed(%{state | tmp: nil, task: nil})

@@ -17,7 +17,7 @@ defmodule Elasticlunr.Server.Reader do
   def start_link(opts) do
     opts = Keyword.validate!(opts, [:dir, :schema])
 
-    GenServer.start_link(__MODULE__, opts)
+    GenServer.start_link(__MODULE__, [hibernate_after: 5_000] ++ opts)
   end
 
   @impl true
