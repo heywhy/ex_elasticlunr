@@ -91,7 +91,7 @@ defmodule Elasticlunr.Server.Writer do
   defp write_to_disk_if_needed(%{task: task, writer: writer} = state) do
     with true <- Writer.buffer_filled?(writer),
          nil <- task,
-         task <- schedule_background_flush(writer) do
+         task <- flush_async(writer) do
       %{state | task: task, tmp: writer, writer: Writer.clone(writer)}
     else
       false ->
@@ -113,7 +113,7 @@ defmodule Elasticlunr.Server.Writer do
     end
   end
 
-  defp schedule_background_flush(%{dir: dir, mem_table: mem_table, wal: wal}) do
+  defp flush_async(%{dir: dir, mem_table: mem_table, wal: wal}) do
     Task.Supervisor.async(FlushMemTableSupervisor, fn ->
       # This steps should be encapsulate in the writer module but wasn't
       # because of data copying from this server to the task process
