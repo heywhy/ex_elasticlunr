@@ -81,6 +81,7 @@ defmodule Elasticlunr.Server.Writer do
     end
   end
 
+  # TODO: find the reason this callback is needed
   def handle_info({:EXIT, _pid, _reason}, %__MODULE__{} = state) do
     {:noreply, state}
   end
@@ -128,5 +129,4 @@ defmodule Elasticlunr.Server.Writer do
       :ok = Wal.delete(wal)
     end)
   end
-
 end
