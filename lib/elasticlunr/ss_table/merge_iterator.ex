@@ -36,29 +36,27 @@ defimpl Enumerable, for: Elasticlunr.SSTable.MergeIterator do
     entries =
       iterators
       |> Enum.map(&Iterator.current(&1))
-      |> Enum.sort_by(fn {entry, _iterator} -> {entry.key, entry.timestamp} end)
+      |> Enum.sort_by(fn {entry, _iterator} -> entry.key end)
 
     {entry, iterators} = next_entry(entries)
-    iterators = Enum.reject(iterators, &Iterator.eof?/1)
 
-    reduce(%{mi | iterators: iterators}, fun.(entry, acc), fun)
+    iterators
+    |> Enum.reject(&Iterator.eof?/1)
+    |> then(&%{mi | iterators: &1})
+    |> reduce(fun.(entry, acc), fun)
   end
 
   defp next_entry([{%Entry{key: key}, _}, {%Entry{key: key}, _} | _rest] = entries) do
     {duplicates, rest} =
-      Enum.split_with(entries, fn {entry, _iterator} -> entry.key == key end)
+      Enum.split_while(entries, fn {entry, _iterator} -> entry.key == key end)
 
     {entry, _iterator} = Enum.max_by(duplicates, fn {entry, _} -> entry.timestamp end)
 
-    iterators =
-      duplicates
-      |> Enum.map(fn {_entry, iterator} ->
-        {_e, _i} = Iterator.next(iterator)
-      end)
-      |> Enum.concat(rest)
-      |> Enum.map(&elem(&1, 1))
-
-    {entry, iterators}
+    duplicates
+    |> Enum.map(&(elem(&1, 1) |> Iterator.next()))
+    |> Enum.concat(rest)
+    |> Enum.map(&elem(&1, 1))
+    |> then(&{entry, &1})
   end
 
   defp next_entry([{%Entry{} = entry, iterator} | rest]) do

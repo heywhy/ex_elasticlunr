@@ -88,6 +88,7 @@ defmodule Elasticlunr.MixProject do
       {:liveness, "~> 1.0", only: :test},
       {:mimic, "~> 1.7", only: :test},
       {:stemmer, "~> 1.0"},
+      {:stream_data, "~> 0.6"},
       {:telemetry, "~> 1.2"},
       {:treex, "~> 0.1"},
       {:uniq, "~> 0.4"}
