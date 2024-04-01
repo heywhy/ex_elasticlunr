@@ -87,6 +87,7 @@ defmodule Elasticlunr.MixProject do
       {:git_ops, "~> 2.5", only: :dev},
       {:liveness, "~> 1.0", only: :test},
       {:mimic, "~> 1.7", only: :test},
+      {:rop, github: "ruby2elixir/rop"},
       {:stemmer, "~> 1.0"},
       {:stream_data, "~> 0.6"},
       {:telemetry, "~> 1.2"},

@@ -19,7 +19,7 @@ defmodule Elasticlunr.Server.WriterTest do
 
     pid = start_supervised!({Writer, opts})
 
-    [dir: dir, pid: pid]
+    [dir: dir, opts: opts, pid: pid]
   end
 
   test "save document", %{pid: pid} do
@@ -59,6 +59,17 @@ defmodule Elasticlunr.Server.WriterTest do
     assert ^document = GenServer.call(pid, {:get, document.id})
     assert :ok = GenServer.call(pid, {:delete, document.id})
     refute GenServer.call(pid, {:get, document.id})
+  end
+
+  test "recover log files on restart", %{opts: opts, pid: pid} do
+    document1 = GenServer.call(pid, {:save, new_book()})
+    document2 = GenServer.call(pid, {:save, new_book()})
+
+    assert :ok = stop_supervised(Writer)
+    pid = start_supervised!({Writer, opts})
+
+    assert ^document1 = GenServer.call(pid, {:get, document1.id})
+    assert ^document2 = GenServer.call(pid, {:get, document2.id})
   end
 
   test "flush memtable when maxed", %{pid: pid, dir: dir} do

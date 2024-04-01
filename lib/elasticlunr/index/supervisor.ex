@@ -1,12 +1,16 @@
 defmodule Elasticlunr.Index.Supervisor do
   use Supervisor
+  use Rop
 
+  alias Elasticlunr.Compaction
   alias Elasticlunr.Fs
   alias Elasticlunr.Process
   alias Elasticlunr.Schema
   alias Elasticlunr.Server.Reader
   alias Elasticlunr.Server.Writer
   alias Elasticlunr.Utils
+
+  require Logger
 
   @otp_app :elasticlunr
   # default to 160mb
@@ -60,13 +64,12 @@ defmodule Elasticlunr.Index.Supervisor do
   @impl true
   def init(%Schema{compaction_strategy: compaction} = schema) do
     dir = create_dir!(schema)
-    {strategy, opts} = compaction
     mem_table_max_size = Application.get_env(@otp_app, :mem_table_max_size, @mem_table_max_size)
 
     children = [
       {Fs, dir},
-      {strategy, [dir: dir, schema: schema] ++ opts},
-      {Writer, [dir: dir, schema: schema, mem_table_max_size: mem_table_max_size]},
+      {Compaction, dir: dir, schema: schema, strategy: compaction},
+      {Writer, dir: dir, schema: schema, mem_table_max_size: mem_table_max_size},
       {Reader, dir: dir, schema: schema}
     ]
 

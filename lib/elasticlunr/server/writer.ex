@@ -23,7 +23,15 @@ defmodule Elasticlunr.Server.Writer do
 
     writer = Writer.new(dir, schema, mt_max_size)
 
-    {:ok, %__MODULE__{writer: writer}}
+    {:ok, %__MODULE__{writer: writer}, {:continue, :recover}}
+  end
+
+  @impl true
+  def handle_continue(:recover, %__MODULE__{writer: writer} = state) do
+    case Writer.recover(writer) do
+      {:ok, writer} -> {:noreply, %{state | writer: writer}}
+      {:error, reason} -> {:stop, reason, state}
+    end
   end
 
   # Callbacks

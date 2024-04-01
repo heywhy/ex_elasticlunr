@@ -19,7 +19,7 @@
                 "--trace"
             ],
             "startApps": true,
-            "projectDir": "${workspaceRoot}",
+            "projectDir": "${workspaceFolder}",
             "requireFiles": [
                 "test/**/test_helper.exs",
                 "test/**/*_test.exs"

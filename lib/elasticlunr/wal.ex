@@ -1,4 +1,5 @@
 defmodule Elasticlunr.Wal do
+  alias Elasticlunr.Filename
   alias Elasticlunr.MemTable
   alias Elasticlunr.Telemeter
   alias Elasticlunr.Utils
@@ -24,12 +25,11 @@ defmodule Elasticlunr.Wal do
     struct!(__MODULE__, path: path, fd: File.open!(path, @opts))
   end
 
-  @spec create(Path.t()) :: t()
-  def create(dir) do
-    now = Utils.now()
-    path = Path.join(dir, "#{now}.wal")
-
-    new(path)
+  @spec create(Path.t(), pos_integer()) :: t()
+  def create(dir, number \\ Utils.now()) do
+    dir
+    |> Filename.log(number)
+    |> new()
   end
 
   @spec from_path(Path.t()) :: t()
