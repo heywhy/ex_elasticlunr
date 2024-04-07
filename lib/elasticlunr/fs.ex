@@ -1,14 +1,23 @@
 defmodule Elasticlunr.Fs do
+  @type mode :: :read | :write
+
   @spec stream(String.t()) :: File.Stream.t()
   def stream(path), do: File.stream!(path, [:compressed])
 
-  @spec open(Path.t(), :append | :read | :write) :: File.io_device()
-  def open(path, mode \\ :read), do: File.open!(path, [mode, :binary, :compressed])
+  @spec open(Path.t(), mode()) ::
+          {:ok, File.io_device()} | {:error, File.posix()}
+  def open(path, mode \\ :read), do: File.open(path, [mode, :binary, :compressed])
+
+  @spec open!(Path.t(), mode()) :: File.io_device() | no_return()
+  def open!(path, mode \\ :read) do
+    {:ok, fd} = open(path, mode)
+    fd
+  end
 
   # coveralls-ignore-start
   @spec read(Path.t()) :: binary()
   def read(path) do
-    with fd <- open(path),
+    with {:ok, fd} <- open(path),
          data <- IO.binread(fd, :eof),
          :ok <- File.close(fd) do
       data

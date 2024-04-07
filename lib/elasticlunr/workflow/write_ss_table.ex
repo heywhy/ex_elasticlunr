@@ -4,6 +4,7 @@ defmodule Elasticlunr.Workflow.WriteSSTable do
   alias Elasticlunr.Bloom.Stackable, as: BloomFilter
   alias Elasticlunr.FileMeta
   alias Elasticlunr.Filename
+  alias Elasticlunr.Fs
   alias Elasticlunr.MemTable
   alias Elasticlunr.SSTable.Entry
   alias Elasticlunr.SSTable.Offsets
@@ -58,7 +59,7 @@ defmodule Elasticlunr.Workflow.WriteSSTable do
   defp open_file(%{file_meta: %FileMeta{dir: dir, number: number}} = state) do
     dir
     |> Filename.ss_table(number)
-    |> File.open([:write, :binary, :compressed])
+    |> Fs.open(:write)
     |> case do
       {:ok, fd} -> {:ok, Map.put(state, :fd, fd)}
       error -> error

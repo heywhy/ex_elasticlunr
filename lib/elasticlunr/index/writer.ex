@@ -55,7 +55,7 @@ defmodule Elasticlunr.Index.Writer do
         {:current, _number} -> true
         {:log, number} -> number >= manifest.log_number
         {:manifest, number} -> number >= manifest.number
-        {:tmp, number} -> Enum.member?(known_files, number)
+        {tag, number} when tag in [:sst, :tmp] -> Enum.member?(known_files, number)
       end
     end
 

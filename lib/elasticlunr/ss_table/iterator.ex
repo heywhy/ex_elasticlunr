@@ -16,7 +16,7 @@ defmodule Elasticlunr.SSTable.Iterator do
   @spec new(FileMeta.t()) :: t()
   def new(%FileMeta{dir: dir, size: size, number: number}) do
     path = Filename.ss_table(dir, number)
-    fd = Fs.open(path)
+    fd = Fs.open!(path)
 
     index_size = read_index_size(fd, size)
 

@@ -20,7 +20,7 @@ defmodule Elasticlunr.SSTable.RangeIterator do
       stop: stop,
       start: start,
       offset: start,
-      fd: Fs.open(path)
+      fd: Fs.open!(path)
     }
 
     struct!(__MODULE__, attrs)

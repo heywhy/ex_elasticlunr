@@ -28,9 +28,6 @@ defmodule Elasticlunr.SSTable.Offsets do
     end
   end
 
-  @spec stream(t()) :: Enum.t()
-  def stream(%__MODULE__{entries: tree}), do: Treex.stream(tree)
-
   @spec encode(t()) :: iodata()
   def encode(%__MODULE__{entries: tree}) do
     tree
