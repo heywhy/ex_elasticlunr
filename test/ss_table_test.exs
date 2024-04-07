@@ -1,6 +1,7 @@
 defmodule Elasticlunr.SSTableTest do
   use ExUnit.Case, async: true
 
+  alias Elasticlunr.FileMeta
   alias Elasticlunr.MemTable
   alias Elasticlunr.SSTable
   alias Elasticlunr.SSTable.Entry
@@ -10,58 +11,60 @@ defmodule Elasticlunr.SSTableTest do
 
   setup do
     dir = tmp_dir!()
+    file = %FileMeta{dir: dir, number: Utils.now()}
 
     mem_table =
       MemTable.new()
       |> MemTable.set("key", "value", 1)
       |> MemTable.set("key1", "value1", 2)
 
-    [dir: dir, mem_table: mem_table]
+    on_exit(fn -> File.rm_rf(dir) end)
+
+    [dir: dir, file_meta: file, mem_table: mem_table]
   end
 
-  test "count/1", %{dir: dir, mem_table: mem_table} do
-    ss_table = flush(mem_table, dir)
+  test "count/1", %{file_meta: file_meta, mem_table: mem_table} do
+    ss_table = flush(mem_table, file_meta)
 
     assert SSTable.count(ss_table) == 2
   end
 
-  test "contains?/2", %{dir: dir, mem_table: mem_table} do
-    ss_table = flush(mem_table, dir)
+  test "contains?/2", %{file_meta: file_meta, mem_table: mem_table} do
+    ss_table = flush(mem_table, file_meta)
 
     assert SSTable.contains?(ss_table, "key")
     assert SSTable.contains?(ss_table, "key1")
     refute SSTable.contains?(ss_table, "unknown")
   end
 
-  test "get/2", %{dir: dir, mem_table: mem_table} do
-    ss_table = flush(mem_table, dir)
+  test "get/2", %{file_meta: file_meta, mem_table: mem_table} do
+    ss_table = flush(mem_table, file_meta)
 
     assert %Entry{key: "key"} = SSTable.get(ss_table, "key")
     assert %Entry{key: "key1"} = SSTable.get(ss_table, "key1")
     refute SSTable.get(ss_table, "unknown")
   end
 
-  test "flush/2", %{dir: dir, mem_table: mem_table} do
-    assert file = SSTable.flush(mem_table, dir)
-    assert %File.Stat{size: size} = File.stat!(file)
+  test "flush/2", %{file_meta: file_meta, mem_table: mem_table} do
+    assert {:ok, %FileMeta{size: size}} = SSTable.flush(mem_table, file_meta)
     assert size > 0
   end
 
-  test "list/2", %{dir: dir, mem_table: mem_table} do
-    assert [] = SSTable.list(dir)
-    assert %SSTable{path: file} = flush(mem_table, dir)
-    assert [^file] = SSTable.list(dir)
+  test "list/2", %{file_meta: file_meta, mem_table: mem_table} do
+    assert [] = SSTable.list(file_meta.dir)
+    assert %SSTable{path: file} = flush(mem_table, file_meta)
+    assert [^file] = SSTable.list(file_meta.dir)
   end
 
-  test "from_path/1", %{dir: dir, mem_table: mem_table} do
+  test "from_path/1", %{file_meta: file_meta, mem_table: mem_table} do
     mem_table = MemTable.remove(mem_table, "key", 3)
 
-    assert path = SSTable.flush(mem_table, dir)
-    assert ss_table = SSTable.from_path(path)
+    assert {:ok, file_meta} = SSTable.flush(mem_table, file_meta)
+    assert {:ok, ss_table} = SSTable.from_path(file_meta)
     assert %Entry{key: "key", deleted: true} = SSTable.get(ss_table, "key")
   end
 
-  test "merge/1", %{dir: dir} do
+  test "merge/1", %{dir: dir, file_meta: file_meta} do
     elapsed_tombstone_ts =
       DateTime.utc_now()
       |> DateTime.add(-10, :day)
@@ -89,14 +92,18 @@ defmodule Elasticlunr.SSTableTest do
       |> MemTable.remove("handkerchief", Utils.now())
       |> MemTable.remove("handlebars", elapsed_tombstone_ts)
 
-    for mem_table <- [mem_table1, mem_table2, mem_table3] do
-      SSTable.flush(mem_table, dir)
-    end
+    ss_tables =
+      for mem_table <- [mem_table1, mem_table2, mem_table3] do
+        file_meta = %FileMeta{dir: dir, number: Utils.now()}
 
-    ss_tables = SSTable.list(dir)
+        mem_table
+        |> SSTable.flush(file_meta)
+        |> elem(1)
+      end
 
-    assert path = SSTable.merge(ss_tables, dir)
-    assert ss_table = SSTable.from_path(path)
+    assert {:ok, %FileMeta{size: size} = file_meta} = SSTable.merge(ss_tables, file_meta)
+    assert size > 0
+    assert {:ok, ss_table} = SSTable.from_path(file_meta)
     refute SSTable.contains?(ss_table, "unknown")
     assert SSTable.contains?(ss_table, "handiwork")
     refute SSTable.contains?(ss_table, "handlebars")
@@ -107,6 +114,8 @@ defmodule Elasticlunr.SSTableTest do
   defp flush(mem_table, dir) do
     mem_table
     |> SSTable.flush(dir)
+    |> elem(1)
     |> SSTable.from_path()
+    |> elem(1)
   end
 end

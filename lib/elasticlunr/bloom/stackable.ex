@@ -10,7 +10,6 @@ defmodule Elasticlunr.Bloom.Stackable do
   """
 
   alias Elasticlunr.Bloom
-  alias Elasticlunr.Fs
 
   defstruct [:capacity, :count, :fp_rate, :expansion, :bloom_filters]
 
@@ -21,8 +20,6 @@ defmodule Elasticlunr.Bloom.Stackable do
           expansion: pos_integer(),
           bloom_filters: [Bloom.t()]
         }
-
-  @filename "filter.db"
 
   @spec new(keyword()) :: t()
   def new(opts \\ []) do
@@ -74,66 +71,58 @@ defmodule Elasticlunr.Bloom.Stackable do
     %{mod | count: count + 1}
   end
 
-  @spec flush(t(), Path.t()) :: :ok | no_return()
-  def flush(
-        %__MODULE__{
-          fp_rate: fp_rate,
-          capacity: capacity,
-          count: count,
-          expansion: expansion,
-          bloom_filters: bfs
-        },
-        dir
-      ) do
-    path = Path.join(dir, @filename)
-    stream = Fs.stream(path)
+  @spec stream(t()) :: Enum.t()
+  def stream(%__MODULE__{bloom_filters: bfs}), do: bfs
 
-    filters =
-      bfs
-      |> Stream.map(fn bloom_filter ->
-        data = Bloom.serialize(bloom_filter)
-        size = byte_size(data)
-
-        <<size::unsigned-integer-size(32), data::binary>>
-      end)
-
+  @spec encode(t()) :: iodata()
+  def encode(%__MODULE__{
+        bloom_filters: bfs,
+        fp_rate: fp_rate,
+        capacity: capacity,
+        count: count,
+        expansion: expansion
+      }) do
     metadata =
-      <<capacity::unsigned-integer-size(64), fp_rate::unsigned-float, expansion,
+      <<capacity::unsigned-integer-size(64), fp_rate::unsigned-float, expansion::unsigned-integer,
         count::unsigned-integer-size(64)>>
 
-    [metadata]
-    |> Stream.concat(filters)
-    |> Stream.into(stream)
-    |> Stream.run()
+    bfs
+    |> Enum.map(fn bloom_filter ->
+      data = Bloom.serialize(bloom_filter)
+      size = byte_size(data)
+
+      <<size::unsigned-integer-size(32), data::binary>>
+    end)
+    |> then(&Enum.concat([metadata], &1))
   end
 
-  @spec from_path(Path.t()) :: t()
-  def from_path(dir) do
-    with path <- Path.join(dir, @filename),
-         fd <- Fs.open(path),
-         opts <- read_metadata(fd),
-         bloom_filters <- read_filters(fd),
-         :ok <- File.close(fd) do
-      struct!(__MODULE__, [bloom_filters: bloom_filters] ++ opts)
+  @spec decode(binary()) :: {:ok, t()}
+  def decode(binary) when is_binary(binary) do
+    with {:ok, opts, binary} when is_list(opts) <- read_metadata(binary),
+         bloom_filters when is_list(bloom_filters) <- read_filters(binary) do
+      {:ok, struct!(__MODULE__, [bloom_filters: bloom_filters] ++ opts)}
     end
   end
 
-  defp read_metadata(fd) do
-    with <<capacity::unsigned-integer-size(64)>> <- IO.binread(fd, 8),
-         <<fp_rate::unsigned-float>> <- IO.binread(fd, 8),
-         <<expansion::unsigned-integer>> <- IO.binread(fd, 1),
-         <<count::unsigned-integer-size(64)>> <- IO.binread(fd, 8) do
-      [fp_rate: fp_rate, capacity: capacity, count: count, expansion: expansion]
-    end
-  end
-
-  defp read_filters(fd, acc \\ []) do
-    with <<size::unsigned-integer-size(32)>> <- IO.binread(fd, 4),
-         <<data::binary>> <- IO.binread(fd, size),
-         bloom_filter <- Bloom.deserialize(data) do
-      read_filters(fd, [bloom_filter] ++ acc)
+  defp read_metadata(binary) do
+    with <<capacity::unsigned-integer-size(64), binary::binary>> <- binary,
+         <<fp_rate::unsigned-float, binary::binary>> <- binary,
+         <<expansion::unsigned-integer, binary::binary>> <- binary,
+         <<count::unsigned-integer-size(64), binary::binary>> <- binary do
+      {:ok, [fp_rate: fp_rate, capacity: capacity, count: count, expansion: expansion], binary}
     else
-      :eof -> Enum.reverse(acc)
+      _ -> {:error, :bloom_filter_corruption}
+    end
+  end
+
+  defp read_filters(binary, acc \\ [])
+  defp read_filters(<<>>, acc), do: Enum.reverse(acc)
+
+  defp read_filters(binary, acc) do
+    with <<size::unsigned-integer-size(32), binary::binary>> <- binary,
+         <<data::binary-size(size), binary::binary>> <- binary,
+         bloom_filter <- Bloom.deserialize(data) do
+      read_filters(binary, [bloom_filter] ++ acc)
     end
   end
 end

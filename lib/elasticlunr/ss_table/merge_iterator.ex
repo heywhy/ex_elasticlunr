@@ -1,4 +1,5 @@
 defmodule Elasticlunr.SSTable.MergeIterator do
+  alias Elasticlunr.FileMeta
   alias Elasticlunr.SSTable.Iterator
 
   defstruct [:iterators]
@@ -7,9 +8,9 @@ defmodule Elasticlunr.SSTable.MergeIterator do
           iterators: [Iterator.t()]
         }
 
-  @spec new([Path.t()]) :: t()
-  def new(paths) do
-    struct!(__MODULE__, iterators: Enum.map(paths, &Iterator.new/1))
+  @spec new([FileMeta.t()]) :: t()
+  def new(file_metas) do
+    struct!(__MODULE__, iterators: Enum.map(file_metas, &Iterator.new/1))
   end
 end
 

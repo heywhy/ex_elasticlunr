@@ -1,6 +1,8 @@
 defmodule Elasticlunr.Server.Writer do
   use GenServer
 
+  alias Elasticlunr.FileMeta
+  alias Elasticlunr.Manifest
   alias Elasticlunr.{FlushMemTableSupervisor, SSTable, Wal}
   alias Elasticlunr.Index.Writer
 
@@ -107,7 +109,7 @@ defmodule Elasticlunr.Server.Writer do
   defp write_to_disk_if_needed(%{task: task, writer: writer} = state) do
     with true <- Writer.buffer_filled?(writer),
          nil <- task,
-         task <- flush_async(writer) do
+         {task, writer} <- flush_async(writer) do
       %{state | task: task, tmp: writer, writer: Writer.clone(writer)}
     else
       false ->
@@ -129,12 +131,21 @@ defmodule Elasticlunr.Server.Writer do
     end
   end
 
-  defp flush_async(%{dir: dir, mem_table: mem_table, wal: wal}) do
-    Task.Supervisor.async(FlushMemTableSupervisor, fn ->
-      # This steps should be encapsulate in the writer module but wasn't
-      # because of data copying from this server to the task process
-      _path = SSTable.flush(mem_table, dir)
-      :ok = Wal.delete(wal)
-    end)
+  defp flush_async(%{dir: dir, manifest: manifest, mem_table: mem_table, wal: wal} = writer) do
+    {file_number, manifest} = Manifest.new_file_number(manifest)
+    file_meta = %FileMeta{dir: dir, number: file_number}
+
+    # TODO: revisit this logic to either move it to writer module
+    task =
+      Task.Supervisor.async(FlushMemTableSupervisor, fn ->
+        # This steps should be encapsulated in the writer module but wasn't
+        # because of data copying from this server to the task process
+        {:ok, _file_meta} = SSTable.flush(mem_table, file_meta)
+        :ok = Wal.delete(wal)
+
+        # TODO: after sstable is created successfully, send a message to process to add the file to the manifest as known file
+      end)
+
+    {task, %{writer | manifest: manifest}}
   end
 end

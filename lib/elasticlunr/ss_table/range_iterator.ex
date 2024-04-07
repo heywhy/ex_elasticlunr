@@ -1,7 +1,6 @@
 defmodule Elasticlunr.SSTable.RangeIterator do
   alias Elasticlunr.Fs
   alias Elasticlunr.SSTable.Entry
-  alias Elasticlunr.SSTable.Shared
 
   defstruct [:fd, :path, :start, :stop, :offset]
   @type range :: {pos_integer(), pos_integer()}
@@ -16,17 +15,12 @@ defmodule Elasticlunr.SSTable.RangeIterator do
 
   @spec new(Path.t(), range()) :: t()
   def new(path, {start, stop}) do
-    fd =
-      path
-      |> Shared.segment_file()
-      |> Fs.open()
-
     attrs = %{
-      fd: fd,
       path: path,
       stop: stop,
       start: start,
-      offset: start
+      offset: start,
+      fd: Fs.open(path)
     }
 
     struct!(__MODULE__, attrs)

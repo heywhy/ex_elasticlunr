@@ -1,5 +1,5 @@
 defmodule Elasticlunr.Filename do
-  @type file_type :: :current | :manifest | :log
+  @type file_type :: :current | :manifest | :log | :sst | :tmp
 
   @spec current(Path.t()) :: String.t()
   def current(path), do: "#{path}/CURRENT"
@@ -17,16 +17,23 @@ defmodule Elasticlunr.Filename do
     filename(path, number, "tmp")
   end
 
+  @spec ss_table(Path.t(), pos_integer()) :: String.t()
+  def ss_table(path, number) do
+    filename(path, number, "sst")
+  end
+
   @spec log(Path.t(), pos_integer()) :: String.t()
   def log(path, number) do
     # TODO: change suffix to `log`
     filename(path, number, "wal")
   end
 
-  @spec parse(Path.t()) :: {file_type(), pos_integer()}
+  @spec parse(Path.t()) :: {file_type(), integer()}
   def parse(path) do
     from_extension = fn file ->
       case String.split(file, ".") do
+        [number, "sst"] -> {:sst, String.to_integer(number)}
+        [number, "tmp"] -> {:tmp, String.to_integer(number)}
         [number, "wal"] -> {:log, String.to_integer(number)}
       end
     end

@@ -1,6 +1,4 @@
 defmodule Elasticlunr.SSTable.Offsets do
-  alias Elasticlunr.Fs
-
   @moduledoc """
   |---------------------------------|
   | offset(8B) | key_size(8B) | key |
@@ -10,8 +8,6 @@ defmodule Elasticlunr.SSTable.Offsets do
   defstruct [:entries]
 
   @type t :: %__MODULE__{entries: Treex.t()}
-
-  @filename "offsets.db"
 
   @spec new() :: t()
   def new, do: struct!(__MODULE__, entries: Treex.empty())
@@ -32,38 +28,39 @@ defmodule Elasticlunr.SSTable.Offsets do
     end
   end
 
-  @spec flush(t(), Path.t()) :: :ok
-  def flush(%__MODULE__{entries: tree}, dir) do
-    path = Path.join([dir, @filename])
+  @spec stream(t()) :: Enum.t()
+  def stream(%__MODULE__{entries: tree}), do: Treex.stream(tree)
 
-    Treex.stream(tree)
+  @spec encode(t()) :: iodata()
+  def encode(%__MODULE__{entries: tree}) do
+    tree
+    |> Treex.stream()
     |> Stream.map(fn {key, offset} ->
-      <<offset::unsigned-integer-size(64), <<byte_size(key)::unsigned-integer-size(64)>>,
+      <<offset::unsigned-integer-size(64), byte_size(key)::unsigned-integer-size(64),
         key::binary>>
     end)
-    |> Stream.into(Fs.stream(path))
-    |> Stream.run()
+    |> Enum.to_list()
   end
 
-  @spec from_path(Path.t()) :: t()
-  def from_path(dir) do
-    fun = fn fd, fun, offsets ->
-      with <<offset::unsigned-integer-size(64)>> <- IO.binread(fd, 8),
-           <<key_size::unsigned-integer-size(64)>> <- IO.binread(fd, 8),
-           key <- IO.binread(fd, key_size),
-           offsets <- set(offsets, key, offset) do
-        fun.(fd, fun, offsets)
-      else
-        :eof -> offsets
-      end
+  @spec decode(binary()) :: {:ok, t()}
+  def decode(binary) when is_binary(binary) do
+    fun = fn
+      <<>>, _fun, acc ->
+        acc
+
+      <<offset::unsigned-integer-size(64), key_size::unsigned-integer-size(64),
+        key::binary-size(key_size), rest::binary>>,
+      fun,
+      offsets ->
+        offsets
+        |> set(key, offset)
+        |> then(&fun.(rest, fun, &1))
     end
 
-    fd = Path.join([dir, @filename]) |> Fs.open()
-
-    fd
+    binary
     |> fun.(fun, new())
-    |> tap(fn _ -> :ok = File.close(fd) end)
     |> then(&%{&1 | entries: Treex.balance(&1.entries)})
+    |> then(&{:ok, &1})
   end
 
   defp find_boundary(node, key, acc \\ nil)

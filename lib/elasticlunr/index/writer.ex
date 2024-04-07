@@ -47,8 +47,30 @@ defmodule Elasticlunr.Index.Writer do
       patch_writer()
   end
 
-  # TODO: remove obsolete files
-  defp remove_obsolete_files(state) do
+  defp remove_obsolete_files(%{dir: dir, manifest: manifest} = state) do
+    known_files = Manifest.known_files(manifest)
+
+    keep? = fn path ->
+      case Filename.parse(path) do
+        {:current, _number} -> true
+        {:log, number} -> number >= manifest.log_number
+        {:manifest, number} -> number >= manifest.number
+        {:tmp, number} -> Enum.member?(known_files, number)
+      end
+    end
+
+    files_to_delete =
+      dir
+      |> db_files()
+      |> Enum.reduce([], fn path, acc ->
+        case keep?.(path) do
+          false -> [path] ++ acc
+          true -> acc
+        end
+      end)
+
+    Enum.each(files_to_delete, &File.rm/1)
+
     {:ok, state}
   end
 
@@ -70,17 +92,14 @@ defmodule Elasticlunr.Index.Writer do
   end
 
   defp reuse_last_log(
-         %{dir: dir, compactions: compactions, last_log_number: log_number, manifest: manifest} =
+         %{dir: dir, compactions: 0, last_log_number: log_number, manifest: manifest} =
            state
        ) do
-    case compactions == 0 do
-      true ->
-        dir
-        |> Wal.create(log_number)
-        |> then(&Map.put(state, :wal, &1))
-        |> then(&%{&1 | manifest: manifest})
-        |> then(&{:ok, &1})
-    end
+    dir
+    |> Wal.create(log_number)
+    |> then(&Map.put(state, :wal, &1))
+    |> then(&%{&1 | manifest: manifest})
+    |> then(&{:ok, &1})
   end
 
   defp recover_from_logs(%{log_files: []} = state) do
@@ -157,7 +176,6 @@ defmodule Elasticlunr.Index.Writer do
     end)
     |> case do
       %{mem_table: mt, log_number: ln, last_log_number: lln} = p when ln != lln ->
-        # TODO: match against an atom
         # Write to level 0 in case the log got hanging due to incomplete compaction.
         # See `Elasticlunr.Server.Writer.flush_async/1`
         :ok = write_to_level_0(mt, dir)
