@@ -1,12 +1,12 @@
 defmodule Elasticlunr.FileMeta do
-  @enforce_keys [:dir, :number]
+  @enforce_keys [:number]
   defstruct [:dir, :number, :smallest_key, :largest_key, size: 0]
 
   @type t :: %__MODULE__{
-          dir: Path.t(),
           size: integer(),
           number: pos_integer(),
-          largest_key: binary(),
-          smallest_key: binary()
+          dir: nil | Path.t(),
+          largest_key: nil | binary(),
+          smallest_key: nil | binary()
         }
 end

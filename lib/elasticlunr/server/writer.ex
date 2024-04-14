@@ -2,9 +2,10 @@ defmodule Elasticlunr.Server.Writer do
   use GenServer
 
   alias Elasticlunr.FileMeta
-  alias Elasticlunr.Manifest
-  alias Elasticlunr.{FlushMemTableSupervisor, SSTable, Wal}
   alias Elasticlunr.Index.Writer
+  alias Elasticlunr.Manifest
+  alias Elasticlunr.Manifest.Changes
+  alias Elasticlunr.{FlushMemTableSupervisor, SSTable, Wal}
 
   require Logger
 
@@ -71,10 +72,27 @@ defmodule Elasticlunr.Server.Writer do
   end
 
   @impl true
-  def handle_info({ref, :ok}, %__MODULE__{task: %Task{ref: ref}} = state) do
+  def handle_info({ref, %FileMeta{} = file_meta}, %__MODULE__{task: %Task{ref: ref}} = state) do
     Process.demonitor(ref, [:flush])
 
-    {:noreply, %{state | task: nil, tmp: nil}}
+    case handle_info({:add_file, file_meta}, state) do
+      {:noreply, state} -> {:noreply, %{state | task: nil, tmp: nil}}
+      error -> error
+    end
+  end
+
+  def handle_info({:add_file, file_meta}, %__MODULE__{writer: writer} = state) do
+    %Writer{manifest: manifest} = writer
+
+    %Changes{}
+    |> Changes.add_file(file_meta)
+    |> then(&Manifest.apply_and_log(manifest, &1))
+    |> case do
+      {:ok, manifest} ->
+        writer = %{writer | manifest: manifest}
+
+        {:noreply, %{state | writer: writer}}
+    end
   end
 
   def handle_info({:DOWN, ref, _, _, reason}, %__MODULE__{task: %Task{ref: ref}} = state) do
@@ -125,8 +143,10 @@ defmodule Elasticlunr.Server.Writer do
   def wait_for_task(nil), do: :ok
 
   def wait_for_task(task) do
-    case Task.yield(task) || Task.ignore(task) do
-      {:ok, _} -> :ok
+    with {:ok, file_meta} <- Task.yield(task) || Task.ignore(task),
+         {:add_file, ^file_meta} <- send(self(), {:add_file, file_meta}) do
+      :ok
+    else
       nil -> wait_for_task(task)
     end
   end
@@ -140,10 +160,11 @@ defmodule Elasticlunr.Server.Writer do
       Task.Supervisor.async(FlushMemTableSupervisor, fn ->
         # This steps should be encapsulated in the writer module but wasn't
         # because of data copying from this server to the task process
-        {:ok, _file_meta} = SSTable.flush(mem_table, file_meta)
-        :ok = Wal.delete(wal)
-
-        # TODO: after sstable is created successfully, send a message to process to add the file to the manifest as known file
+        with {:ok, file_meta} <- SSTable.flush(mem_table, file_meta),
+             :ok <- Wal.delete(wal),
+             true <- file_meta.size > 0 do
+          file_meta
+        end
       end)
 
     {task, %{writer | manifest: manifest}}

@@ -9,8 +9,8 @@ defmodule Elasticlunr.Workflow.WriteSSTable do
   alias Elasticlunr.SSTable.Entry
   alias Elasticlunr.SSTable.Offsets
 
-  @enforce_keys [:entries]
-  defstruct [:entries, :bloom_filter, offsets: Offsets.new()]
+  @enforce_keys [:entries, :file_meta]
+  defstruct [:entries, :file_meta, :bloom_filter, offsets: Offsets.new()]
 
   @type t :: %__MODULE__{
           entries: Enum.t(),
@@ -18,31 +18,36 @@ defmodule Elasticlunr.Workflow.WriteSSTable do
           bloom_filter: BloomFilter.t()
         }
 
-  @spec new(MemTable.t() | Enum.t()) :: t()
-  def new(%MemTable{} = mem_table) do
+  @spec new(MemTable.t() | Enum.t(), FileMeta.t()) :: t()
+  def new(%MemTable{} = mem_table, %FileMeta{} = file_meta) do
     mem_table
     |> MemTable.stream()
     |> Stream.map(&Entry.from/1)
-    |> new()
+    |> new(file_meta)
   end
 
-  def new(entries) do
+  def new(entries, file_meta) do
     attrs = %{
       entries: entries,
+      file_meta: file_meta,
       bloom_filter: BloomFilter.new()
     }
 
     struct!(__MODULE__, attrs)
   end
 
-  @spec run(t(), FileMeta.t()) :: {:ok, FileMeta.t()} | {:error, File.posix()}
-  def run(
-        %__MODULE__{entries: entries, offsets: offsets, bloom_filter: bloom_filter},
-        %FileMeta{} = file_meta
-      ) do
+  @spec run(t()) :: {:ok, FileMeta.t()} | {:error, File.posix()}
+  def run(%__MODULE__{
+        entries: entries,
+        file_meta: file_meta,
+        offsets: offsets,
+        bloom_filter: bloom_filter
+      }) do
     %{
       offset: 0,
       last_entry: nil,
+      largest_key: nil,
+      smallest_key: nil,
       entries: entries,
       offsets: offsets,
       file_meta: file_meta,
@@ -72,7 +77,8 @@ defmodule Elasticlunr.Workflow.WriteSSTable do
     entries
     |> Stream.with_index()
     |> Enum.reduce_while({:ok, state}, fn {entry, index}, acc ->
-      %{offset: offset, offsets: offsets, bloom_filter: bloom_filter} = ok(acc)
+      %{offset: offset, offsets: offsets, bloom_filter: bloom_filter, smallest_key: smallest_key} =
+        ok(acc)
 
       entry_size = Entry.size(entry)
       binary = Entry.to_binary(entry)
@@ -95,7 +101,9 @@ defmodule Elasticlunr.Workflow.WriteSSTable do
               bloom_filter: bloom_filter,
               last_entry: entry,
               offset: new_offset,
-              index_size: new_offset
+              index_size: new_offset,
+              largest_key: entry.key,
+              smallest_key: smallest_key || entry.key
           }
 
           {:cont, {:ok, new_state}}
@@ -168,9 +176,15 @@ defmodule Elasticlunr.Workflow.WriteSSTable do
     end
   end
 
-  defp close_file(%{fd: fd, offset: offset, file_meta: file_meta}) do
+  defp close_file(%{
+         fd: fd,
+         offset: offset,
+         file_meta: file_meta,
+         largest_key: largest_key,
+         smallest_key: smallest_key
+       }) do
     with :ok <- File.close(fd) do
-      {:ok, %{file_meta | size: offset}}
+      {:ok, %{file_meta | size: offset, largest_key: largest_key, smallest_key: smallest_key}}
     end
   end
 end

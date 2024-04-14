@@ -10,17 +10,16 @@ defmodule Elasticlunr.SSTableTest do
   import Elasticlunr.Fixture
 
   setup do
-    dir = tmp_dir!()
-    file = %FileMeta{dir: dir, number: Utils.now()}
+    file = new_file_meta()
 
     mem_table =
       MemTable.new()
       |> MemTable.set("key", "value", 1)
       |> MemTable.set("key1", "value1", 2)
 
-    on_exit(fn -> File.rm_rf(dir) end)
+    on_exit(fn -> File.rm_rf(file.dir) end)
 
-    [dir: dir, file_meta: file, mem_table: mem_table]
+    [dir: file.dir, file_meta: file, mem_table: mem_table]
   end
 
   test "count/1", %{file_meta: file_meta, mem_table: mem_table} do

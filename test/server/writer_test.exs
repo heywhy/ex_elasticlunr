@@ -2,11 +2,14 @@ defmodule Elasticlunr.Server.WriterTest do
   use ExUnit.Case, async: true
 
   alias Elasticlunr.Book
+  alias Elasticlunr.Filename
+  alias Elasticlunr.Manifest
   alias Elasticlunr.Server.Writer
   alias Elasticlunr.SSTable
   alias Elasticlunr.Utils
 
   import Elasticlunr.Fixture
+  import Liveness
 
   setup do
     dir = tmp_dir!()
@@ -80,5 +83,21 @@ defmodule Elasticlunr.Server.WriterTest do
     assert segments = SSTable.list(dir)
     refute Enum.empty?(segments)
     assert Enum.count(segments) >= 2
+  end
+
+  test "newly created sstable is added to the manifest", %{dir: dir, pid: pid} do
+    for _ <- 0..10 do
+      GenServer.call(pid, {:save, new_book()})
+    end
+
+    assert eventually(fn ->
+             %{writer: writer} = :sys.get_state(pid)
+
+             dir
+             |> SSTable.list()
+             |> Enum.map(fn path -> Filename.parse(path) end)
+             |> MapSet.new(fn {:sst, number} -> number end)
+             |> Kernel.==(Manifest.known_files(writer.manifest))
+           end)
   end
 end

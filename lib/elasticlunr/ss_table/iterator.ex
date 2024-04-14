@@ -38,12 +38,12 @@ defmodule Elasticlunr.SSTable.Iterator do
 
     iterator = %{iterator | offset: new_offset}
 
-    cond do
-      eof?(iterator) ->
+    case eof?(iterator) do
+      true ->
         :ok = File.close(iterator.fd)
         {entry, iterator}
 
-      true ->
+      false ->
         {entry, iterator}
     end
   end

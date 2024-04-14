@@ -3,6 +3,7 @@ defmodule Elasticlunr.Index.Writer do
 
   alias Elasticlunr.Filename
   alias Elasticlunr.Manifest
+  alias Elasticlunr.Manifest.Changes
   alias Elasticlunr.MemTable
   alias Elasticlunr.MemTable.Entry, as: MemTableEntry
   alias Elasticlunr.Schema
@@ -80,8 +81,8 @@ defmodule Elasticlunr.Index.Writer do
 
   defp reuse_last_log(%{log_files: [], dir: dir, manifest: manifest} = params) do
     {number, manifest} = Manifest.new_file_number(manifest)
-    changes = %{log_number: number}
     wal = Wal.create(dir, number)
+    changes = Changes.set_log_number(number)
 
     with {:ok, manifest} <- Manifest.apply_and_log(manifest, changes) do
       params
@@ -254,7 +255,8 @@ defmodule Elasticlunr.Index.Writer do
 
     with :ok <- File.touch(path),
          manifest = Manifest.new(1, dir),
-         {:ok, manifest} <- Manifest.apply_and_log(manifest, %{next_file_number: 2}),
+         changes = Changes.set_next_file_number(2),
+         {:ok, manifest} <- Manifest.apply_and_log(manifest, changes),
          :ok <- Manifest.close(manifest) do
       set_current_manifest(dir, 1)
     else
@@ -282,9 +284,11 @@ defmodule Elasticlunr.Index.Writer do
 
   @spec clone(t()) :: t()
   def clone(%__MODULE__{dir: dir, manifest: manifest} = writer) do
-    {number, manifest} = Manifest.new_file_number(manifest)
-
-    %{writer | manifest: manifest, wal: Wal.create(dir, number), mem_table: MemTable.new()}
+    with {number, manifest} <- Manifest.new_file_number(manifest),
+         changes = Changes.set_log_number(number),
+         {:ok, manifest} <- Manifest.apply_and_log(manifest, changes) do
+      %{writer | manifest: manifest, wal: Wal.create(dir, number), mem_table: MemTable.new()}
+    end
   end
 
   @spec buffer_filled?(t()) :: boolean()

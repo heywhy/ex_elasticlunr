@@ -5,16 +5,16 @@ defmodule Elasticlunr.MemTable do
 
   @type t :: %__MODULE__{
           entries: Treex.t(),
-          size: pos_integer()
+          size: non_neg_integer()
         }
 
   @spec new() :: t()
   def new, do: struct!(__MODULE__)
 
-  @spec length(t()) :: pos_integer()
+  @spec length(t()) :: non_neg_integer()
   def length(%__MODULE__{entries: entries}), do: Treex.size(entries)
 
-  @spec size(t()) :: pos_integer()
+  @spec size(t()) :: non_neg_integer()
   def size(%__MODULE__{size: size}), do: size
 
   @spec stream(t()) :: Enumerable.t()

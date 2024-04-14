@@ -1,5 +1,6 @@
 defmodule Elasticlunr.Fixture do
   alias Elasticlunr.Book
+  alias Elasticlunr.FileMeta
   alias Elasticlunr.MemTable
   alias Elasticlunr.SSTable
   alias Elasticlunr.Utils
@@ -18,14 +19,18 @@ defmodule Elasticlunr.Fixture do
     }
   end
 
-  @spec new_sstable(Path.t()) :: Path.t()
-  def new_sstable(dir, count \\ 10) do
+  @spec new_file_meta() :: FileMeta.t()
+  def new_file_meta, do: %FileMeta{dir: tmp_dir!(), number: Utils.now()}
+
+  @spec new_sstable(non_neg_integer()) :: FileMeta.t() | File.posix()
+  def new_sstable(count \\ 10) do
     0
     |> Range.new(count - 1)
     |> Enum.reduce(MemTable.new(), fn _, mem_table ->
       MemTable.set(mem_table, Pokemon.name(), Pokemon.location(), Utils.now())
     end)
-    |> SSTable.flush(dir)
+    |> SSTable.flush(new_file_meta())
+    |> elem(1)
   end
 
   @spec tmp_dir!() :: Path.t()

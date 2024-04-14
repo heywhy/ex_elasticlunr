@@ -53,7 +53,7 @@ defmodule Elasticlunr.SSTable do
     end)
   end
 
-  @spec flush(MemTable.t(), FileMeta.t()) :: Path.t() | no_return()
+  @spec flush(MemTable.t(), FileMeta.t()) :: {:ok, FileMeta.t()} | {:error, File.posix()}
   def flush(%MemTable{} = mem_table, %FileMeta{dir: dir, number: number} = file_meta) do
     path = Filename.ss_table(dir, number)
 
@@ -65,8 +65,8 @@ defmodule Elasticlunr.SSTable do
 
     Telemeter.track(@flush_event, metadata, fn ->
       mem_table
-      |> WriteSSTable.new()
-      |> WriteSSTable.run(file_meta)
+      |> WriteSSTable.new(file_meta)
+      |> WriteSSTable.run()
       # TODO: add file size as part of metadata
       |> then(&{&1, %{}})
     end)
@@ -84,8 +84,8 @@ defmodule Elasticlunr.SSTable do
       # TODO: Make tombstone grace period configurable (currently 10 days)
       |> Kernel.>=(864_000)
     end)
-    |> WriteSSTable.new()
-    |> WriteSSTable.run(file_meta)
+    |> WriteSSTable.new(file_meta)
+    |> WriteSSTable.run()
   end
 
   @spec count(t()) :: pos_integer()

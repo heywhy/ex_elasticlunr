@@ -1,5 +1,7 @@
 defmodule Elasticlunr.Manifest do
+  alias Elasticlunr.FileMeta
   alias Elasticlunr.Filename
+  alias Elasticlunr.Manifest.Changes
 
   use Rop
 
@@ -8,17 +10,17 @@ defmodule Elasticlunr.Manifest do
     :number,
     :log_number,
     :next_file_number,
-    :new_files,
-    :deleted_files,
+    :files,
     :versions
   ]
 
   @type t :: %__MODULE__{
-          number: pos_integer()
+          fd: File.io_device(),
+          number: non_neg_integer(),
+          log_number: non_neg_integer(),
+          next_file_number: non_neg_integer(),
+          files: %{non_neg_integer() => [FileMeta.t()]}
         }
-
-  @k_log_number 0
-  @k_next_file_number 1
 
   @opts [:append, :binary]
 
@@ -29,8 +31,7 @@ defmodule Elasticlunr.Manifest do
     attrs = %{
       log_number: 0,
       next_file_number: 0,
-      new_files: [],
-      deleted_files: [],
+      files: %{},
       versions: [],
       number: number,
       fd: File.open!(path, @opts)
@@ -61,102 +62,106 @@ defmodule Elasticlunr.Manifest do
     end
   end
 
-  @spec apply_and_log(t(), map()) :: {:ok, t()} | {:error, term()}
-  def apply_and_log(%__MODULE__{} = manifest, changes) do
-    p = %{changes: changes, manifest: manifest}
+  @spec apply_and_log(t(), Changes.t()) :: {:ok, t()} | {:error, term()}
+  def apply_and_log(%__MODULE__{} = manifest, %Changes{} = changes) do
+    do_apply(manifest, changes) >>> log_changes()
+  end
 
-    validate_or_set_log_number(p) >>>
-      set_next_file_number() >>>
-      log_changes()
+  defp do_apply(%__MODULE__{} = manifest, %Changes{} = changes) do
+    set_next_file_number(%{changes: changes, manifest: manifest}) >>>
+      validate_or_set_log_number() >>>
+      merge_files()
+  end
+
+  defp merge_files(%{changes: changes, manifest: manifest} = params) do
+    %__MODULE__{files: files} = manifest
+    %Changes{new_files: new_files} = changes
+
+    files =
+      Enum.reduce(new_files, files, fn {level, file}, files ->
+        files
+        |> Map.get(level, [])
+        |> then(&([file] ++ &1))
+        |> then(&Map.put(files, level, &1))
+      end)
+
+    {:ok, %{params | manifest: %{manifest | files: files}}}
   end
 
   defp log_changes(%{changes: changes, manifest: manifest}) do
-    :ok =
-      changes
-      |> encode_changes()
-      |> then(&IO.binwrite(manifest.fd, &1))
-
-    {:ok, struct!(manifest, changes)}
+    changes
+    |> Changes.encode()
+    |> then(&[IO.iodata_length(&1), &1])
+    |> then(&IO.binwrite(manifest.fd, &1))
+    |> case do
+      :ok -> {:ok, manifest}
+      error -> error
+    end
   end
 
-  defp encode_changes(%{} = changes) do
-    Enum.reduce(changes, <<>>, fn {key, value}, acc ->
-      <<acc::bits, encode(key, value)::bits>>
-    end)
-  end
-
-  defp encode(:log_number, value) do
-    <<@k_log_number::unsigned-integer, value::unsigned-integer-size(64)>>
-  end
-
-  defp encode(:next_file_number, value) do
-    <<@k_next_file_number::unsigned-integer, value::unsigned-integer-size(64)>>
+  defp set_next_file_number(
+         %{
+           changes: %{next_file_number: number},
+           manifest: manifest
+         } = params
+       )
+       when is_integer(number) do
+    manifest = %{manifest | next_file_number: number}
+    {:ok, %{params | manifest: manifest}}
   end
 
   defp set_next_file_number(%{changes: changes, manifest: manifest} = params) do
     changes
-    |> Map.put_new(:next_file_number, manifest.next_file_number)
-    |> then(&Map.put(params, :changes, &1))
-    |> then(&{:ok, &1})
+    |> Map.put(:next_file_number, manifest.next_file_number)
+    |> then(&{:ok, %{params | changes: &1}})
   end
 
   defp validate_or_set_log_number(
          %{
            changes: %{log_number: number},
-           manifest: %{log_number: log_number, next_file_number: next_file_number}
+           manifest: %{log_number: log_number, next_file_number: next_file_number} = manifest
          } = params
        )
        when is_integer(number) do
     case number >= log_number and number < next_file_number do
-      true -> {:ok, params}
-      false -> {:error, "log number needs to be greater than current"}
+      true ->
+        %{manifest | log_number: number}
+        |> then(&{:ok, %{params | manifest: &1}})
+
+      false ->
+        {:error, "log number needs to be greater than current"}
     end
   end
 
-  defp validate_or_set_log_number(%{changes: changes, manifest: manifest} = params) do
-    changes
-    |> Map.put_new(:log_number, manifest.log_number)
-    |> then(&Map.put(params, :changes, &1))
-    |> then(&{:ok, &1})
-  end
+  defp validate_or_set_log_number(params), do: {:ok, params}
 
   @spec known_files(t()) :: MapSet.t(pos_integer())
-  def known_files(%__MODULE__{}) do
-    MapSet.new()
+  def known_files(%__MODULE__{files: files}) do
+    Enum.reduce(files, MapSet.new(), fn {_level, files}, set ->
+      Enum.reduce(files, set, &MapSet.put(&2, &1.number))
+    end)
   end
 
   @spec from_path(Path.t()) :: {:ok, t()}
   def from_path(path) do
     with {:manifest, number} <- Filename.parse(path),
          {:ok, fd} <- File.open(path, [:read, :binary]),
-         %{} = changes <- extract_changes(fd),
+         manifest = new(number, Path.dirname(path)),
+         %{} = manifest <- read_and_apply_changes(manifest, fd),
          :ok <- File.close(fd) do
-      path
-      |> Path.dirname()
-      |> then(&new(number, &1))
-      |> then(&struct!(&1, changes))
-      |> then(&{:ok, &1})
-    else
-      error -> error
+      {:ok, manifest}
     end
   end
 
-  defp extract_changes(fd, acc \\ %{}) do
-    with <<tag::unsigned-integer>> <- IO.binread(fd, 1),
-         {key, value} <- read_tagged_change(tag, fd) do
-      acc = Map.put(acc, key, value)
-      extract_changes(fd, acc)
+  defp read_and_apply_changes(manifest, fd) do
+    with <<size::unsigned-integer>> <- IO.binread(fd, 1),
+         binary when is_binary(binary) <- IO.binread(fd, size),
+         %{} = changes <- Changes.decode(binary),
+         {:ok, %{manifest: manifest}} <- do_apply(manifest, changes) do
+      read_and_apply_changes(manifest, fd)
     else
-      :eof -> acc
+      :eof -> manifest
       error -> error
     end
   end
-
-  defp read_tagged_change(tag, fd) when tag in [@k_log_number, @k_next_file_number] do
-    <<value::unsigned-integer-size(64)>> = IO.binread(fd, 8)
-    {tag_to_field(tag), value}
-  end
-
-  defp tag_to_field(@k_log_number), do: :log_number
-  defp tag_to_field(@k_next_file_number), do: :next_file_number
 end

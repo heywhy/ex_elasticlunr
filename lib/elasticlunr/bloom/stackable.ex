@@ -15,9 +15,9 @@ defmodule Elasticlunr.Bloom.Stackable do
 
   @type t :: %__MODULE__{
           fp_rate: float(),
-          count: pos_integer(),
-          capacity: pos_integer(),
-          expansion: pos_integer(),
+          count: non_neg_integer(),
+          capacity: non_neg_integer(),
+          expansion: non_neg_integer(),
           bloom_filters: [Bloom.t()]
         }
 
@@ -41,7 +41,7 @@ defmodule Elasticlunr.Bloom.Stackable do
   @spec check?(t(), term()) :: boolean()
   def check?(%__MODULE__{bloom_filters: bfs}, term), do: Enum.any?(bfs, &Bloom.check?(&1, term))
 
-  @spec count(t()) :: pos_integer()
+  @spec count(t()) :: non_neg_integer()
   def count(%__MODULE__{count: count}), do: count
 
   @spec set(t(), term()) :: t()
@@ -70,9 +70,6 @@ defmodule Elasticlunr.Bloom.Stackable do
 
     %{mod | count: count + 1}
   end
-
-  @spec stream(t()) :: Enum.t()
-  def stream(%__MODULE__{bloom_filters: bfs}), do: bfs
 
   @spec encode(t()) :: iodata()
   def encode(%__MODULE__{
