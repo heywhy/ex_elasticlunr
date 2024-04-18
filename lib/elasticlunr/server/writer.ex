@@ -2,11 +2,13 @@ defmodule Elasticlunr.Server.Writer do
   use GenServer
 
   alias Elasticlunr.FileMeta
+  alias Elasticlunr.FlushMemTableSupervisor
   alias Elasticlunr.Index.Writer
   alias Elasticlunr.Manifest
   alias Elasticlunr.Manifest.Changes
-  alias Elasticlunr.{FlushMemTableSupervisor, SSTable, Wal}
   alias Elasticlunr.PubSub
+  alias Elasticlunr.SSTable
+  alias Elasticlunr.Wal
 
   require Logger
 

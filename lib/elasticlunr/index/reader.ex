@@ -1,6 +1,6 @@
 defmodule Elasticlunr.Index.Reader do
-  alias Elasticlunr.Filename
   alias Elasticlunr.FileMeta
+  alias Elasticlunr.Filename
   alias Elasticlunr.Schema
   alias Elasticlunr.SSTable
   alias Elasticlunr.SSTable.Entry

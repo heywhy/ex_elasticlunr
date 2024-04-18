@@ -2,12 +2,12 @@ defmodule Elasticlunr.Server.Reader do
   use GenServer
   use Rop
 
-  alias Elasticlunr.PubSub
   alias Elasticlunr.FileMeta
   alias Elasticlunr.Filename
   alias Elasticlunr.Fs
   alias Elasticlunr.Index.Reader
   alias Elasticlunr.Manifest
+  alias Elasticlunr.PubSub
   alias Elasticlunr.SSTable
 
   require Logger

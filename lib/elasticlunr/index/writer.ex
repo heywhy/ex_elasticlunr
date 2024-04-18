@@ -1,8 +1,8 @@
 defmodule Elasticlunr.Index.Writer do
   use Rop
 
-  alias Elasticlunr.Fs
   alias Elasticlunr.Filename
+  alias Elasticlunr.Fs
   alias Elasticlunr.Manifest
   alias Elasticlunr.Manifest.Changes
   alias Elasticlunr.MemTable

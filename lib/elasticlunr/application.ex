@@ -5,7 +5,6 @@ defmodule Elasticlunr.Application do
 
   use Application
 
-  alias Elasticlunr.Compaction
   alias Elasticlunr.PubSub
 
   @impl true
@@ -15,10 +14,7 @@ defmodule Elasticlunr.Application do
       {Registry, name: Elasticlunr.Fs, keys: :unique},
       {Registry, name: Elasticlunr.IndexRegistry, keys: :unique},
       {Task.Supervisor, name: Elasticlunr.FlushMemTableSupervisor},
-      FlakeIdWorker,
-      Compaction.Scheduler
-      # Starts a worker by calling: Elasticlunr.Worker.start_link(arg)
-      # {Elasticlunr.Worker, arg}
+      FlakeIdWorker
     ]
 
     # See https://hexdocs.pm/elixir/Supervisor.html
