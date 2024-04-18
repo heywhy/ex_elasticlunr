@@ -14,6 +14,13 @@ defmodule Elasticlunr.Fs do
     fd
   end
 
+  @spec db_files(Path.t()) :: [Path.t()]
+  def db_files(path) do
+    path
+    |> Path.join("*")
+    |> Path.wildcard()
+  end
+
   # coveralls-ignore-start
   @spec read(Path.t()) :: binary()
   def read(path) do

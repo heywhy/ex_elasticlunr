@@ -6,6 +6,7 @@ defmodule Elasticlunr.Server.Writer do
   alias Elasticlunr.Manifest
   alias Elasticlunr.Manifest.Changes
   alias Elasticlunr.{FlushMemTableSupervisor, SSTable, Wal}
+  alias Elasticlunr.PubSub
 
   require Logger
 
@@ -24,16 +25,12 @@ defmodule Elasticlunr.Server.Writer do
     schema = Keyword.fetch!(opts, :schema)
     mt_max_size = Keyword.fetch!(opts, :mem_table_max_size)
 
-    writer = Writer.new(dir, schema, mt_max_size)
-
-    {:ok, %__MODULE__{writer: writer}, {:continue, :recover}}
-  end
-
-  @impl true
-  def handle_continue(:recover, %__MODULE__{writer: writer} = state) do
-    case Writer.recover(writer) do
-      {:ok, writer} -> {:noreply, %{state | writer: writer}}
-      {:error, reason} -> {:stop, reason, state}
+    dir
+    |> Writer.new(schema, mt_max_size)
+    |> Writer.recover()
+    |> case do
+      {:ok, writer} -> {:ok, %__MODULE__{writer: writer}}
+      {:error, reason} -> {:stop, reason}
     end
   end
 
@@ -82,7 +79,7 @@ defmodule Elasticlunr.Server.Writer do
   end
 
   def handle_info({:add_file, file_meta}, %__MODULE__{writer: writer} = state) do
-    %Writer{manifest: manifest} = writer
+    %Writer{manifest: manifest, schema: schema} = writer
 
     %Changes{}
     |> Changes.add_file(file_meta)
@@ -90,6 +87,8 @@ defmodule Elasticlunr.Server.Writer do
     |> case do
       {:ok, manifest} ->
         writer = %{writer | manifest: manifest}
+
+        :ok = PubSub.publish(schema.name, :add_file, file_meta)
 
         {:noreply, %{state | writer: writer}}
     end
@@ -161,6 +160,7 @@ defmodule Elasticlunr.Server.Writer do
         # This steps should be encapsulated in the writer module but wasn't
         # because of data copying from this server to the task process
         with {:ok, file_meta} <- SSTable.flush(mem_table, file_meta),
+             # TODO: remove wal from manifest
              :ok <- Wal.delete(wal),
              true <- file_meta.size > 0 do
           file_meta

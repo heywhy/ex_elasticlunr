@@ -1,4 +1,6 @@
 defmodule Elasticlunr.Index.Reader do
+  alias Elasticlunr.Filename
+  alias Elasticlunr.FileMeta
   alias Elasticlunr.Schema
   alias Elasticlunr.SSTable
   alias Elasticlunr.SSTable.Entry
@@ -25,33 +27,22 @@ defmodule Elasticlunr.Index.Reader do
     struct!(__MODULE__, attrs)
   end
 
-  defdelegate lockfile?(path), to: SSTable
-
-  def add_segment(%__MODULE__{segments: segments} = reader, path) when is_binary(path) do
-    segments
-    |> Enum.find(&(&1.path == path))
-    |> case do
-      %SSTable{} ->
-        reader
-
-      nil ->
-        ss_table = SSTable.from_path(path)
-        %{reader | segments: [ss_table] ++ segments}
-    end
-  end
-
-  @spec remove_segment(t(), Path.t()) :: t()
-  def remove_segment(%__MODULE__{segments: segments} = reader, path) when is_binary(path) do
-    segments
-    |> Enum.reject(&(&1.path == path))
-    |> then(&%{reader | segments: &1})
-  end
-
-  @spec load_segments(Path.t()) :: [SSTable.t()]
-  def load_segments(dir) do
+  @spec loaded?(t(), FileMeta.t()) :: boolean()
+  def loaded?(%__MODULE__{segments: segments}, %FileMeta{dir: dir, number: number}) do
     dir
-    |> SSTable.list()
-    |> Enum.map(&SSTable.from_path/1)
+    |> Filename.ss_table(number)
+    |> then(&Enum.any?(segments, fn ss_table -> ss_table.path == &1 end))
+  end
+
+  @spec add_segment(t(), FileMeta.t()) :: {:ok, t()} | {:error, File.posix()}
+  def add_segment(%__MODULE__{segments: segments} = reader, %FileMeta{} = file_meta) do
+    with false <- loaded?(reader, file_meta),
+         {:ok, ss_table} <- SSTable.from_path(file_meta) do
+      {:ok, %{reader | segments: [ss_table] ++ segments}}
+    else
+      true -> {:ok, reader}
+      error -> error
+    end
   end
 
   @spec get(t(), String.t()) :: map() | nil

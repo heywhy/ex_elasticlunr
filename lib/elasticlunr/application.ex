@@ -6,10 +6,12 @@ defmodule Elasticlunr.Application do
   use Application
 
   alias Elasticlunr.Compaction
+  alias Elasticlunr.PubSub
 
   @impl true
   def start(_type, _args) do
     children = [
+      PubSub,
       {Registry, name: Elasticlunr.Fs, keys: :unique},
       {Registry, name: Elasticlunr.IndexRegistry, keys: :unique},
       {Task.Supervisor, name: Elasticlunr.FlushMemTableSupervisor},

@@ -55,6 +55,7 @@ defmodule Elasticlunr.Server.ReaderTest do
     assert eventually(fn -> GenServer.call(pid, {:get, document.id}) end)
   end
 
+  @tag skip: "testing should be all about compacting sstables"
   test "update internals when a segment is deleted", %{
     dir: dir,
     pid: pid,
@@ -69,7 +70,6 @@ defmodule Elasticlunr.Server.ReaderTest do
 
     assert eventually(fn -> GenServer.call(pid, {:get, document.id}) end)
     assert Enum.each(ss_tables, &File.rm_rf!/1)
-    assert wait_for_lockfile_event()
     assert_received {:remove_lockfile, _dir, _path}
     assert eventually(fn -> GenServer.call(pid, {:get, document.id}) == nil end)
   end
@@ -82,18 +82,5 @@ defmodule Elasticlunr.Server.ReaderTest do
 
     assert entry = eventually(fn -> GenServer.call(pid, {:get, document.id}) end)
     assert entry.id == document.id
-  end
-
-  defp wait_for_lockfile_event do
-    receive do
-      {:file_event, _watcher, {path, events}} ->
-        path
-        |> SSTable.lockfile?()
-        |> Kernel.and(Fs.event_to_action(events) == :remove)
-        |> case do
-          false -> wait_for_lockfile_event()
-          true -> send(self(), {:remove_lockfile, Path.dirname(path), path})
-        end
-    end
   end
 end

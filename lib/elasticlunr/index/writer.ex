@@ -1,6 +1,7 @@
 defmodule Elasticlunr.Index.Writer do
   use Rop
 
+  alias Elasticlunr.Fs
   alias Elasticlunr.Filename
   alias Elasticlunr.Manifest
   alias Elasticlunr.Manifest.Changes
@@ -62,7 +63,7 @@ defmodule Elasticlunr.Index.Writer do
 
     files_to_delete =
       dir
-      |> db_files()
+      |> Fs.db_files()
       |> Enum.reduce([], fn path, acc ->
         case keep?.(path) do
           false -> [path] ++ acc
@@ -131,6 +132,7 @@ defmodule Elasticlunr.Index.Writer do
     end
 
     log_files
+    |> Enum.sort()
     |> Enum.reduce_while(params, fn log_number, params ->
       params
       |> Map.put(:compactions, 0)
@@ -168,6 +170,7 @@ defmodule Elasticlunr.Index.Writer do
       mt = update_mt.(mt, entry)
 
       with {true, mt} <- {MemTable.size(mt) >= mms, mt},
+           # TODO: add sstable to manifest
            :ok <- write_to_level_0(mt, dir) do
         {:cont, %{acc | mem_table: MemTable.new(), compactions: c + 1}}
       else
@@ -198,7 +201,7 @@ defmodule Elasticlunr.Index.Writer do
     known_files = Manifest.known_files(manifest)
 
     dir
-    |> db_files()
+    |> Fs.db_files()
     |> extract_log_files(known_files)
     # TODO: log corruption error due to missing files
     |> then(&elem(&1, 1))
@@ -220,12 +223,6 @@ defmodule Elasticlunr.Index.Writer do
           |> then(&{&1, logs})
       end
     end)
-  end
-
-  defp db_files(path) do
-    path
-    |> Path.join("*")
-    |> Path.wildcard()
   end
 
   defp recover_manifest(%{dir: dir} = state) do
