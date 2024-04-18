@@ -2,7 +2,6 @@ defmodule Elasticlunr.Server.ReaderTest do
   use ExUnit.Case, async: true
 
   alias Elasticlunr.Book
-  alias Elasticlunr.Fs
   alias Elasticlunr.Server.Reader
   alias Elasticlunr.Server.Writer
   alias Elasticlunr.SSTable
@@ -21,14 +20,12 @@ defmodule Elasticlunr.Server.ReaderTest do
       mem_table_max_size: 10
     ]
 
-    start_supervised!({Fs, dir})
-
     writer = start_supervised!({Writer, opts})
     pid = start_supervised!({Reader, dir: dir, schema: schema})
 
     document = GenServer.call(writer, {:save, new_book()})
 
-    [dir: dir, pid: pid, writer: writer, document: document]
+    [dir: dir, pid: pid, schema: schema, writer: writer, document: document]
   end
 
   test "retrieve document", %{pid: pid, document: document, writer: writer} do
@@ -55,25 +52,6 @@ defmodule Elasticlunr.Server.ReaderTest do
     assert eventually(fn -> GenServer.call(pid, {:get, document.id}) end)
   end
 
-  @tag skip: "testing should be all about compacting sstables"
-  test "update internals when a segment is deleted", %{
-    dir: dir,
-    pid: pid,
-    document: document,
-    writer: writer
-  } do
-    Fs.watch!(dir)
-
-    GenServer.call(writer, {:save, new_book()})
-
-    ss_tables = SSTable.list(dir)
-
-    assert eventually(fn -> GenServer.call(pid, {:get, document.id}) end)
-    assert Enum.each(ss_tables, &File.rm_rf!/1)
-    assert_received {:remove_lockfile, _dir, _path}
-    assert eventually(fn -> GenServer.call(pid, {:get, document.id}) == nil end)
-  end
-
   test "update internals when a segment is created", %{pid: pid, writer: writer} do
     document = GenServer.call(writer, {:save, new_book()})
 
@@ -82,5 +60,34 @@ defmodule Elasticlunr.Server.ReaderTest do
 
     assert entry = eventually(fn -> GenServer.call(pid, {:get, document.id}) end)
     assert entry.id == document.id
+  end
+
+  test "starting reader loads state from manifest", %{dir: dir, schema: schema, writer: writer} do
+    document = GenServer.call(writer, {:save, new_book()})
+
+    # Add an extra write to force generate sstable
+    GenServer.call(writer, {:save, new_book()})
+
+    assert :ok = stop_supervised!(Reader)
+    assert pid = start_supervised!({Reader, dir: dir, schema: schema})
+    assert entry = eventually(fn -> GenServer.call(pid, {:get, document.id}) end)
+    assert entry.id == document.id
+  end
+
+  @tag skip: "testing should be all about compacting sstables"
+  test "update internals when a segment is deleted", %{
+    dir: dir,
+    pid: pid,
+    document: document,
+    writer: writer
+  } do
+    GenServer.call(writer, {:save, new_book()})
+
+    ss_tables = SSTable.list(dir)
+
+    assert eventually(fn -> GenServer.call(pid, {:get, document.id}) end)
+    assert Enum.each(ss_tables, &File.rm_rf!/1)
+    assert_received {:remove_lockfile, _dir, _path}
+    assert eventually(fn -> GenServer.call(pid, {:get, document.id}) == nil end)
   end
 end

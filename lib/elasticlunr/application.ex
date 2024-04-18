@@ -13,7 +13,7 @@ defmodule Elasticlunr.Application do
       PubSub,
       {Registry, name: Elasticlunr.Fs, keys: :unique},
       {Registry, name: Elasticlunr.IndexRegistry, keys: :unique},
-      {Task.Supervisor, name: Elasticlunr.FlushMemTableSupervisor},
+      {Task.Supervisor, name: Elasticlunr.BackgroundTaskSupervisor},
       FlakeIdWorker
     ]
 

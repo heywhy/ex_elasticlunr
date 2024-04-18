@@ -80,8 +80,8 @@ defmodule Elasticlunr.Server.Reader do
     |> Enum.reduce_while([], fn path, acc ->
       with {:sst, number} <- Filename.parse(path),
            true <- MapSet.member?(known_files, number),
-           file_meta = %FileMeta{dir: dir, number: number},
-           {:ok, ss_table} <- SSTable.from_path(file_meta) do
+           %FileMeta{} = file_meta <- find_file(manifest, number),
+           {:ok, ss_table} <- SSTable.from_path(%{file_meta | dir: dir}) do
         {:cont, [ss_table] ++ acc}
       else
         {:error, _reason} = error -> {:halt, error}
@@ -99,8 +99,24 @@ defmodule Elasticlunr.Server.Reader do
     end
   end
 
-  defp patch_reader(%{dir: dir, schema: schema, ss_tables: segments}) do
-    # TODO: close manifest since it opens a file handle
-    {:ok, Reader.new(dir, schema, segments: segments)}
+  defp find_file(%{files: files}, number) do
+    Enum.reduce_while(files, [], fn {_level, files}, acc ->
+      files
+      |> Enum.find(&(&1.number == number))
+      |> case do
+        %FileMeta{} = file_meta -> {:cont, [file_meta] ++ acc}
+        nil -> {:cont, acc}
+      end
+    end)
+    |> case do
+      [] -> nil
+      [file_meta] -> file_meta
+    end
+  end
+
+  defp patch_reader(%{dir: dir, manifest: manifest, schema: schema, ss_tables: segments}) do
+    with :ok <- Manifest.close(manifest) do
+      {:ok, Reader.new(dir, schema, segments: segments)}
+    end
   end
 end

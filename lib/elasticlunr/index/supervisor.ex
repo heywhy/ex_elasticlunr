@@ -3,7 +3,6 @@ defmodule Elasticlunr.Index.Supervisor do
   use Rop
 
   alias Elasticlunr.Compaction
-  alias Elasticlunr.Fs
   alias Elasticlunr.Process
   alias Elasticlunr.Schema
   alias Elasticlunr.Server.Reader
@@ -67,7 +66,6 @@ defmodule Elasticlunr.Index.Supervisor do
     mem_table_max_size = Application.get_env(@otp_app, :mem_table_max_size, @mem_table_max_size)
 
     children = [
-      {Fs, dir},
       {Compaction, dir: dir, schema: schema, strategy: compaction},
       {Writer, dir: dir, schema: schema, mem_table_max_size: mem_table_max_size},
       {Reader, dir: dir, schema: schema}

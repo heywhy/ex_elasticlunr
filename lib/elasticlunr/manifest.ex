@@ -54,11 +54,13 @@ defmodule Elasticlunr.Manifest do
 
   def use_file_number(%__MODULE__{} = manifest, _number), do: manifest
 
+  @spec current_log(t()) :: non_neg_integer()
+  def current_log(%__MODULE__{log_number: number}), do: number
+
   @spec close(t()) :: :ok | {:error, term()}
   def close(%__MODULE__{fd: fd}) do
-    case :file.sync(fd) do
-      :ok -> File.close(fd)
-      error -> error
+    with :ok <- :file.sync(fd) do
+      File.close(fd)
     end
   end
 
@@ -68,8 +70,8 @@ defmodule Elasticlunr.Manifest do
   end
 
   defp do_apply(%__MODULE__{} = manifest, %Changes{} = changes) do
-    set_next_file_number(%{changes: changes, manifest: manifest}) >>>
-      validate_or_set_log_number() >>>
+    set_next_file_number(%{changes: changes, manifest: manifest})
+    |> validate_or_set_log_number() >>>
       merge_files()
   end
 
@@ -107,13 +109,13 @@ defmodule Elasticlunr.Manifest do
        )
        when is_integer(number) do
     manifest = %{manifest | next_file_number: number}
-    {:ok, %{params | manifest: manifest}}
+    %{params | manifest: manifest}
   end
 
   defp set_next_file_number(%{changes: changes, manifest: manifest} = params) do
     changes
     |> Map.put(:next_file_number, manifest.next_file_number)
-    |> then(&{:ok, %{params | changes: &1}})
+    |> then(&%{params | changes: &1})
   end
 
   defp validate_or_set_log_number(
@@ -142,7 +144,7 @@ defmodule Elasticlunr.Manifest do
     end)
   end
 
-  @spec from_path(Path.t()) :: {:ok, t()}
+  @spec from_path(Path.t()) :: {:ok, t()} | {:error, File.posix()}
   def from_path(path) do
     with {:manifest, number} <- Filename.parse(path),
          {:ok, fd} <- File.open(path, [:read, :binary]),

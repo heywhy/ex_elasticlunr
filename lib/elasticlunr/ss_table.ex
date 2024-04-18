@@ -10,7 +10,6 @@ defmodule Elasticlunr.SSTable do
   alias Elasticlunr.SSTable.MergeIterator
   alias Elasticlunr.SSTable.Offsets
   alias Elasticlunr.SSTable.RangeIterator
-  alias Elasticlunr.SSTable.Shared
   alias Elasticlunr.Telemeter
   alias Elasticlunr.Utils
   alias Elasticlunr.Workflow.OpenSSTable
@@ -93,14 +92,6 @@ defmodule Elasticlunr.SSTable do
 
   @spec contains?(t(), binary()) :: boolean()
   def contains?(%__MODULE__{bloom_filter: bf}, key), do: BloomFilter.check?(bf, key)
-
-  @spec size(Path.t()) :: non_neg_integer()
-  def size(dir) do
-    dir
-    |> Shared.segment_file()
-    |> File.stat!()
-    |> then(& &1.size)
-  end
 
   @spec list(Path.t()) :: [Path.t()]
   def list(dir), do: Path.wildcard("#{dir}/*.sst")

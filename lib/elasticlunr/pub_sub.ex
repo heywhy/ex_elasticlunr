@@ -33,7 +33,6 @@ defmodule Elasticlunr.PubSub do
   def handle_cast({:publish, stream, event, args}, state) do
     state
     |> Map.get(stream, MapSet.new())
-    |> MapSet.to_list()
     |> Enum.each(&send(&1, {event, args}))
 
     {:noreply, state}

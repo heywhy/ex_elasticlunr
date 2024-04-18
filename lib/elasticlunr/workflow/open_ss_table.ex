@@ -4,6 +4,7 @@ defmodule Elasticlunr.Workflow.OpenSSTable do
   alias Elasticlunr.Bloom.Stackable, as: BloomFilter
   alias Elasticlunr.FileMeta
   alias Elasticlunr.Filename
+  alias Elasticlunr.Fs
   alias Elasticlunr.SSTable
   alias Elasticlunr.SSTable.Offsets
 
@@ -14,9 +15,9 @@ defmodule Elasticlunr.Workflow.OpenSSTable do
 
   @spec new(FileMeta.t()) :: t()
   def new(%FileMeta{dir: dir, number: number, size: size}) do
-    path = Filename.ss_table(dir, number)
-
-    struct!(__MODULE__, path: path, size: size)
+    dir
+    |> Filename.ss_table(number)
+    |> then(&struct!(__MODULE__, path: &1, size: size))
   end
 
   @spec run(t()) :: {:ok, SSTable.t()} | {:error, File.posix()}
@@ -29,7 +30,7 @@ defmodule Elasticlunr.Workflow.OpenSSTable do
   end
 
   defp open_file(%{path: path} = state) do
-    with {:ok, fd} <- File.open(path, [:read, :binary, :compressed]) do
+    with {:ok, fd} <- Fs.open(path) do
       {:ok, Map.put(state, :fd, fd)}
     end
   end

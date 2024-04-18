@@ -57,7 +57,7 @@ defmodule Elasticlunr.Index.Writer do
         {:current, _number} -> true
         {:log, number} -> number >= manifest.log_number
         {:manifest, number} -> number >= manifest.number
-        {tag, number} when tag in [:sst, :tmp] -> Enum.member?(known_files, number)
+        {tag, number} when tag in [:sst, :tmp] -> MapSet.member?(known_files, number)
       end
     end
 
@@ -198,21 +198,31 @@ defmodule Elasticlunr.Index.Writer do
   end
 
   defp find_log_files(%{dir: dir, manifest: manifest} = state) do
+    current_log = Manifest.current_log(manifest)
     known_files = Manifest.known_files(manifest)
 
     dir
     |> Fs.db_files()
-    |> extract_log_files(known_files)
-    # TODO: log corruption error due to missing files
-    |> then(&elem(&1, 1))
-    |> then(&Map.put(state, :log_files, &1))
-    |> then(&{:ok, &1})
+    |> extract_log_files(known_files, current_log)
+    |> then(fn {known_files, log_files} -> {MapSet.to_list(known_files), log_files} end)
+    |> case do
+      {[], logs} ->
+        state
+        |> Map.put(:log_files, logs)
+        |> then(&{:ok, &1})
+
+      {missing_files, _logs} ->
+        file = List.first(missing_files)
+        count = Enum.count(missing_files)
+
+        {:error, "#{count} missing file(s): #{file}"}
+    end
   end
 
-  defp extract_log_files(files, known_files) do
+  defp extract_log_files(files, known_files, current_log) do
     Enum.reduce(files, {known_files, []}, fn path, {known_files, logs} ->
       case Filename.parse(path) do
-        {:log, number} ->
+        {:log, number} when number >= current_log ->
           known_files
           |> MapSet.delete(number)
           |> then(&{&1, [number] ++ logs})

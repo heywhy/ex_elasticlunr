@@ -1,8 +1,8 @@
 defmodule Elasticlunr.Server.Writer do
   use GenServer
 
+  alias Elasticlunr.BackgroundTaskSupervisor
   alias Elasticlunr.FileMeta
-  alias Elasticlunr.FlushMemTableSupervisor
   alias Elasticlunr.Index.Writer
   alias Elasticlunr.Manifest
   alias Elasticlunr.Manifest.Changes
@@ -158,7 +158,7 @@ defmodule Elasticlunr.Server.Writer do
 
     # TODO: revisit this logic to either move it to writer module
     task =
-      Task.Supervisor.async(FlushMemTableSupervisor, fn ->
+      Task.Supervisor.async(BackgroundTaskSupervisor, fn ->
         # This steps should be encapsulated in the writer module but wasn't
         # because of data copying from this server to the task process
         with {:ok, file_meta} <- SSTable.flush(mem_table, file_meta),

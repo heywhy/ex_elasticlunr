@@ -92,8 +92,6 @@ defmodule Elasticlunr.Manifest.Changes do
     end)
   end
 
-  defp encode_key(nil), do: <<>>
-
   defp encode_key(key) do
     <<byte_size(key)::unsigned-integer-size(32), key::binary>>
   end

@@ -2,8 +2,10 @@ defmodule Elasticlunr.Server.WriterTest do
   use ExUnit.Case, async: true
 
   alias Elasticlunr.Book
+  alias Elasticlunr.FileMeta
   alias Elasticlunr.Filename
   alias Elasticlunr.Manifest
+  alias Elasticlunr.Manifest.Changes
   alias Elasticlunr.Server.Writer
   alias Elasticlunr.SSTable
   alias Elasticlunr.Utils
@@ -99,5 +101,25 @@ defmodule Elasticlunr.Server.WriterTest do
              |> MapSet.new(fn {:sst, number} -> number end)
              |> Kernel.==(Manifest.known_files(writer.manifest))
            end)
+  end
+
+  test "missing files in manifest causes an error", %{dir: dir, opts: opts, pid: pid} do
+    %{writer: writer} = :sys.get_state(pid)
+    %{manifest: manifest} = writer
+
+    file_meta = %FileMeta{
+      number: 999,
+      dir: dir,
+      smallest_key: Utils.new_id(),
+      largest_key: Utils.new_id()
+    }
+
+    changes = Changes.add_file(%Changes{}, file_meta)
+
+    assert {:ok, _manifest} = Manifest.apply_and_log(manifest, changes)
+
+    stop_supervised!(Writer)
+
+    assert {:error, {"1 missing file(s): 999", _}} = start_supervised({Writer, opts})
   end
 end
