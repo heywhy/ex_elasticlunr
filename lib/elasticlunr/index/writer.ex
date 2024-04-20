@@ -1,6 +1,7 @@
 defmodule Elasticlunr.Index.Writer do
   use Rop
 
+  alias Elasticlunr.FileMeta
   alias Elasticlunr.Filename
   alias Elasticlunr.Fs
   alias Elasticlunr.Manifest
@@ -80,7 +81,10 @@ defmodule Elasticlunr.Index.Writer do
     {:ok, %{writer | manifest: manifest, mem_table: mem_table, wal: wal}}
   end
 
-  defp reuse_last_log(%{log_files: [], dir: dir, manifest: manifest} = params) do
+  defp reuse_last_log(
+         %{log_files: log_files, compactions: compactions, dir: dir, manifest: manifest} = params
+       )
+       when log_files == [] or compactions >= 1 do
     {number, manifest} = Manifest.new_file_number(manifest)
     wal = Wal.create(dir, number)
     changes = Changes.set_log_number(number)
@@ -97,15 +101,27 @@ defmodule Elasticlunr.Index.Writer do
          %{dir: dir, compactions: 0, last_log_number: log_number, manifest: manifest} =
            state
        ) do
-    dir
-    |> Wal.create(log_number)
-    |> then(&Map.put(state, :wal, &1))
-    |> then(&%{&1 | manifest: manifest})
-    |> then(&{:ok, &1})
+    log_number
+    |> Changes.set_log_number()
+    |> then(&Manifest.apply_and_log(manifest, &1))
+    |> case do
+      {:ok, manifest} ->
+        dir
+        |> Wal.create(log_number)
+        |> then(&Map.put(state, :wal, &1))
+        |> then(&%{&1 | manifest: manifest})
+        |> then(&{:ok, &1})
+
+      error ->
+        error
+    end
   end
 
   defp recover_from_logs(%{log_files: []} = state) do
-    {:ok, Map.put(state, :mem_table, MemTable.new())}
+    state
+    |> Map.put(:compactions, 0)
+    |> Map.put(:mem_table, MemTable.new())
+    |> then(&{:ok, &1})
   end
 
   defp recover_from_logs(
@@ -132,7 +148,6 @@ defmodule Elasticlunr.Index.Writer do
     end
 
     log_files
-    |> Enum.sort()
     |> Enum.reduce_while(params, fn log_number, params ->
       params
       |> Map.put(:compactions, 0)
@@ -162,53 +177,73 @@ defmodule Elasticlunr.Index.Writer do
       end
     end
 
+    flush_mt = fn mem_table, dir, manifest ->
+      with true <- MemTable.size(mem_table) > 0,
+           {number, manifest} = Manifest.new_file_number(manifest),
+           file_meta = %FileMeta{dir: dir, number: number},
+           {:ok, file_meta} <- SSTable.flush(mem_table, file_meta) do
+        %Changes{}
+        |> Changes.add_file(file_meta)
+        |> then(&Manifest.apply_and_log(manifest, &1))
+      else
+        false -> {:ok, manifest}
+        error -> error
+      end
+    end
+
     dir
     |> Filename.log(log_number)
     |> Iterator.new()
     |> Enum.reduce_while(params, fn entry, acc ->
-      %{mem_table: mt, compactions: c, mt_max_size: mms} = acc
+      %{mem_table: mt, compactions: c, manifest: manifest, mt_max_size: mms} = acc
       mt = update_mt.(mt, entry)
 
       with {true, mt} <- {MemTable.size(mt) >= mms, mt},
-           # TODO: add sstable to manifest
-           :ok <- write_to_level_0(mt, dir) do
-        {:cont, %{acc | mem_table: MemTable.new(), compactions: c + 1}}
+           {:ok, manifest} <- flush_mt.(mt, dir, manifest) do
+        {:cont, %{acc | mem_table: MemTable.new(), manifest: manifest, compactions: c + 1}}
       else
         {false, mem_table} -> {:cont, Map.put(acc, :mem_table, mem_table)}
         error -> {:halt, error}
       end
     end)
     |> case do
-      %{mem_table: mt, log_number: ln, last_log_number: lln} = p when ln != lln ->
+      %{mem_table: mt, manifest: manifest, log_number: ln, last_log_number: lln} = p
+      when ln != lln ->
         # Write to level 0 in case the log got hanging due to incomplete compaction.
         # See `Elasticlunr.Server.Writer.flush_async/1`
-        :ok = write_to_level_0(mt, dir)
+        {:ok, manifest} = flush_mt.(mt, dir, manifest)
 
-        %{p | mem_table: MemTable.new()}
+        %{p | compactions: 1, mem_table: MemTable.new(), manifest: manifest}
 
-      p ->
+      %{} = p ->
         p
+
+      error ->
+        error
     end
   end
 
-  defp write_to_level_0(mem_table, dir) do
-    SSTable.flush(mem_table, dir)
-    # TODO: return appropriate result
-    :ok
+  @spec add_file(t(), FileMeta.t()) :: {:ok, t()} | {:error, File.posix()}
+  def add_file(%__MODULE__{manifest: manifest} = writer, %FileMeta{} = file_meta) do
+    changes = Changes.add_file(%Changes{}, file_meta)
+
+    with {:ok, manifest} <- Manifest.apply_and_log(manifest, changes) do
+      {:ok, %{writer | manifest: manifest}}
+    end
   end
 
   defp find_log_files(%{dir: dir, manifest: manifest} = state) do
-    current_log = Manifest.current_log(manifest)
     known_files = Manifest.known_files(manifest)
 
     dir
     |> Fs.db_files()
-    |> extract_log_files(known_files, current_log)
-    |> then(fn {known_files, log_files} -> {MapSet.to_list(known_files), log_files} end)
+    |> extract_log_files(known_files)
+    |> then(fn {missing_files, log_files} -> {MapSet.to_list(missing_files), log_files} end)
     |> case do
       {[], logs} ->
-        state
-        |> Map.put(:log_files, logs)
+        logs
+        |> Enum.sort()
+        |> then(&Map.put(state, :log_files, &1))
         |> then(&{:ok, &1})
 
       {missing_files, _logs} ->
@@ -219,10 +254,10 @@ defmodule Elasticlunr.Index.Writer do
     end
   end
 
-  defp extract_log_files(files, known_files, current_log) do
+  defp extract_log_files(files, known_files) do
     Enum.reduce(files, {known_files, []}, fn path, {known_files, logs} ->
       case Filename.parse(path) do
-        {:log, number} when number >= current_log ->
+        {:log, number} ->
           known_files
           |> MapSet.delete(number)
           |> then(&{&1, [number] ++ logs})

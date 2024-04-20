@@ -5,7 +5,6 @@ defmodule Elasticlunr.Server.Writer do
   alias Elasticlunr.FileMeta
   alias Elasticlunr.Index.Writer
   alias Elasticlunr.Manifest
-  alias Elasticlunr.Manifest.Changes
   alias Elasticlunr.PubSub
   alias Elasticlunr.SSTable
   alias Elasticlunr.Wal
@@ -81,18 +80,11 @@ defmodule Elasticlunr.Server.Writer do
   end
 
   def handle_info({:add_file, file_meta}, %__MODULE__{writer: writer} = state) do
-    %Writer{manifest: manifest, schema: schema} = writer
+    %Writer{schema: schema} = writer
 
-    %Changes{}
-    |> Changes.add_file(file_meta)
-    |> then(&Manifest.apply_and_log(manifest, &1))
-    |> case do
-      {:ok, manifest} ->
-        writer = %{writer | manifest: manifest}
-
-        :ok = PubSub.publish(schema.name, :add_file, file_meta)
-
-        {:noreply, %{state | writer: writer}}
+    with {:ok, writer} <- Writer.add_file(writer, file_meta),
+         :ok <- PubSub.publish(schema.name, :file_created, file_meta) do
+      {:noreply, %{state | writer: writer}}
     end
   end
 
@@ -100,19 +92,6 @@ defmodule Elasticlunr.Server.Writer do
     Logger.error("Flushing memtable failed due to #{inspect(reason)}")
 
     {:noreply, %{state | task: nil, tmp: nil}}
-  end
-
-  def handle_info({:EXIT, pid, reason}, %__MODULE__{task: %Task{pid: pid}} = state) do
-    # TODO: consider blocking writes if task fails due to error
-    case reason do
-      :normal -> {:noreply, %{state | task: nil, tmp: nil}}
-      reason -> {:stop, reason, state}
-    end
-  end
-
-  # TODO: find the reason this callback is needed
-  def handle_info({:EXIT, _pid, _reason}, %__MODULE__{} = state) do
-    {:noreply, state}
   end
 
   @impl true
@@ -148,6 +127,7 @@ defmodule Elasticlunr.Server.Writer do
          {:add_file, ^file_meta} <- send(self(), {:add_file, file_meta}) do
       :ok
     else
+      {:exit, :normal} -> :ok
       nil -> wait_for_task(task)
     end
   end
@@ -158,7 +138,7 @@ defmodule Elasticlunr.Server.Writer do
 
     # TODO: revisit this logic to either move it to writer module
     task =
-      Task.Supervisor.async(BackgroundTaskSupervisor, fn ->
+      Task.Supervisor.async_nolink(BackgroundTaskSupervisor, fn ->
         # This steps should be encapsulated in the writer module but wasn't
         # because of data copying from this server to the task process
         with {:ok, file_meta} <- SSTable.flush(mem_table, file_meta),

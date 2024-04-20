@@ -144,6 +144,22 @@ defmodule Elasticlunr.Manifest do
     end)
   end
 
+  @spec find_file(t(), non_neg_integer()) :: nil | FileMeta.t()
+  def find_file(%__MODULE__{files: files}, number) do
+    Enum.reduce_while(files, [], fn {_level, files}, acc ->
+      files
+      |> Enum.find(&(&1.number == number))
+      |> case do
+        %FileMeta{} = file_meta -> {:cont, [file_meta] ++ acc}
+        nil -> {:cont, acc}
+      end
+    end)
+    |> case do
+      [] -> nil
+      [file_meta] -> file_meta
+    end
+  end
+
   @spec from_path(Path.t()) :: {:ok, t()} | {:error, File.posix()}
   def from_path(path) do
     with {:manifest, number} <- Filename.parse(path),

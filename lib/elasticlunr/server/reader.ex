@@ -39,15 +39,21 @@ defmodule Elasticlunr.Server.Reader do
 
   # Callbacks
   @impl true
-  def handle_call({:get, id}, _from, %__MODULE__{reader: reader} = state) do
-    result = Reader.get(reader, id)
+  def handle_call({:get, id}, from, %__MODULE__{reader: reader} = state) do
+    # Allow concurrent reads so that reads from
+    # multiple processes don't block each other
+    Task.async(fn ->
+      reader
+      |> Reader.get(id)
+      |> then(&GenServer.reply(from, &1))
+    end)
 
-    {:reply, result, state}
+    {:noreply, state}
   end
 
   @impl true
   def handle_info(
-        {:add_file, %FileMeta{dir: dir, number: number} = file_meta},
+        {:file_created, %FileMeta{dir: dir, number: number} = file_meta},
         %__MODULE__{reader: reader} = state
       ) do
     file = Filename.ss_table(dir, number)
@@ -60,6 +66,8 @@ defmodule Elasticlunr.Server.Reader do
       v when is_boolean(v) -> {:noreply, state}
     end
   end
+
+  def handle_info(_msg, state), do: {:noreply, state}
 
   defp read_manifest(%{dir: dir} = state) do
     path = Filename.current(dir)
@@ -80,7 +88,7 @@ defmodule Elasticlunr.Server.Reader do
     |> Enum.reduce_while([], fn path, acc ->
       with {:sst, number} <- Filename.parse(path),
            true <- MapSet.member?(known_files, number),
-           %FileMeta{} = file_meta <- find_file(manifest, number),
+           %FileMeta{} = file_meta <- Manifest.find_file(manifest, number),
            {:ok, ss_table} <- SSTable.from_path(%{file_meta | dir: dir}) do
         {:cont, [ss_table] ++ acc}
       else
@@ -96,21 +104,6 @@ defmodule Elasticlunr.Server.Reader do
 
       error ->
         error
-    end
-  end
-
-  defp find_file(%{files: files}, number) do
-    Enum.reduce_while(files, [], fn {_level, files}, acc ->
-      files
-      |> Enum.find(&(&1.number == number))
-      |> case do
-        %FileMeta{} = file_meta -> {:cont, [file_meta] ++ acc}
-        nil -> {:cont, acc}
-      end
-    end)
-    |> case do
-      [] -> nil
-      [file_meta] -> file_meta
     end
   end
 

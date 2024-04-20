@@ -6,9 +6,11 @@ defmodule Elasticlunr.Server.WriterTest do
   alias Elasticlunr.Filename
   alias Elasticlunr.Manifest
   alias Elasticlunr.Manifest.Changes
+  alias Elasticlunr.Schema
   alias Elasticlunr.Server.Writer
   alias Elasticlunr.SSTable
   alias Elasticlunr.Utils
+  alias Elasticlunr.Wal
 
   import Elasticlunr.Fixture
   import Liveness
@@ -78,7 +80,8 @@ defmodule Elasticlunr.Server.WriterTest do
   end
 
   test "flush memtable when maxed", %{pid: pid, dir: dir} do
-    Stream.repeatedly(&new_book/0)
+    (&new_book/0)
+    |> Stream.repeatedly()
     |> Stream.each(&GenServer.call(pid, {:save, &1}))
     |> Enum.take(10)
 
@@ -121,5 +124,69 @@ defmodule Elasticlunr.Server.WriterTest do
     stop_supervised!(Writer)
 
     assert {:error, {"1 missing file(s): 999", _}} = start_supervised({Writer, opts})
+  end
+
+  test "existing log gets compacted on startup", %{dir: dir, opts: opts, pid: pid} do
+    %{writer: writer} = :sys.get_state(pid)
+    {number, _manifest} = Manifest.new_file_number(writer.manifest)
+
+    stop_supervised!(Writer)
+
+    wal = Wal.create(dir, number)
+    book = new_book(id: Utils.new_id())
+
+    {:ok, wal} = write_to_wal(book, wal, opts[:schema])
+
+    assert :ok = Wal.close(wal)
+    assert :ok = Wal.create(dir, 4) |> Wal.close()
+
+    assert {:ok, pid} = start_supervised({Writer, opts})
+    assert %{writer: writer} = :sys.get_state(pid)
+    assert Manifest.current_log(writer.manifest) == 4
+    assert [number] = Manifest.known_files(writer.manifest) |> MapSet.to_list()
+    assert file_meta = Manifest.find_file(writer.manifest, number)
+    assert {:ok, ss_table} = SSTable.from_path(file_meta)
+    assert %{value: value} = SSTable.get(ss_table, book.id)
+    assert document = Schema.binary_to_document(opts[:schema], value)
+    assert book == struct!(Book, Map.put(document, :id, book.id))
+  end
+
+  test ":existing log gets compacted on startup", %{dir: dir, opts: opts, pid: pid} do
+    %{writer: writer} = :sys.get_state(pid)
+    {number, _manifest} = Manifest.new_file_number(writer.manifest)
+
+    stop_supervised!(Writer)
+
+    wal = Wal.create(dir, number)
+    book = new_book(id: Utils.new_id())
+    schema = Keyword.fetch!(opts, :schema)
+
+    (&new_book/0)
+    |> Stream.repeatedly()
+    |> Stream.take(10)
+    |> Enum.reduce(write_to_wal(book, wal, schema), fn book, {:ok, wal} ->
+      write_to_wal(book, wal, schema)
+    end)
+
+    assert :ok = Wal.close(wal)
+
+    assert {:ok, pid} = start_supervised({Writer, opts})
+    assert %{writer: writer} = :sys.get_state(pid)
+    assert Manifest.current_log(writer.manifest) == 6
+    assert number = Manifest.known_files(writer.manifest) |> MapSet.to_list() |> List.first()
+    assert file_meta = Manifest.find_file(writer.manifest, number)
+    assert {:ok, ss_table} = SSTable.from_path(file_meta)
+    assert %{value: value} = SSTable.get(ss_table, book.id)
+    assert document = Schema.binary_to_document(opts[:schema], value)
+    assert book == struct!(Book, Map.put(document, :id, book.id))
+  end
+
+  defp write_to_wal(book, wal, schema) do
+    id = book.id || Utils.new_id()
+
+    book
+    |> Map.drop([:__struct__, :id])
+    |> then(&Schema.document_to_binary(schema, &1))
+    |> then(&Wal.set(wal, id, &1, Utils.now()))
   end
 end
