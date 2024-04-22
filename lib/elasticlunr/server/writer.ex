@@ -5,13 +5,15 @@ defmodule Elasticlunr.Server.Writer do
   alias Elasticlunr.FileMeta
   alias Elasticlunr.Index.Writer
   alias Elasticlunr.Manifest
+  alias Elasticlunr.Manifest.Changes
+  alias Elasticlunr.MemTable
   alias Elasticlunr.PubSub
   alias Elasticlunr.SSTable
   alias Elasticlunr.Wal
 
   require Logger
 
-  defstruct [:task, :tmp, :writer]
+  defstruct [:task, :tmp, :flush_fn, :writer]
 
   @spec start_link(keyword()) :: GenServer.on_start()
   def start_link(opts) do
@@ -25,12 +27,13 @@ defmodule Elasticlunr.Server.Writer do
     dir = Keyword.fetch!(opts, :dir)
     schema = Keyword.fetch!(opts, :schema)
     mt_max_size = Keyword.fetch!(opts, :mem_table_max_size)
+    flush_fn = Keyword.get(opts, :flush_fn, &flush_async/1)
 
     dir
     |> Writer.new(schema, mt_max_size)
     |> Writer.recover()
     |> case do
-      {:ok, writer} -> {:ok, %__MODULE__{writer: writer}}
+      {:ok, writer} -> {:ok, %__MODULE__{flush_fn: flush_fn, writer: writer}}
       {:error, reason} -> {:stop, reason}
     end
   end
@@ -81,17 +84,26 @@ defmodule Elasticlunr.Server.Writer do
 
   def handle_info({:add_file, file_meta}, %__MODULE__{writer: writer} = state) do
     %Writer{schema: schema} = writer
+    manifest = Writer.manifest(writer)
 
-    with {:ok, writer} <- Writer.add_file(writer, file_meta),
+    # Only commit log number after successfully flushing the memtable to disk
+    changes =
+      manifest.log_number
+      |> Changes.set_log_number()
+      |> Changes.add_file(file_meta)
+
+    with {:ok, manifest} <- Manifest.apply_and_log(manifest, changes),
          :ok <- PubSub.publish(schema.name, :file_created, file_meta) do
-      {:noreply, %{state | writer: writer}}
+      writer
+      |> Map.put(:manifest, manifest)
+      |> then(&{:noreply, %{state | writer: &1}})
     end
   end
 
   def handle_info({:DOWN, ref, _, _, reason}, %__MODULE__{task: %Task{ref: ref}} = state) do
     Logger.error("Flushing memtable failed due to #{inspect(reason)}")
 
-    {:noreply, %{state | task: nil, tmp: nil}}
+    {:stop, reason, %{state | task: nil, tmp: nil}}
   end
 
   @impl true
@@ -104,11 +116,11 @@ defmodule Elasticlunr.Server.Writer do
     Logger.info("Terminating writer process for #{schema.name} due to #{inspect(reason)}")
   end
 
-  defp write_to_disk_if_needed(%{task: task, writer: writer} = state) do
+  defp write_to_disk_if_needed(%{task: task, flush_fn: flush_fn, writer: writer} = state) do
     with true <- Writer.buffer_filled?(writer),
          nil <- task,
-         {task, writer} <- flush_async(writer) do
-      %{state | task: task, tmp: writer, writer: Writer.clone(writer)}
+         {task, writer} <- flush_fn.(writer) do
+      %{state | task: task, tmp: writer, writer: gen_new_space(writer)}
     else
       false ->
         state
@@ -120,9 +132,14 @@ defmodule Elasticlunr.Server.Writer do
     end
   end
 
-  def wait_for_task(nil), do: :ok
+  defp gen_new_space(%{dir: dir, manifest: manifest} = writer) do
+    {number, manifest} = Manifest.new_file_number(manifest)
+    %{writer | manifest: manifest, wal: Wal.create(dir, number), mem_table: MemTable.new()}
+  end
 
-  def wait_for_task(task) do
+  defp wait_for_task(nil), do: :ok
+
+  defp wait_for_task(task) do
     with {:ok, file_meta} <- Task.yield(task) || Task.ignore(task),
          {:add_file, ^file_meta} <- send(self(), {:add_file, file_meta}) do
       :ok

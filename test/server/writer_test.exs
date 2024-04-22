@@ -4,6 +4,7 @@ defmodule Elasticlunr.Server.WriterTest do
   alias Elasticlunr.Book
   alias Elasticlunr.FileMeta
   alias Elasticlunr.Filename
+  alias Elasticlunr.Fs
   alias Elasticlunr.Manifest
   alias Elasticlunr.Manifest.Changes
   alias Elasticlunr.Schema
@@ -126,32 +127,7 @@ defmodule Elasticlunr.Server.WriterTest do
     assert {:error, {"1 missing file(s): 999", _}} = start_supervised({Writer, opts})
   end
 
-  test "existing log gets compacted on startup", %{dir: dir, opts: opts, pid: pid} do
-    %{writer: writer} = :sys.get_state(pid)
-    {number, _manifest} = Manifest.new_file_number(writer.manifest)
-
-    stop_supervised!(Writer)
-
-    wal = Wal.create(dir, number)
-    book = new_book(id: Utils.new_id())
-
-    {:ok, wal} = write_to_wal(book, wal, opts[:schema])
-
-    assert :ok = Wal.close(wal)
-    assert :ok = Wal.create(dir, 4) |> Wal.close()
-
-    assert {:ok, pid} = start_supervised({Writer, opts})
-    assert %{writer: writer} = :sys.get_state(pid)
-    assert Manifest.current_log(writer.manifest) == 4
-    assert [number] = Manifest.known_files(writer.manifest) |> MapSet.to_list()
-    assert file_meta = Manifest.find_file(writer.manifest, number)
-    assert {:ok, ss_table} = SSTable.from_path(file_meta)
-    assert %{value: value} = SSTable.get(ss_table, book.id)
-    assert document = Schema.binary_to_document(opts[:schema], value)
-    assert book == struct!(Book, Map.put(document, :id, book.id))
-  end
-
-  test ":existing log gets compacted on startup", %{dir: dir, opts: opts, pid: pid} do
+  test "existing logs gets compacted on startup", %{dir: dir, opts: opts, pid: pid} do
     %{writer: writer} = :sys.get_state(pid)
     {number, _manifest} = Manifest.new_file_number(writer.manifest)
 
@@ -181,6 +157,40 @@ defmodule Elasticlunr.Server.WriterTest do
     assert book == struct!(Book, Map.put(document, :id, book.id))
   end
 
+  test "failure on flush memtable task is handled", %{dir: dir, opts: opts} do
+    stop_supervised!(Writer)
+
+    # Implementing the below function allows us to simulate when a task didn't return
+    flush_fn = fn %{manifest: manifest} = writer ->
+      owner = self()
+      pid = spawn(fn -> nil end)
+      ref = Process.monitor(pid)
+      task = %Task{pid: pid, owner: owner, ref: ref, mfa: {Writer, :flush_asyc, 1}}
+      {_file_number, manifest} = Manifest.new_file_number(manifest)
+
+      {task, %{writer | manifest: manifest}}
+    end
+
+    pid =
+      opts
+      |> Keyword.put(:flush_fn, flush_fn)
+      |> then(&start_supervised!({Writer, &1}))
+
+    (&new_book/0)
+    |> Stream.repeatedly()
+    |> Stream.each(&GenServer.call(pid, {:save, &1}))
+    |> Enum.take(4)
+
+    assert Process.alive?(pid)
+
+    assert [{:log, number}, _] =
+             Fs.db_files(dir)
+             |> Enum.map(&Filename.parse/1)
+             |> Enum.filter(&match?({:log, _}, &1))
+
+    assert {:ok, %Manifest{log_number: ^number}} = read_manifest(dir)
+  end
+
   defp write_to_wal(book, wal, schema) do
     id = book.id || Utils.new_id()
 
@@ -188,5 +198,13 @@ defmodule Elasticlunr.Server.WriterTest do
     |> Map.drop([:__struct__, :id])
     |> then(&Schema.document_to_binary(schema, &1))
     |> then(&Wal.set(wal, id, &1, Utils.now()))
+  end
+
+  defp read_manifest(dir) do
+    dir
+    |> Filename.current()
+    |> File.read!()
+    |> then(&Path.join(dir, &1))
+    |> Manifest.from_path()
   end
 end

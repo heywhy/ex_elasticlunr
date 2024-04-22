@@ -135,7 +135,11 @@ defmodule Elasticlunr.Manifest do
     end
   end
 
-  defp validate_or_set_log_number(params), do: {:ok, params}
+  defp validate_or_set_log_number(%{changes: changes, manifest: manifest} = params) do
+    changes
+    |> Changes.set_log_number(manifest.log_number)
+    |> then(&{:ok, %{params | changes: &1}})
+  end
 
   @spec known_files(t()) :: MapSet.t(pos_integer())
   def known_files(%__MODULE__{files: files}) do

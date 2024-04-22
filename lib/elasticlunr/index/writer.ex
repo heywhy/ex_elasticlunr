@@ -39,6 +39,9 @@ defmodule Elasticlunr.Index.Writer do
     struct!(__MODULE__, attrs)
   end
 
+  @spec manifest(t()) :: Manifest.t()
+  def manifest(%__MODULE__{manifest: manifest}), do: manifest
+
   @spec recover(t()) :: {:ok, t()} | {:error, term()}
   def recover(%__MODULE__{} = writer) do
     create_db_if_missing(writer) >>>
@@ -223,21 +226,13 @@ defmodule Elasticlunr.Index.Writer do
     end
   end
 
-  @spec add_file(t(), FileMeta.t()) :: {:ok, t()} | {:error, File.posix()}
-  def add_file(%__MODULE__{manifest: manifest} = writer, %FileMeta{} = file_meta) do
-    changes = Changes.add_file(%Changes{}, file_meta)
-
-    with {:ok, manifest} <- Manifest.apply_and_log(manifest, changes) do
-      {:ok, %{writer | manifest: manifest}}
-    end
-  end
-
   defp find_log_files(%{dir: dir, manifest: manifest} = state) do
+    current_log = Manifest.current_log(manifest)
     known_files = Manifest.known_files(manifest)
 
     dir
     |> Fs.db_files()
-    |> extract_log_files(known_files)
+    |> extract_log_files(known_files, current_log)
     |> then(fn {missing_files, log_files} -> {MapSet.to_list(missing_files), log_files} end)
     |> case do
       {[], logs} ->
@@ -254,10 +249,10 @@ defmodule Elasticlunr.Index.Writer do
     end
   end
 
-  defp extract_log_files(files, known_files) do
+  defp extract_log_files(files, known_files, current_log) do
     Enum.reduce(files, {known_files, []}, fn path, {known_files, logs} ->
       case Filename.parse(path) do
-        {:log, number} ->
+        {:log, number} when number >= current_log ->
           known_files
           |> MapSet.delete(number)
           |> then(&{&1, [number] ++ logs})
@@ -324,24 +319,13 @@ defmodule Elasticlunr.Index.Writer do
     end
   end
 
-  @spec clone(t()) :: t()
-  def clone(%__MODULE__{dir: dir, manifest: manifest} = writer) do
-    with {number, manifest} <- Manifest.new_file_number(manifest),
-         changes = Changes.set_log_number(number),
-         {:ok, manifest} <- Manifest.apply_and_log(manifest, changes) do
-      %{writer | manifest: manifest, wal: Wal.create(dir, number), mem_table: MemTable.new()}
-    end
-  end
-
   @spec buffer_filled?(t()) :: boolean()
   def buffer_filled?(%__MODULE__{mem_table: mem_table, mt_max_size: mt_max_size}) do
     MemTable.size(mem_table) >= mt_max_size
   end
 
   @spec close(t()) :: :ok | no_return()
-  def close(%__MODULE__{wal: wal}) do
-    Wal.close(wal)
-  end
+  def close(%__MODULE__{wal: wal}), do: Wal.close(wal)
 
   @spec get(t(), String.t()) :: nil | map()
   def get(%__MODULE__{mem_table: mem_table, schema: schema}, id) do
