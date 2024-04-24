@@ -21,10 +21,11 @@ defmodule Elasticlunr.PubSub do
 
   @impl true
   def handle_call({:subscribe, stream, pid}, _from, state) do
-    # TODO: link process so that it can be unsubscribe automatically when it shuts down.
+    ref = Process.monitor(pid)
+
     state
     |> Map.get(stream, MapSet.new())
-    |> MapSet.put(pid)
+    |> MapSet.put({pid, ref})
     |> then(&Map.put(state, stream, &1))
     |> then(&{:reply, :ok, &1})
   end
@@ -33,7 +34,20 @@ defmodule Elasticlunr.PubSub do
   def handle_cast({:publish, stream, event, args}, state) do
     state
     |> Map.get(stream, MapSet.new())
+    |> Enum.map(&elem(&1, 0))
     |> Enum.each(&send(&1, {event, args}))
+
+    {:noreply, state}
+  end
+
+  @impl true
+  def handle_info({:DOWN, ref, :process, pid, _reason}, state) do
+    state =
+      Enum.reduce(state, state, fn {stream, pids}, state ->
+        pids
+        |> MapSet.symmetric_difference(MapSet.new([{pid, ref}]))
+        |> then(&%{state | stream => &1})
+      end)
 
     {:noreply, state}
   end
