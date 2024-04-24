@@ -82,7 +82,11 @@ defmodule Elasticlunr.Server.Writer do
     end
   end
 
-  def handle_info({:add_file, file_meta}, %__MODULE__{writer: writer} = state) do
+  def handle_info(
+        {:add_file, %FileMeta{size: size} = file_meta},
+        %__MODULE__{writer: writer} = state
+      )
+      when size >= 0 do
     %Writer{schema: schema} = writer
     manifest = Writer.manifest(writer)
 
@@ -157,11 +161,10 @@ defmodule Elasticlunr.Server.Writer do
     task =
       Task.Supervisor.async_nolink(BackgroundTaskSupervisor, fn ->
         # This steps should be encapsulated in the writer module but wasn't
-        # because of data copying from this server to the task process
+        # because of data copying from this server to the task process so
+        # we only handpick the data needed by this task process
         with {:ok, file_meta} <- SSTable.flush(mem_table, file_meta),
-             # TODO: remove wal from manifest
-             :ok <- Wal.delete(wal),
-             true <- file_meta.size > 0 do
+             :ok <- Wal.delete(wal) do
           file_meta
         end
       end)
