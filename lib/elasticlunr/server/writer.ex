@@ -157,7 +157,6 @@ defmodule Elasticlunr.Server.Writer do
     {file_number, manifest} = Manifest.new_file_number(manifest)
     file_meta = %FileMeta{dir: dir, number: file_number}
 
-    # TODO: revisit this logic to either move it to writer module
     task =
       Task.Supervisor.async_nolink(BackgroundTaskSupervisor, fn ->
         # This steps should be encapsulated in the writer module but wasn't

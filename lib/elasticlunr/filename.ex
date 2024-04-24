@@ -24,17 +24,16 @@ defmodule Elasticlunr.Filename do
 
   @spec log(Path.t(), pos_integer()) :: String.t()
   def log(path, number) do
-    # TODO: change suffix to `log`
-    filename(path, number, "wal")
+    filename(path, number, "log")
   end
 
   @spec parse(Path.t()) :: {file_type(), integer()}
   def parse(path) do
     from_extension = fn file ->
       case String.split(file, ".") do
+        [number, "log"] -> {:log, String.to_integer(number)}
         [number, "sst"] -> {:sst, String.to_integer(number)}
         [number, "tmp"] -> {:tmp, String.to_integer(number)}
-        [number, "wal"] -> {:log, String.to_integer(number)}
       end
     end
 

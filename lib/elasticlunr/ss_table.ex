@@ -66,8 +66,10 @@ defmodule Elasticlunr.SSTable do
       mem_table
       |> WriteSSTable.new(file_meta)
       |> WriteSSTable.run()
-      # TODO: add file size as part of metadata
-      |> then(&{&1, %{}})
+      |> case do
+        {:ok, %FileMeta{size: size}} = result -> {result, %{file_size: size}}
+        {:error, reason} = result -> {result, %{failure_reason: reason}}
+      end
     end)
   end
 

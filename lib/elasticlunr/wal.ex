@@ -38,7 +38,7 @@ defmodule Elasticlunr.Wal do
   @spec list(Path.t()) :: [Path.t()]
   def list(dir) do
     dir
-    |> Path.join("*.wal")
+    |> Path.join("*.log")
     |> Path.wildcard()
   end
 
