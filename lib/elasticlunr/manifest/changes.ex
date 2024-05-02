@@ -1,4 +1,5 @@
 defmodule Elasticlunr.Manifest.Changes do
+  alias Elasticlunr.Encoding
   alias Elasticlunr.FileMeta
 
   defstruct [:log_number, :next_file_number, new_files: []]
@@ -47,52 +48,59 @@ defmodule Elasticlunr.Manifest.Changes do
     |> Enum.map(fn {key, value} -> encode_field(key, value) end)
   end
 
-  @spec decode(binary()) :: t()
-  def decode(binary), do: do_decode(binary, %__MODULE__{})
+  @spec decode!(binary()) :: t() | no_return()
+  def decode!(binary), do: decode!(binary, %__MODULE__{})
 
-  defp do_decode(<<>>, changes), do: changes
+  defp decode!(<<>>, changes), do: changes
 
-  defp do_decode(<<@k_log_number, log_number::unsigned-integer-size(64), rest::binary>>, changes) do
-    do_decode(rest, %{changes | log_number: log_number})
-  end
+  defp decode!(binary, changes) do
+    {tag, binary} = Encoding.chop_int!(binary)
 
-  defp do_decode(
-         <<@k_next_file_number, next_file_number::unsigned-integer-size(64), rest::binary>>,
-         changes
-       ) do
-    do_decode(rest, %{changes | next_file_number: next_file_number})
-  end
+    case tag do
+      @k_log_number ->
+        {log_number, binary} = Encoding.chop_int64!(binary)
+        decode!(binary, %{changes | log_number: log_number})
 
-  defp do_decode(
-         <<@k_new_file, level::unsigned-integer, number::unsigned-integer-size(64),
-           size::unsigned-integer-size(64), sk_size::unsigned-integer-size(8 * 4),
-           sk::binary-size(sk_size), lk_size::unsigned-integer-size(8 * 4),
-           lk::binary-size(lk_size), rest::binary>>,
-         changes
-       ) do
-    file_meta = %FileMeta{number: number, smallest_key: sk, largest_key: lk, size: size}
+      @k_next_file_number ->
+        {next_file_number, binary} = Encoding.chop_int64!(binary)
+        decode!(binary, %{changes | next_file_number: next_file_number})
 
-    changes
-    |> add_file(file_meta, level)
-    |> then(&do_decode(rest, &1))
+      @k_new_file ->
+        {level, binary} = Encoding.chop_int!(binary)
+        {number, binary} = Encoding.chop_int64!(binary)
+        {size, binary} = Encoding.chop_int64!(binary)
+        {sk, binary} = Encoding.chop_size_prefixed!(binary)
+        {lk, binary} = Encoding.chop_size_prefixed!(binary)
+
+        file_meta = %FileMeta{number: number, smallest_key: sk, largest_key: lk, size: size}
+
+        changes
+        |> add_file(file_meta, level)
+        |> then(&decode!(binary, &1))
+    end
   end
 
   defp encode_field(:log_number, value) do
-    <<@k_log_number::unsigned-integer, value::unsigned-integer-size(64)>>
+    []
+    |> Encoding.put_int(@k_log_number)
+    |> Encoding.put_int64(value)
   end
 
   defp encode_field(:next_file_number, value) do
-    <<@k_next_file_number::unsigned-integer, value::unsigned-integer-size(64)>>
+    []
+    |> Encoding.put_int(@k_next_file_number)
+    |> Encoding.put_int64(value)
   end
 
   defp encode_field(:new_files, files) do
     Enum.map(files, fn {level, %{number: number, size: size, largest_key: lk, smallest_key: sk}} ->
-      <<@k_new_file::unsigned-integer, level::unsigned-integer, number::unsigned-integer-size(64),
-        size::unsigned-integer-size(64), encode_key(sk)::binary, encode_key(lk)::binary>>
+      []
+      |> Encoding.put_int(@k_new_file)
+      |> Encoding.put_int(level)
+      |> Encoding.put_int64(number)
+      |> Encoding.put_int64(size)
+      |> Encoding.put_size_prefixed(sk)
+      |> Encoding.put_size_prefixed(lk)
     end)
-  end
-
-  defp encode_key(key) do
-    <<byte_size(key)::unsigned-integer-size(32), key::binary>>
   end
 end

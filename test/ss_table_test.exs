@@ -36,12 +36,12 @@ defmodule Elasticlunr.SSTableTest do
     refute SSTable.contains?(ss_table, "unknown")
   end
 
-  test "get/2", %{file_meta: file_meta, mem_table: mem_table} do
+  test "get!/2", %{file_meta: file_meta, mem_table: mem_table} do
     ss_table = flush(mem_table, file_meta)
 
-    assert %Entry{key: "key"} = SSTable.get(ss_table, "key")
-    assert %Entry{key: "key1"} = SSTable.get(ss_table, "key1")
-    refute SSTable.get(ss_table, "unknown")
+    assert %Entry{key: "key"} = SSTable.get!(ss_table, "key")
+    assert %Entry{key: "key1"} = SSTable.get!(ss_table, "key1")
+    refute SSTable.get!(ss_table, "unknown")
   end
 
   test "flush/2", %{file_meta: file_meta, mem_table: mem_table} do
@@ -49,18 +49,12 @@ defmodule Elasticlunr.SSTableTest do
     assert size > 0
   end
 
-  test "list/2", %{file_meta: file_meta, mem_table: mem_table} do
-    assert [] = SSTable.list(file_meta.dir)
-    assert %SSTable{path: file} = flush(mem_table, file_meta)
-    assert [^file] = SSTable.list(file_meta.dir)
-  end
-
   test "from_path/1", %{file_meta: file_meta, mem_table: mem_table} do
     mem_table = MemTable.remove(mem_table, "key", 3)
 
     assert {:ok, file_meta} = SSTable.flush(mem_table, file_meta)
     assert {:ok, ss_table} = SSTable.from_path(file_meta)
-    assert %Entry{key: "key", deleted: true} = SSTable.get(ss_table, "key")
+    assert %Entry{key: "key", deleted: true} = SSTable.get!(ss_table, "key")
   end
 
   test "merge/1", %{dir: dir, file_meta: file_meta} do
@@ -106,8 +100,8 @@ defmodule Elasticlunr.SSTableTest do
     refute SSTable.contains?(ss_table, "unknown")
     assert SSTable.contains?(ss_table, "handiwork")
     refute SSTable.contains?(ss_table, "handlebars")
-    assert %Entry{key: "handful", value: "44662"} = SSTable.get(ss_table, "handful")
-    assert %Entry{key: "handicap", value: "70836"} = SSTable.get(ss_table, "handicap")
+    assert %Entry{key: "handful", value: "44662"} = SSTable.get!(ss_table, "handful")
+    assert %Entry{key: "handicap", value: "70836"} = SSTable.get!(ss_table, "handicap")
   end
 
   defp flush(mem_table, dir) do

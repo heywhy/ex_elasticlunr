@@ -42,10 +42,10 @@ defmodule Elasticlunr.Bloom.StackableTest do
       |> Stackable.set(id2)
 
     assert iodata = Stackable.encode(bloom_filter)
-    assert IO.iodata_length(iodata) == 194
+    assert IO.iodata_length(iodata) == 202
   end
 
-  test "decode/1" do
+  test "decode!/1" do
     id1 = Utils.new_id()
     id2 = Utils.new_id()
 
@@ -55,12 +55,8 @@ defmodule Elasticlunr.Bloom.StackableTest do
       |> Stackable.set(id2)
 
     assert iodata = Stackable.encode(bloom_filter)
-    assert {:ok, bloom_filter} = Stackable.decode(IO.iodata_to_binary(iodata))
+    assert bloom_filter = Stackable.decode!(IO.iodata_to_binary(iodata))
     assert Stackable.check?(bloom_filter, id1)
     assert Stackable.check?(bloom_filter, id2)
-  end
-
-  test "decode/1 returns error for invalid binary" do
-    assert {:error, :bloom_filter_corruption} = Stackable.decode(<<>>)
   end
 end

@@ -1,5 +1,6 @@
 defmodule Elasticlunr.Schema do
   alias Elasticlunr.CompactionStrategy.SizeTiered
+  alias Elasticlunr.Encoding
   alias Elasticlunr.Field
 
   defstruct [:name, fields: %{}, compaction_strategy: {SizeTiered, []}]
@@ -9,6 +10,12 @@ defmodule Elasticlunr.Schema do
           fields: map(),
           compaction_strategy: {module(), keyword()}
         }
+
+  @k_text_tag 1
+  @k_integer_tag 2
+  @k_float_tag 3
+  @k_date_tag 4
+  @k_array_tag 5
 
   defmacro compaction(strategy, opts \\ []) do
     config = {strategy, opts}
@@ -43,18 +50,24 @@ defmodule Elasticlunr.Schema do
     %{schema | fields: Map.put(fields, name, Field.new(name, type))}
   end
 
-  @spec document_to_binary(t(), map()) :: bitstring()
-  def document_to_binary(%__MODULE__{fields: fields}, document) do
+  @spec encode(t(), map()) :: iodata()
+  def encode(%__MODULE__{fields: fields}, document) do
     known_fields = Map.keys(fields)
 
     document
     |> Map.take(known_fields)
-    |> Enum.map(fn {key, value} -> field_to_binary(fields[key], value) end)
-    |> Enum.reduce(<<>>, fn bin, acc -> acc <> bin end)
+    |> Enum.map(fn {key, value} -> field_to_iodata(fields[key], value) end)
+    |> Enum.reduce([], fn bin, acc -> [acc | bin] end)
   end
 
-  @spec binary_to_document(t(), binary()) :: map()
-  def binary_to_document(%__MODULE__{fields: fields}, binary) do
+  @spec decode!(t(), binary()) :: map()
+  def decode!(%__MODULE__{} = schema, content) when is_list(content) do
+    content
+    |> IO.iodata_to_binary()
+    |> then(&decode!(schema, &1))
+  end
+
+  def decode!(%__MODULE__{fields: fields}, binary) when is_binary(binary) do
     document = extract_document(binary, %{})
 
     Enum.reduce(fields, %{}, fn {key, %Field{name: name}}, acc ->
@@ -65,118 +78,113 @@ defmodule Elasticlunr.Schema do
     end)
   end
 
-  defp field_to_binary(%Field{}, nil), do: <<>>
+  defp field_to_iodata(_field, nil), do: []
 
-  defp field_to_binary(%Field{type: :text, name: name}, value) when is_binary(value) do
-    <<1, byte_size(name), byte_size(value)::unsigned-integer-size(64), name::binary,
-      value::binary>>
+  defp field_to_iodata(%{type: :text, name: name}, value) when is_binary(value) do
+    []
+    |> Encoding.put_int(@k_text_tag)
+    |> Encoding.put_size_prefixed(name, :tiny)
+    |> Encoding.put_size_prefixed(value)
   end
 
-  defp field_to_binary(%Field{type: :number, name: name}, value) when is_integer(value) do
-    <<2, byte_size(name), name::binary, value::integer-size(64)>>
+  defp field_to_iodata(%{type: :number, name: name}, value) when is_integer(value) do
+    []
+    |> Encoding.put_int(@k_integer_tag)
+    |> Encoding.put_size_prefixed(name, :tiny)
+    |> Encoding.put_int64(value)
   end
 
-  defp field_to_binary(%Field{type: :number, name: name}, value) when is_float(value) do
-    <<3, byte_size(name), name::binary, value::float-size(64)>>
+  defp field_to_iodata(%{type: :number, name: name}, value) when is_float(value) do
+    []
+    |> Encoding.put_int(@k_float_tag)
+    |> Encoding.put_size_prefixed(name, :tiny)
+    |> Encoding.put_float64(value)
   end
 
-  defp field_to_binary(%Field{type: :date} = field, value) when is_binary(value) do
-    field_to_binary(field, Date.from_iso8601!(value))
+  defp field_to_iodata(%{type: :date} = field, value) when is_binary(value) do
+    field_to_iodata(field, Date.from_iso8601!(value))
   end
 
-  defp field_to_binary(%Field{type: :date, name: name}, value) when is_struct(value, Date) do
-    value = Date.to_gregorian_days(value)
+  defp field_to_iodata(%{type: :date, name: name}, %Date{} = date) do
+    value = Date.to_gregorian_days(date)
 
-    <<4, byte_size(name), name::binary, value::unsigned-integer-size(24)>>
+    []
+    |> Encoding.put_int(@k_date_tag)
+    |> Encoding.put_size_prefixed(name, :tiny)
+    |> Encoding.put_int32(value)
   end
 
-  defp field_to_binary(%Field{type: {:array, :text}, name: name}, value)
-       when is_list(value) do
-    value =
-      Enum.reduce(value, <<>>, fn a, b ->
-        b <> <<byte_size(a)::unsigned-integer-size(64), a::binary>>
+  defp field_to_iodata(%{type: :array, name: name}, list) when is_list(list) do
+    content =
+      Enum.reduce(list, [], fn
+        number, acc when is_float(number) ->
+          acc
+          |> Encoding.put_int(0)
+          |> Encoding.put_float64(number)
+
+        number, acc when is_integer(number) ->
+          acc
+          |> Encoding.put_int(1)
+          |> Encoding.put_int64(number)
+
+        value, acc when is_binary(value) ->
+          acc
+          |> Encoding.put_int(2)
+          |> Encoding.put_size_prefixed(value)
       end)
 
-    <<5, byte_size(name), byte_size(value)::unsigned-integer-size(64), name::binary,
-      value::binary>>
-  end
-
-  defp field_to_binary(%Field{type: {:array, :number}, name: name}, value) do
-    value = Enum.reduce(value, <<>>, fn a, b -> b <> <<a::float-size(64)>> end)
-
-    <<6, byte_size(name), byte_size(value)::unsigned-integer-size(64), name::binary,
-      value::binary>>
+    []
+    |> Encoding.put_int(@k_array_tag)
+    |> Encoding.put_size_prefixed(name, :tiny)
+    |> Encoding.put_size_prefixed(content)
   end
 
   defp extract_document(<<>>, acc), do: acc
 
-  defp extract_document(
-         <<1, k_size::unsigned-integer, v_size::unsigned-integer-size(64),
-           field::binary-size(k_size), value::binary-size(v_size), rest::binary>>,
-         acc
-       ) do
-    extract_document(rest, Map.put(acc, field, value))
-  end
+  defp extract_document(binary, acc) do
+    {tag, binary} = Encoding.chop_int!(binary)
+    {field, binary} = Encoding.chop_size_prefixed!(binary, :tiny)
 
-  defp extract_document(
-         <<2, k_size::unsigned-integer, field::binary-size(k_size), value::integer-size(64),
-           rest::binary>>,
-         acc
-       ) do
-    extract_document(rest, Map.put(acc, field, value))
-  end
+    {value, binary} =
+      case tag do
+        @k_text_tag ->
+          Encoding.chop_size_prefixed!(binary)
 
-  defp extract_document(
-         <<3, k_size::unsigned-integer, field::binary-size(k_size), value::float-size(64),
-           rest::binary>>,
-         acc
-       ) do
-    extract_document(rest, Map.put(acc, field, value))
-  end
+        @k_integer_tag ->
+          Encoding.chop_int64!(binary)
 
-  defp extract_document(
-         <<4, k_size::unsigned-integer, field::binary-size(k_size),
-           value::unsigned-integer-size(24), rest::binary>>,
-         acc
-       ) do
-    value = Date.from_gregorian_days(value)
+        @k_float_tag ->
+          Encoding.chop_float64!(binary)
 
-    extract_document(rest, Map.put(acc, field, value))
-  end
+        @k_date_tag ->
+          {value, binary} = Encoding.chop_int32!(binary)
 
-  defp extract_document(
-         <<5, k_size::unsigned-integer, v_size::unsigned-integer-size(64),
-           field::binary-size(k_size), value::binary-size(v_size), rest::binary>>,
-         acc
-       ) do
-    fun = fn
-      <<>>, _fun, acc ->
-        acc
+          {Date.from_gregorian_days(value), binary}
 
-      <<size::unsigned-integer-size(64), value::binary-size(size), rest::binary>>, fun, acc ->
-        fun.(rest, fun, [value] ++ acc)
-    end
+        @k_array_tag ->
+          {value, binary} = Encoding.chop_size_prefixed!(binary)
 
-    value = fun.(value, fun, []) |> Enum.reverse()
+          fun = fn
+            <<>>, _fun, acc ->
+              acc
 
-    extract_document(rest, Map.put(acc, field, value))
-  end
+            binary, fun, acc ->
+              {element, binary} =
+                case Encoding.chop_int!(binary) do
+                  {0, binary} -> Encoding.chop_float64!(binary)
+                  {1, binary} -> Encoding.chop_int64!(binary)
+                  {2, binary} -> Encoding.chop_size_prefixed!(binary)
+                end
 
-  defp extract_document(
-         <<6, k_size::unsigned-integer, v_size::unsigned-integer-size(64),
-           field::binary-size(k_size), value::binary-size(v_size), rest::binary>>,
-         acc
-       ) do
-    fun = fn
-      <<>>, _fun, acc ->
-        acc
+              fun.(binary, fun, [element] ++ acc)
+          end
 
-      <<num::float-size(64), rest::binary>>, fun, acc ->
-        fun.(rest, fun, [num] ++ acc)
-    end
+          value
+          |> fun.(fun, [])
+          |> Enum.reverse()
+          |> then(&{&1, binary})
+      end
 
-    value = fun.(value, fun, []) |> Enum.reverse()
-
-    extract_document(rest, Map.put(acc, field, value))
+    extract_document(binary, Map.put(acc, field, value))
   end
 end

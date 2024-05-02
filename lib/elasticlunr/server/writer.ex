@@ -87,21 +87,17 @@ defmodule Elasticlunr.Server.Writer do
         %__MODULE__{writer: writer} = state
       )
       when size >= 0 do
-    %Writer{schema: schema} = writer
-    manifest = Writer.manifest(writer)
-
     # Only commit log number after successfully flushing the memtable to disk
-    changes =
-      manifest.log_number
-      |> Changes.set_log_number()
-      |> Changes.add_file(file_meta)
 
-    with {:ok, manifest} <- Manifest.apply_and_log(manifest, changes),
+    with {:ok, writer} <- add_file_to_manifest(file_meta, writer),
+         %Writer{schema: schema} <- writer,
          :ok <- PubSub.publish(schema.name, :file_created, file_meta) do
-      writer
-      |> Map.put(:manifest, manifest)
-      |> then(&{:noreply, %{state | writer: &1}})
+      {:noreply, %{state | writer: writer}}
     end
+  end
+
+  def handle_info({:DOWN, ref, _, _, :normal}, %__MODULE__{task: %Task{ref: ref}} = state) do
+    {:noreply, %{state | task: nil, tmp: nil}}
   end
 
   def handle_info({:DOWN, ref, _, _, reason}, %__MODULE__{task: %Task{ref: ref}} = state) do
@@ -112,12 +108,17 @@ defmodule Elasticlunr.Server.Writer do
 
   @impl true
   def terminate(reason, %__MODULE__{task: task, writer: writer}) do
-    :ok = wait_for_task(task)
-    :ok = Writer.close(writer)
-
     %Writer{schema: schema} = writer
 
-    Logger.info("Terminating writer process for #{schema.name} due to #{inspect(reason)}")
+    case complete_pending_task(task, writer) do
+      :ok ->
+        Logger.info("Terminating writer process for #{schema.name} due to #{inspect(reason)}")
+
+      {:error, reason} ->
+        Logger.error(
+          "Could not successfully terminate writer process for #{schema.name} because pending task failed due to #{inspect(reason)}"
+        )
+    end
   end
 
   defp write_to_disk_if_needed(%{task: task, flush_fn: flush_fn, writer: writer} = state) do
@@ -141,8 +142,6 @@ defmodule Elasticlunr.Server.Writer do
     %{writer | manifest: manifest, wal: Wal.create(dir, number), mem_table: MemTable.new()}
   end
 
-  defp wait_for_task(nil), do: :ok
-
   defp wait_for_task(task) do
     with {:ok, file_meta} <- Task.yield(task) || Task.ignore(task),
          {:add_file, ^file_meta} <- send(self(), {:add_file, file_meta}) do
@@ -150,6 +149,28 @@ defmodule Elasticlunr.Server.Writer do
     else
       {:exit, :normal} -> :ok
       nil -> wait_for_task(task)
+    end
+  end
+
+  defp complete_pending_task(nil, _writer), do: :ok
+
+  defp complete_pending_task(task, writer) do
+    with {:ok, file_meta} <- Task.yield(task) || Task.ignore(task),
+         {:ok, _writer} <- add_file_to_manifest(file_meta, writer) do
+      :ok
+    end
+  end
+
+  defp add_file_to_manifest(file_meta, writer) do
+    manifest = Writer.manifest(writer)
+
+    changes =
+      manifest.log_number
+      |> Changes.set_log_number()
+      |> Changes.add_file(file_meta)
+
+    with {:ok, manifest} <- Manifest.apply_and_log(manifest, changes) do
+      {:ok, %{writer | manifest: manifest}}
     end
   end
 

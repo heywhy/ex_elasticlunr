@@ -9,7 +9,12 @@ defmodule Elasticlunr.IndexTest do
 
   setup_all do
     start_supervised!(Book)
-    :ok
+
+    on_exit(fn ->
+      Utils.storage_dir()
+      |> Path.join("books")
+      |> File.rm_rf()
+    end)
   end
 
   test "check if index is running" do

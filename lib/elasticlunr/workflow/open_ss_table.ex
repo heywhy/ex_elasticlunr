@@ -2,6 +2,7 @@ defmodule Elasticlunr.Workflow.OpenSSTable do
   use Rop
 
   alias Elasticlunr.Bloom.Stackable, as: BloomFilter
+  alias Elasticlunr.Encoding
   alias Elasticlunr.FileMeta
   alias Elasticlunr.Filename
   alias Elasticlunr.Fs
@@ -39,11 +40,12 @@ defmodule Elasticlunr.Workflow.OpenSSTable do
     # 32 here is the bytes used to store the footer
     position = size - 32
 
-    with {:ok, _new_position} <- :file.position(fd, position),
-         <<offsets_offset::unsigned-integer-size(64)>> <- IO.binread(fd, 8),
-         <<offsets_size::unsigned-integer-size(64)>> <- IO.binread(fd, 8),
-         <<bloom_filter_offset::unsigned-integer-size(64)>> <- IO.binread(fd, 8),
-         <<bloom_filter_size::unsigned-integer-size(64)>> <- IO.binread(fd, 8) do
+    with {:ok, ^position} <- :file.position(fd, position) do
+      offsets_offset = Encoding.get_int64!(fd)
+      offsets_size = Encoding.get_int64!(fd)
+      bloom_filter_offset = Encoding.get_int64!(fd)
+      bloom_filter_size = Encoding.get_int64!(fd)
+
       new_state = %{
         offsets_size: offsets_size,
         offsets_offset: offsets_offset,
@@ -56,17 +58,19 @@ defmodule Elasticlunr.Workflow.OpenSSTable do
   end
 
   defp read_offsets(%{fd: fd, offsets_size: size, offsets_offset: offset} = state) do
-    with {:ok, _new_position} <- :file.position(fd, offset),
-         binary = IO.binread(fd, size),
-         {:ok, offsets} <- Offsets.decode(binary) do
+    with {:ok, ^offset} <- :file.position(fd, offset) do
+      binary = IO.binread(fd, size)
+      offsets = Offsets.decode!(binary)
+
       {:ok, Map.put(state, :offsets, offsets)}
     end
   end
 
   defp read_bloom_filter(%{fd: fd, bloom_filter_size: size, bloom_filter_offset: offset} = state) do
-    with {:ok, _new_position} <- :file.position(fd, offset),
-         binary = IO.binread(fd, size),
-         {:ok, bloom_filter} <- BloomFilter.decode(binary) do
+    with {:ok, ^offset} <- :file.position(fd, offset) do
+      binary = IO.binread(fd, size)
+      bloom_filter = BloomFilter.decode!(binary)
+
       {:ok, Map.put(state, :bloom_filter, bloom_filter)}
     end
   end

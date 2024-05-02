@@ -45,13 +45,13 @@ defmodule Elasticlunr.Index.Reader do
     end
   end
 
-  @spec get(t(), String.t()) :: map() | nil
-  def get(%__MODULE__{schema: schema, segments: segments}, id) do
+  @spec get!(t(), String.t()) :: map() | nil | no_return()
+  def get!(%__MODULE__{schema: schema, segments: segments}, id) do
     id = Utils.id_from_string(id)
 
     segments
     |> Enum.filter(&SSTable.contains?(&1, id))
-    |> Task.async_stream(&SSTable.get(&1, id))
+    |> Task.async_stream(&SSTable.get!(&1, id))
     |> Stream.map(fn {:ok, entry} -> entry end)
     # reject nil values in case of false positive by the bloom filter
     |> Stream.reject(&is_nil/1)
@@ -65,7 +65,7 @@ defmodule Elasticlunr.Index.Reader do
 
   defp entry_to_document(%Entry{key: key, value: value}, schema) do
     schema
-    |> Schema.binary_to_document(value)
+    |> Schema.decode!(value)
     |> Map.put(:id, Utils.id_to_string(key))
   end
 end

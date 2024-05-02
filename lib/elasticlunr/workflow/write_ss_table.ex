@@ -2,6 +2,7 @@ defmodule Elasticlunr.Workflow.WriteSSTable do
   use Rop
 
   alias Elasticlunr.Bloom.Stackable, as: BloomFilter
+  alias Elasticlunr.Encoding
   alias Elasticlunr.FileMeta
   alias Elasticlunr.Filename
   alias Elasticlunr.Fs
@@ -80,8 +81,8 @@ defmodule Elasticlunr.Workflow.WriteSSTable do
       %{offset: offset, offsets: offsets, bloom_filter: bloom_filter, smallest_key: smallest_key} =
         ok(acc)
 
+      binary = Entry.encode(entry)
       entry_size = Entry.size(entry)
-      binary = Entry.to_binary(entry)
       new_offset = offset + entry_size
 
       case IO.binwrite(fd, binary) do
@@ -122,10 +123,10 @@ defmodule Elasticlunr.Workflow.WriteSSTable do
       |> Offsets.set(entry.key, offset - Entry.size(entry))
       |> Offsets.encode()
 
-    size = IO.iodata_length(iodata)
-
     case IO.binwrite(fd, iodata) do
       :ok ->
+        size = IO.iodata_length(iodata)
+
         state
         |> Map.put(:offset, offset + size)
         |> Map.put(:offsets_size, size)
@@ -138,10 +139,11 @@ defmodule Elasticlunr.Workflow.WriteSSTable do
 
   defp flush_bloom_filter(%{fd: fd, offset: offset, bloom_filter: bloom_filter} = state) do
     iodata = BloomFilter.encode(bloom_filter)
-    size = IO.iodata_length(iodata)
 
     case IO.binwrite(fd, iodata) do
       :ok ->
+        size = IO.iodata_length(iodata)
+
         state
         |> Map.put(:offset, offset + size)
         |> Map.put(:bloom_filter_size, size)
@@ -161,14 +163,14 @@ defmodule Elasticlunr.Workflow.WriteSSTable do
            bloom_filter_size: bloom_filter_size
          } = state
        ) do
-    binary = <<
-      index_size::unsigned-integer-size(64),
-      offsets_size::unsigned-integer-size(64),
-      index_size + offsets_size::unsigned-integer-size(64),
-      bloom_filter_size::unsigned-integer-size(64)
-    >>
+    binary =
+      []
+      |> Encoding.put_int64(index_size)
+      |> Encoding.put_int64(offsets_size)
+      |> Encoding.put_int64(index_size + offsets_size)
+      |> Encoding.put_int64(bloom_filter_size)
 
-    footer_size = byte_size(binary)
+    footer_size = IO.iodata_length(binary)
 
     case IO.binwrite(fd, binary) do
       :ok -> {:ok, %{state | offset: offset + footer_size}}

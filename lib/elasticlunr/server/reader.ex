@@ -44,7 +44,7 @@ defmodule Elasticlunr.Server.Reader do
     # multiple processes don't block each other
     Task.async(fn ->
       reader
-      |> Reader.get(id)
+      |> Reader.get!(id)
       |> then(&GenServer.reply(from, &1))
     end)
 

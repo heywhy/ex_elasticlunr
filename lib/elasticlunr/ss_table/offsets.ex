@@ -4,6 +4,7 @@ defmodule Elasticlunr.SSTable.Offsets do
   | offset(8B) | key_size(8B) | key |
   |---------------------------------|
   """
+  alias Elasticlunr.Encoding
 
   defstruct [:entries]
 
@@ -33,31 +34,31 @@ defmodule Elasticlunr.SSTable.Offsets do
     tree
     |> Treex.stream()
     |> Stream.map(fn {key, offset} ->
-      <<offset::unsigned-integer-size(64), byte_size(key)::unsigned-integer-size(64),
-        key::binary>>
+      []
+      |> Encoding.put_int64(offset)
+      |> Encoding.put_size_prefixed(key)
     end)
     |> Enum.to_list()
   end
 
-  @spec decode(binary()) :: {:ok, t()}
-  def decode(binary) when is_binary(binary) do
+  @spec decode!(binary()) :: t() | no_return()
+  def decode!(binary) when is_binary(binary) do
     fun = fn
       <<>>, _fun, acc ->
         acc
 
-      <<offset::unsigned-integer-size(64), key_size::unsigned-integer-size(64),
-        key::binary-size(key_size), rest::binary>>,
-      fun,
-      offsets ->
+      binary, fun, offsets ->
+        {offset, binary} = Encoding.chop_int64!(binary)
+        {key, binary} = Encoding.chop_size_prefixed!(binary)
+
         offsets
         |> set(key, offset)
-        |> then(&fun.(rest, fun, &1))
+        |> then(&fun.(binary, fun, &1))
     end
 
     binary
     |> fun.(fun, new())
     |> then(&%{&1 | entries: Treex.balance(&1.entries)})
-    |> then(&{:ok, &1})
   end
 
   defp find_boundary(node, key, acc \\ nil)

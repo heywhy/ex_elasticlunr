@@ -1,4 +1,5 @@
 defmodule Elasticlunr.SSTable.Iterator do
+  alias Elasticlunr.Encoding
   alias Elasticlunr.FileMeta
   alias Elasticlunr.Filename
   alias Elasticlunr.Fs
@@ -13,12 +14,11 @@ defmodule Elasticlunr.SSTable.Iterator do
           index_size: pos_integer()
         }
 
-  @spec new(FileMeta.t()) :: t()
-  def new(%FileMeta{dir: dir, size: size, number: number}) do
+  @spec new!(FileMeta.t()) :: t() | no_return()
+  def new!(%FileMeta{dir: dir, size: size, number: number}) do
     path = Filename.ss_table(dir, number)
     fd = Fs.open!(path)
-
-    index_size = read_index_size(fd, size)
+    index_size = read_index_size!(fd, size)
 
     attrs = %{
       fd: fd,
@@ -56,8 +56,8 @@ defmodule Elasticlunr.SSTable.Iterator do
   end
 
   defp read(%__MODULE__{fd: fd, offset: offset} = iterator) do
-    with {:ok, _new_position} <- :file.position(fd, offset),
-         %Entry{} = entry <- Entry.read(fd) do
+    with {:ok, ^offset} <- :file.position(fd, offset),
+         %Entry{} = entry <- Entry.read!(fd) do
       new_offset =
         case IO.binread(fd, 1) do
           :eof -> :eof
@@ -68,17 +68,17 @@ defmodule Elasticlunr.SSTable.Iterator do
     end
   end
 
-  defp read_index_size(fd, size) do
+  defp read_index_size!(fd, size) do
     position = size - 32
 
-    with {:ok, _new_position} <- :file.position(fd, position),
-         <<_offsets_offset::unsigned-integer-size(64)>> <- IO.binread(fd, 8),
-         <<offsets_size::unsigned-integer-size(64)>> <- IO.binread(fd, 8),
-         <<_bloom_filter_offset::unsigned-integer-size(64)>> <- IO.binread(fd, 8),
-         <<bloom_filter_size::unsigned-integer-size(64)>> <- IO.binread(fd, 8),
-         {:ok, _} <- :file.position(fd, 0) do
-      position - bloom_filter_size - offsets_size
-    end
+    {:ok, ^position} = :file.position(fd, position)
+
+    _oo = Encoding.get_int64!(fd)
+    offsets_size = Encoding.get_int64!(fd)
+    _bfo = Encoding.get_int64!(fd)
+    bloom_filter_size = Encoding.get_int64!(fd)
+
+    position - bloom_filter_size - offsets_size
   end
 end
 

@@ -196,7 +196,7 @@ defmodule Elasticlunr.Index.Writer do
 
     dir
     |> Filename.log(log_number)
-    |> Iterator.new()
+    |> Iterator.new!()
     |> Enum.reduce_while(params, fn entry, acc ->
       %{mem_table: mt, compactions: c, manifest: manifest, mt_max_size: mms} = acc
       mt = update_mt.(mt, entry)
@@ -331,7 +331,7 @@ defmodule Elasticlunr.Index.Writer do
   def get(%__MODULE__{mem_table: mem_table, schema: schema}, id) do
     with id <- Utils.id_from_string(id),
          %MemTableEntry{deleted: false, value: value} <- MemTable.get(mem_table, id),
-         value <- Schema.binary_to_document(schema, value) do
+         value <- Schema.decode!(schema, value) do
       Map.put(value, :id, Utils.id_to_string(id))
     else
       %MemTableEntry{deleted: true} -> nil
@@ -383,7 +383,7 @@ defmodule Elasticlunr.Index.Writer do
       |> Map.pop!(:id)
 
     with timestamp <- Utils.now(),
-         value <- Schema.document_to_binary(schema, document),
+         value <- Schema.encode(schema, document),
          mem_table <- MemTable.set(writer.mem_table, id, value, timestamp),
          {:ok, wal} <- Wal.set(writer.wal, id, value, timestamp),
          document <- Map.put(document, :id, Utils.id_to_string(id)) do

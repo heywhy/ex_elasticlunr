@@ -4,9 +4,9 @@ defmodule Elasticlunr.Server.ReaderTest do
   alias Elasticlunr.Book
   alias Elasticlunr.Server.Reader
   alias Elasticlunr.Server.Writer
-  alias Elasticlunr.SSTable
 
   import Elasticlunr.Fixture
+  import Elasticlunr.TestUtils
   import Liveness
 
   setup do
@@ -48,7 +48,7 @@ defmodule Elasticlunr.Server.ReaderTest do
     # Add an extra write to force extra generated sstable
     GenServer.call(writer, {:save, new_book()})
 
-    assert eventually(fn -> SSTable.list(dir) |> Enum.count() == 5 end)
+    assert eventually(fn -> ss_tables(dir) |> Enum.count() == 5 end)
     assert eventually(fn -> GenServer.call(pid, {:get, document.id}) end)
   end
 
@@ -83,7 +83,7 @@ defmodule Elasticlunr.Server.ReaderTest do
   } do
     GenServer.call(writer, {:save, new_book()})
 
-    ss_tables = SSTable.list(dir)
+    ss_tables = ss_tables(dir)
 
     assert eventually(fn -> GenServer.call(pid, {:get, document.id}) end)
     assert Enum.each(ss_tables, &File.rm_rf!/1)

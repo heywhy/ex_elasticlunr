@@ -95,14 +95,11 @@ defmodule Elasticlunr.SSTable do
   @spec contains?(t(), binary()) :: boolean()
   def contains?(%__MODULE__{bloom_filter: bf}, key), do: BloomFilter.check?(bf, key)
 
-  @spec list(Path.t()) :: [Path.t()]
-  def list(dir), do: Path.wildcard("#{dir}/*.sst")
-
-  @spec get(t(), binary()) :: Entry.t() | nil
-  def get(%__MODULE__{offsets: offsets, path: path} = ss_table, key) do
+  @spec get!(t(), binary()) :: Entry.t() | nil | no_return()
+  def get!(%__MODULE__{offsets: offsets, path: path} = ss_table, key) do
     with true <- contains?(ss_table, key),
          {_start, _end} = range <- Offsets.get(offsets, key),
-         iterator <- RangeIterator.new(path, range) do
+         iterator <- RangeIterator.new!(path, range) do
       Enum.find(iterator, &(&1.key == key))
     else
       false -> nil

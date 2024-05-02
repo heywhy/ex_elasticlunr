@@ -14,6 +14,7 @@ defmodule Elasticlunr.Server.WriterTest do
   alias Elasticlunr.Wal
 
   import Elasticlunr.Fixture
+  import Elasticlunr.TestUtils
   import Liveness
 
   setup do
@@ -21,7 +22,7 @@ defmodule Elasticlunr.Server.WriterTest do
 
     opts = [
       dir: dir,
-      mem_table_max_size: 500,
+      mem_table_max_size: 550,
       schema: Book.__schema__()
     ]
 
@@ -86,7 +87,7 @@ defmodule Elasticlunr.Server.WriterTest do
     |> Stream.each(&GenServer.call(pid, {:save, &1}))
     |> Enum.take(10)
 
-    assert segments = SSTable.list(dir)
+    assert segments = ss_tables(dir)
     refute Enum.empty?(segments)
     assert Enum.count(segments) >= 2
   end
@@ -100,9 +101,8 @@ defmodule Elasticlunr.Server.WriterTest do
              %{writer: writer} = :sys.get_state(pid)
 
              dir
-             |> SSTable.list()
-             |> Enum.map(fn path -> Filename.parse(path) end)
-             |> MapSet.new(fn {:sst, number} -> number end)
+             |> ss_tables()
+             |> MapSet.new()
              |> Kernel.==(Manifest.known_files(writer.manifest))
            end)
   end
@@ -152,8 +152,8 @@ defmodule Elasticlunr.Server.WriterTest do
     assert number = Manifest.known_files(writer.manifest) |> MapSet.to_list() |> List.first()
     assert file_meta = Manifest.find_file(writer.manifest, number)
     assert {:ok, ss_table} = SSTable.from_path(file_meta)
-    assert %{value: value} = SSTable.get(ss_table, book.id)
-    assert document = Schema.binary_to_document(opts[:schema], value)
+    assert %{value: value} = SSTable.get!(ss_table, book.id)
+    assert document = Schema.decode!(opts[:schema], value)
     assert book == struct!(Book, Map.put(document, :id, book.id))
   end
 
@@ -196,7 +196,7 @@ defmodule Elasticlunr.Server.WriterTest do
 
     book
     |> Map.drop([:__struct__, :id])
-    |> then(&Schema.document_to_binary(schema, &1))
+    |> then(&Schema.encode(schema, &1))
     |> then(&Wal.set(wal, id, &1, Utils.now()))
   end
 

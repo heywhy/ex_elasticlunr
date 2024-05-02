@@ -13,8 +13,8 @@ defmodule Elasticlunr.SSTable.RangeIterator do
           offset: pos_integer()
         }
 
-  @spec new(Path.t(), range()) :: t()
-  def new(path, {start, stop}) do
+  @spec new!(Path.t(), range()) :: t() | no_return()
+  def new!(path, {start, stop}) do
     attrs = %{
       path: path,
       stop: stop,
@@ -55,8 +55,8 @@ defimpl Enumerable, for: Elasticlunr.SSTable.RangeIterator do
   end
 
   def reduce(%RangeIterator{fd: fd, offset: offset} = iterator, {:cont, acc}, fun) do
-    with {:ok, _new_position} <- :file.position(fd, offset),
-         %Entry{} = entry <- Entry.read(fd),
+    with {:ok, ^offset} <- :file.position(fd, offset),
+         %Entry{} = entry <- Entry.read!(fd),
          new_offset <- offset + Entry.size(entry),
          iterator <- %{iterator | offset: new_offset} do
       reduce(iterator, fun.(entry, acc), fun)

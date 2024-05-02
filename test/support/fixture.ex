@@ -15,6 +15,7 @@ defmodule Elasticlunr.Fixture do
       author: Person.name(),
       price: Commerce.price(),
       tags: ["fiction", "science"],
+      versions: [2024, 2024.65],
       release_date: Date.backward(1)
     }
   end

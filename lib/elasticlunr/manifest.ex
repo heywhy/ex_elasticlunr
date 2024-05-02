@@ -178,7 +178,7 @@ defmodule Elasticlunr.Manifest do
   defp read_and_apply_changes(manifest, fd) do
     with <<size::unsigned-integer>> <- IO.binread(fd, 1),
          binary when is_binary(binary) <- IO.binread(fd, size),
-         %{} = changes <- Changes.decode(binary),
+         %{} = changes <- Changes.decode!(binary),
          {:ok, %{manifest: manifest}} <- do_apply(manifest, changes) do
       read_and_apply_changes(manifest, fd)
     else

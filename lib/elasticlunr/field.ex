@@ -2,8 +2,7 @@ defmodule Elasticlunr.Field do
   @enforce_keys [:name, :type]
   defstruct [:name, :type]
 
-  @type literal :: :uid | :date | :number | :text
-  @type type :: literal() | {:array, literal()}
+  @type type :: :uid | :date | :number | :text | :array
   @type document :: %{id: binary(), content: binary() | number() | Date.t()}
 
   @type t :: %__MODULE__{

@@ -10,7 +10,7 @@ defmodule Elasticlunr.SSTable.MergeIterator do
 
   @spec new([FileMeta.t()]) :: t()
   def new(file_metas) do
-    struct!(__MODULE__, iterators: Enum.map(file_metas, &Iterator.new/1))
+    struct!(__MODULE__, iterators: Enum.map(file_metas, &Iterator.new!/1))
   end
 end
 

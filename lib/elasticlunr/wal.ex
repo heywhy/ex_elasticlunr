@@ -72,7 +72,7 @@ defmodule Elasticlunr.Wal do
             wal = from_path(path)
             %File.Stat{size: size} = File.stat!(path)
 
-            result = Enum.reduce(iterator(wal), {new_wal, mem_table}, reducer)
+            result = Enum.reduce(iterator!(wal), {new_wal, mem_table}, reducer)
 
             :ok = close(wal)
 
@@ -89,8 +89,8 @@ defmodule Elasticlunr.Wal do
   @spec flush(t()) :: :ok | {:error, atom()}
   def flush(%__MODULE__{fd: fd}), do: :file.datasync(fd)
 
-  @spec iterator(t()) :: Enumerable.t()
-  def iterator(%__MODULE__{path: path}), do: Iterator.new(path)
+  @spec iterator!(t()) :: Enumerable.t() | no_return()
+  def iterator!(%__MODULE__{path: path}), do: Iterator.new!(path)
 
   @spec close(t()) :: :ok | no_return()
   def close(%__MODULE__{fd: fd, path: path} = wal) do
@@ -117,7 +117,7 @@ defmodule Elasticlunr.Wal do
   @spec set(t(), binary(), binary(), pos_integer()) :: {:ok, t()} | {:error, term()}
   def set(%__MODULE__{fd: fd} = wal, key, value, timestamp) do
     with %Entry{} = entry <- Entry.new(key, value, false, timestamp),
-         data <- Entry.to_binary(entry),
+         data = Entry.encode(entry),
          :ok <- IO.binwrite(fd, data) do
       {:ok, wal}
     end
@@ -126,7 +126,7 @@ defmodule Elasticlunr.Wal do
   @spec remove(t(), binary(), pos_integer()) :: {:ok, t()} | {:error, term()}
   def remove(%__MODULE__{fd: fd} = wal, key, timestamp) do
     with %Entry{} = entry <- Entry.new(key, nil, true, timestamp),
-         data <- Entry.to_binary(entry),
+         data = Entry.encode(entry),
          :ok <- IO.binwrite(fd, data) do
       {:ok, wal}
     end

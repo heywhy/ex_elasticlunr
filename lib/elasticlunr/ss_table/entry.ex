@@ -9,7 +9,8 @@ defmodule Elasticlunr.SSTable.Entry do
   |-----------------------------------------------------------------------------|
   """
 
-  alias Elasticlunr.MemTable
+  alias Elasticlunr.Encoding
+  alias Elasticlunr.MemTable.Entry
 
   @enforce_keys [:key, :value, :deleted, :timestamp]
   defstruct [:key, :value, :deleted, :timestamp]
@@ -43,88 +44,52 @@ defmodule Elasticlunr.SSTable.Entry do
     struct!(__MODULE__, attrs)
   end
 
-  @spec from(MemTable.Entry.t() | binary()) :: t()
-  def from(%MemTable.Entry{key: key, value: value, deleted: deleted, timestamp: timestamp}) do
+  @spec from(Entry.t()) :: t()
+  def from(%Entry{key: key, value: value, deleted: deleted, timestamp: timestamp}) do
     new(key, value, deleted, timestamp)
   end
 
-  def from(entry) when is_binary(entry) do
-    case entry do
-      <<
-        timestamp::big-unsigned-integer-size(64),
-        key_size::unsigned-integer-size(64),
-        1,
-        key::binary-size(key_size)
-      >> ->
-        new(key, nil, true, timestamp)
+  @spec encode(t()) :: iodata()
+  def encode(%__MODULE__{deleted: deleted, key: key, value: value, timestamp: timestamp}) do
+    iodata =
+      []
+      |> Encoding.put_boolean(deleted)
+      |> Encoding.put_int64(timestamp)
+      |> Encoding.put_size_prefixed(key)
 
-      <<timestamp::big-unsigned-integer-size(64), key_size::unsigned-integer-size(64), 0,
-        value_size::unsigned-integer-size(64), key::binary-size(key_size),
-        value::binary-size(value_size)>> ->
-        new(key, value, false, timestamp)
+    case deleted do
+      true -> iodata
+      false -> Encoding.put_size_prefixed(iodata, value)
     end
-  end
-
-  @spec to_binary(t()) :: binary()
-  def to_binary(%__MODULE__{deleted: true, key: key, timestamp: timestamp}) do
-    key_size = byte_size(key)
-    key_size_data = <<key_size::unsigned-integer-size(64)>>
-
-    timestamp_data = <<timestamp::big-unsigned-integer-size(64)>>
-
-    sizes_data = <<key_size_data::binary, 1>>
-
-    <<timestamp_data::binary, sizes_data::binary, key::binary>>
-  end
-
-  def to_binary(%__MODULE__{deleted: false, key: key, value: value, timestamp: timestamp}) do
-    key_size = byte_size(key)
-    key_size_data = <<key_size::unsigned-integer-size(64)>>
-
-    timestamp_data = <<timestamp::big-unsigned-integer-size(64)>>
-
-    value_size = byte_size(value)
-    value_size_data = <<value_size::unsigned-integer-size(64)>>
-
-    sizes_data = <<key_size_data::binary, 0, value_size_data::binary>>
-
-    kv_data = <<key::binary, value::binary>>
-
-    <<timestamp_data::binary, sizes_data::binary, kv_data::binary>>
   end
 
   @spec size(t()) :: pos_integer()
   def size(%__MODULE__{key: key, deleted: deleted, value: value}) do
-    # timestamp_size + key_size + delete_tombstone + key
-    default = 8 + 8 + 1 + byte_size(key)
+    # deleted + timestamp + key_size + key + [value_size + value]
+    default = 1 + 8 + 8 + IO.iodata_length(key)
 
     case deleted do
       true -> default
-      false -> default + 8 + byte_size(value)
+      false -> default + 8 + IO.iodata_length(value)
     end
   end
 
-  @spec read(File.io_device()) :: t()
-  def read(fd) do
-    with <<timestamp::big-unsigned-integer-size(64)>> <- IO.binread(fd, 8),
-         <<key_size::unsigned-integer-size(64)>> <- IO.binread(fd, 8),
-         <<deleted::unsigned-integer>> <- IO.binread(fd, 1),
-         {key, value} <- read_kv(fd, deleted, key_size) do
-      new(key, value, deleted, timestamp)
-    end
-  end
+  @spec read!(File.io_device()) :: t() | no_return()
+  def read!(fd) do
+    deleted = Encoding.get_boolean!(fd)
+    timestamp = Encoding.get_int64!(fd)
 
-  defp read_kv(fd, 0, key_size) do
-    with <<value_size::unsigned-integer-size(64)>> <- IO.binread(fd, 8),
-         key <- IO.binread(fd, key_size),
-         value <- IO.binread(fd, value_size) do
-      {key, value}
-    end
-  end
+    case deleted do
+      true ->
+        fd
+        |> Encoding.get_size_prefixed!()
+        |> then(&new(&1, nil, true, timestamp))
 
-  defp read_kv(fd, 1, key_size) do
-    with key <- IO.binread(fd, key_size) do
-      {key, nil}
+      false ->
+        key = Encoding.get_size_prefixed!(fd)
+        value = Encoding.get_size_prefixed!(fd)
+
+        new(key, value, false, timestamp)
     end
   end
 end

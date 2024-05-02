@@ -36,7 +36,7 @@ defmodule Elasticlunr.MemTable do
   def set(%__MODULE__{entries: entries, size: size} = mem_table, key, value, timestamp) do
     case Treex.lookup(entries, key) do
       :none ->
-        size = size + byte_size(key) + byte_size(value) + 16 + 1
+        size = size + IO.iodata_length(key) + IO.iodata_length(value) + 16 + 1
         entry = Entry.new(key, value, false, timestamp)
 
         entries = Treex.insert!(entries, key, entry)
@@ -45,9 +45,9 @@ defmodule Elasticlunr.MemTable do
 
       {:value, entry} ->
         size =
-          case byte_size(value) < byte_size(entry.value) do
-            true -> size - byte_size(entry.value) - byte_size(value)
-            false -> size + byte_size(value) - byte_size(entry.value)
+          case IO.iodata_length(value) < IO.iodata_length(entry.value) do
+            true -> size - IO.iodata_length(entry.value) - IO.iodata_length(value)
+            false -> size + IO.iodata_length(value) - IO.iodata_length(entry.value)
           end
 
         entry = %{entry | value: value, deleted: false, timestamp: timestamp}
@@ -61,7 +61,7 @@ defmodule Elasticlunr.MemTable do
   def remove(%__MODULE__{entries: entries, size: size} = mem_table, key, timestamp) do
     case Treex.lookup(entries, key) do
       :none ->
-        size = size + byte_size(key) + 16 + 1
+        size = size + IO.iodata_length(key) + 16 + 1
 
         entry = Entry.new(key, nil, true, timestamp)
         entries = Treex.insert!(entries, key, entry)
@@ -69,7 +69,7 @@ defmodule Elasticlunr.MemTable do
         %{mem_table | entries: entries, size: size}
 
       {:value, entry} ->
-        size = size - byte_size(entry.value)
+        size = size - IO.iodata_length(entry.value)
 
         entry = %{entry | value: nil, deleted: true, timestamp: timestamp}
         entries = Treex.update!(entries, key, entry)
