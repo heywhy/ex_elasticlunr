@@ -21,7 +21,6 @@ defmodule Elasticlunr.Fs do
     |> Path.wildcard()
   end
 
-  # coveralls-ignore-start
   @spec read(Path.t()) :: binary()
   def read(path) do
     with {:ok, fd} <- open(path),
@@ -31,6 +30,7 @@ defmodule Elasticlunr.Fs do
     end
   end
 
+  # coveralls-ignore-start
   @spec write(Path.t(), binary()) :: :ok | no_return()
   def write(path, content), do: File.write!(path, content, [:binary, :compressed])
   # coveralls-ignore-stop

@@ -69,6 +69,40 @@ defmodule Elasticlunr.Manifest do
     do_apply(manifest, changes) >>> log_changes()
   end
 
+  @spec known_files(t()) :: MapSet.t(pos_integer())
+  def known_files(%__MODULE__{files: files}) do
+    Enum.reduce(files, MapSet.new(), fn {_level, files}, set ->
+      Enum.reduce(files, set, &MapSet.put(&2, &1.number))
+    end)
+  end
+
+  @spec find_file(t(), non_neg_integer()) :: nil | FileMeta.t()
+  def find_file(%__MODULE__{files: files}, number) do
+    Enum.reduce_while(files, [], fn {_level, files}, acc ->
+      files
+      |> Enum.find(&(&1.number == number))
+      |> case do
+        %FileMeta{} = file_meta -> {:cont, [file_meta] ++ acc}
+        nil -> {:cont, acc}
+      end
+    end)
+    |> case do
+      [] -> nil
+      [file_meta] -> file_meta
+    end
+  end
+
+  @spec from_path(Path.t()) :: {:ok, t()} | {:error, File.posix()}
+  def from_path(path) do
+    with {:manifest, number} <- Filename.parse(path),
+         {:ok, fd} <- File.open(path, [:read, :binary]),
+         manifest = new(number, Path.dirname(path)),
+         %{} = manifest <- read_and_apply_changes(manifest, fd),
+         :ok <- File.close(fd) do
+      {:ok, manifest}
+    end
+  end
+
   defp do_apply(%__MODULE__{} = manifest, %Changes{} = changes) do
     set_next_file_number(%{changes: changes, manifest: manifest})
     |> validate_or_set_log_number() >>>
@@ -139,40 +173,6 @@ defmodule Elasticlunr.Manifest do
     changes
     |> Changes.set_log_number(manifest.log_number)
     |> then(&{:ok, %{params | changes: &1}})
-  end
-
-  @spec known_files(t()) :: MapSet.t(pos_integer())
-  def known_files(%__MODULE__{files: files}) do
-    Enum.reduce(files, MapSet.new(), fn {_level, files}, set ->
-      Enum.reduce(files, set, &MapSet.put(&2, &1.number))
-    end)
-  end
-
-  @spec find_file(t(), non_neg_integer()) :: nil | FileMeta.t()
-  def find_file(%__MODULE__{files: files}, number) do
-    Enum.reduce_while(files, [], fn {_level, files}, acc ->
-      files
-      |> Enum.find(&(&1.number == number))
-      |> case do
-        %FileMeta{} = file_meta -> {:cont, [file_meta] ++ acc}
-        nil -> {:cont, acc}
-      end
-    end)
-    |> case do
-      [] -> nil
-      [file_meta] -> file_meta
-    end
-  end
-
-  @spec from_path(Path.t()) :: {:ok, t()} | {:error, File.posix()}
-  def from_path(path) do
-    with {:manifest, number} <- Filename.parse(path),
-         {:ok, fd} <- File.open(path, [:read, :binary]),
-         manifest = new(number, Path.dirname(path)),
-         %{} = manifest <- read_and_apply_changes(manifest, fd),
-         :ok <- File.close(fd) do
-      {:ok, manifest}
-    end
   end
 
   defp read_and_apply_changes(manifest, fd) do

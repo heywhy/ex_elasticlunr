@@ -7,6 +7,7 @@ defmodule Elasticlunr.Server.WriterTest do
   alias Elasticlunr.Fs
   alias Elasticlunr.Manifest
   alias Elasticlunr.Manifest.Changes
+  alias Elasticlunr.MemTable
   alias Elasticlunr.Schema
   alias Elasticlunr.Server.Writer
   alias Elasticlunr.SSTable
@@ -81,15 +82,23 @@ defmodule Elasticlunr.Server.WriterTest do
     assert ^document2 = GenServer.call(pid, {:get, document2.id})
   end
 
-  test "flush memtable when maxed", %{pid: pid, dir: dir} do
+  test "flush memtable when maxed", %{pid: pid} do
     (&new_book/0)
     |> Stream.repeatedly()
     |> Stream.each(&GenServer.call(pid, {:save, &1}))
     |> Enum.take(10)
 
-    assert segments = ss_tables(dir)
-    refute Enum.empty?(segments)
-    assert Enum.count(segments) >= 2
+    %{writer: writer} = :sys.get_state(pid)
+
+    assert Manifest.known_files(writer.manifest) >= 2
+  end
+
+  test "flushing empty memtable generates empty file", %{dir: dir} do
+    file_meta = %FileMeta{number: 999, dir: dir}
+
+    assert {:ok, ^file_meta} = SSTable.flush(MemTable.new(), file_meta)
+    assert path = Filename.ss_table(dir, file_meta.number)
+    assert :eof = Fs.read(path)
   end
 
   test "newly created sstable is added to the manifest", %{dir: dir, pid: pid} do
@@ -118,7 +127,7 @@ defmodule Elasticlunr.Server.WriterTest do
       largest_key: Utils.new_id()
     }
 
-    changes = Changes.add_file(%Changes{}, file_meta)
+    changes = Changes.add_file(%Changes{}, 0, file_meta)
 
     assert {:ok, _manifest} = Manifest.apply_and_log(manifest, changes)
 

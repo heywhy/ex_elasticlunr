@@ -186,7 +186,7 @@ defmodule Elasticlunr.Index.Writer do
            file_meta = %FileMeta{dir: dir, number: number},
            {:ok, file_meta} <- SSTable.flush(mem_table, file_meta) do
         %Changes{}
-        |> Changes.add_file(file_meta)
+        |> Changes.add_file(0, file_meta)
         |> then(&Manifest.apply_and_log(manifest, &1))
       else
         false -> {:ok, manifest}

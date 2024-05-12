@@ -32,8 +32,8 @@ defmodule Elasticlunr.Manifest.Changes do
     %{changes | next_file_number: number}
   end
 
-  @spec add_file(t(), FileMeta.t(), non_neg_integer()) :: t()
-  def add_file(%__MODULE__{new_files: new_files} = changes, %FileMeta{} = file_meta, level \\ 0) do
+  @spec add_file(t(), non_neg_integer(), FileMeta.t()) :: t()
+  def add_file(%__MODULE__{new_files: new_files} = changes, level, %FileMeta{} = file_meta) do
     %{changes | new_files: [{level, file_meta}] ++ new_files}
   end
 
@@ -75,7 +75,7 @@ defmodule Elasticlunr.Manifest.Changes do
         file_meta = %FileMeta{number: number, smallest_key: sk, largest_key: lk, size: size}
 
         changes
-        |> add_file(file_meta, level)
+        |> add_file(level, file_meta)
         |> then(&decode!(binary, &1))
     end
   end

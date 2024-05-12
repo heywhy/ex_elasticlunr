@@ -39,9 +39,9 @@ defmodule Elasticlunr.Index.Supervisor do
 
   @spec get(binary(), binary()) :: map() | nil
   def get(index, id) do
-    with writer_pid <- Process.writer(index),
+    with writer_pid when is_pid(writer_pid) <- Process.writer(index),
          nil <- GenServer.call(writer_pid, {:get, id}),
-         reader_pid <- Process.reader(index) do
+         reader_pid when is_pid(reader_pid) <- Process.reader(index) do
       GenServer.call(reader_pid, {:get, id})
     end
   end

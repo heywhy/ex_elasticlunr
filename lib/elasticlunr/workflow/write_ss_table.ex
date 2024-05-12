@@ -63,12 +63,10 @@ defmodule Elasticlunr.Workflow.WriteSSTable do
   end
 
   defp open_file(%{file_meta: %FileMeta{dir: dir, number: number}} = state) do
-    dir
-    |> Filename.ss_table(number)
-    |> Fs.open(:write)
-    |> case do
-      {:ok, fd} -> {:ok, Map.put(state, :fd, fd)}
-      error -> error
+    path = Filename.ss_table(dir, number)
+
+    with {:ok, fd} <- Fs.open(path, :write) do
+      {:ok, Map.put(state, :fd, fd)}
     end
   end
 
@@ -123,36 +121,32 @@ defmodule Elasticlunr.Workflow.WriteSSTable do
       |> Offsets.set(entry.key, offset - Entry.size(entry))
       |> Offsets.encode()
 
-    case IO.binwrite(fd, iodata) do
-      :ok ->
-        size = IO.iodata_length(iodata)
+    with :ok <- IO.binwrite(fd, iodata) do
+      size = IO.iodata_length(iodata)
 
-        state
-        |> Map.put(:offset, offset + size)
-        |> Map.put(:offsets_size, size)
-        |> then(&{:ok, &1})
-
-      error ->
-        error
+      state
+      |> Map.put(:offset, offset + size)
+      |> Map.put(:offsets_size, size)
+      |> then(&{:ok, &1})
     end
   end
+
+  defp flush_bloom_filter(%{offset: 0} = state), do: {:ok, state}
 
   defp flush_bloom_filter(%{fd: fd, offset: offset, bloom_filter: bloom_filter} = state) do
     iodata = BloomFilter.encode(bloom_filter)
 
-    case IO.binwrite(fd, iodata) do
-      :ok ->
-        size = IO.iodata_length(iodata)
+    with :ok <- IO.binwrite(fd, iodata) do
+      size = IO.iodata_length(iodata)
 
-        state
-        |> Map.put(:offset, offset + size)
-        |> Map.put(:bloom_filter_size, size)
-        |> then(&{:ok, &1})
-
-      error ->
-        error
+      state
+      |> Map.put(:offset, offset + size)
+      |> Map.put(:bloom_filter_size, size)
+      |> then(&{:ok, &1})
     end
   end
+
+  defp write_footer(%{offset: 0} = state), do: {:ok, state}
 
   defp write_footer(
          %{
@@ -172,9 +166,8 @@ defmodule Elasticlunr.Workflow.WriteSSTable do
 
     footer_size = IO.iodata_length(binary)
 
-    case IO.binwrite(fd, binary) do
-      :ok -> {:ok, %{state | offset: offset + footer_size}}
-      error -> error
+    with :ok <- IO.binwrite(fd, binary) do
+      {:ok, %{state | offset: offset + footer_size}}
     end
   end
 

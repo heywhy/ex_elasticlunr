@@ -29,10 +29,13 @@ defmodule Elasticlunr.Server.Writer do
     mt_max_size = Keyword.fetch!(opts, :mem_table_max_size)
     flush_fn = Keyword.get(opts, :flush_fn, &flush_async/1)
 
+    :ok = Logger.metadata(index: schema.name)
+
     dir
     |> Writer.new(schema, mt_max_size)
     |> Writer.recover()
     |> case do
+      # TODO: schedule compactions afterwards
       {:ok, writer} -> {:ok, %__MODULE__{flush_fn: flush_fn, writer: writer}}
       {:error, reason} -> {:stop, reason}
     end
@@ -86,7 +89,7 @@ defmodule Elasticlunr.Server.Writer do
         {:add_file, %FileMeta{size: size} = file_meta},
         %__MODULE__{writer: writer} = state
       )
-      when size >= 0 do
+      when size > 0 do
     # Only commit log number after successfully flushing the memtable to disk
 
     with {:ok, writer} <- add_file_to_manifest(file_meta, writer),
@@ -108,15 +111,13 @@ defmodule Elasticlunr.Server.Writer do
 
   @impl true
   def terminate(reason, %__MODULE__{task: task, writer: writer}) do
-    %Writer{schema: schema} = writer
-
     case complete_pending_task(task, writer) do
       :ok ->
-        Logger.info("Terminating writer process for #{schema.name} due to #{inspect(reason)}")
+        Logger.info("Terminating writer process due to #{inspect(reason)}")
 
       {:error, reason} ->
         Logger.error(
-          "Could not successfully terminate writer process for #{schema.name} because pending task failed due to #{inspect(reason)}"
+          "Could not successfully terminate writer process because pending task failed due to #{inspect(reason)}"
         )
     end
   end
@@ -167,7 +168,7 @@ defmodule Elasticlunr.Server.Writer do
     changes =
       manifest.log_number
       |> Changes.set_log_number()
-      |> Changes.add_file(file_meta)
+      |> Changes.add_file(0, file_meta)
 
     with {:ok, manifest} <- Manifest.apply_and_log(manifest, changes) do
       {:ok, %{writer | manifest: manifest}}
