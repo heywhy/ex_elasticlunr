@@ -5,6 +5,6 @@ config :elasticlunr,
   storage_dir: "./storage",
   max_mem_table_size: 1_000_000
 
-if config_env() in [:dev, :test] do
-  import_config("#{config_env()}.exs")
-end
+config :logger, :default_formatter, metadata: [:application, :index, :mfa]
+
+import_config("#{config_env()}.exs")
