@@ -11,13 +11,13 @@ defmodule Elasticlunr.Server.ReaderTest do
 
   setup do
     dir = tmp_dir!()
-    schema = Book.__schema__()
+    %{options: options} = schema = Book.__schema__()
+    # specify smaller value so that memtable can be immediately flushed
+    options = %{options | max_buffer_size: 10}
 
     opts = [
       dir: dir,
-      schema: schema,
-      # specify smaller value so that memtable can be immediately flushed
-      mem_table_max_size: 10
+      schema: %{schema | options: options}
     ]
 
     writer = start_supervised!({Writer, opts})

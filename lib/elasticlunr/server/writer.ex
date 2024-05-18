@@ -17,27 +17,32 @@ defmodule Elasticlunr.Server.Writer do
 
   @spec start_link(keyword()) :: GenServer.on_start()
   def start_link(opts) do
-    GenServer.start_link(__MODULE__, [hibernate_after: 5_000] ++ opts)
+    GenServer.start_link(__MODULE__, opts, hibernate_after: 5_000)
   end
 
   @impl true
   def init(opts) do
     Process.flag(:trap_exit, true)
 
+    opts = Keyword.validate!(opts, [:dir, :schema, flush_fn: &flush_async/1])
+
     dir = Keyword.fetch!(opts, :dir)
     schema = Keyword.fetch!(opts, :schema)
-    mt_max_size = Keyword.fetch!(opts, :mem_table_max_size)
-    flush_fn = Keyword.get(opts, :flush_fn, &flush_async/1)
 
     :ok = Logger.metadata(index: schema.name)
 
     dir
-    |> Writer.new(schema, mt_max_size)
+    |> Writer.new(schema)
     |> Writer.recover()
     |> case do
       # TODO: schedule compactions afterwards
-      {:ok, writer} -> {:ok, %__MODULE__{flush_fn: flush_fn, writer: writer}}
-      {:error, reason} -> {:stop, reason}
+      {:ok, writer} ->
+        state = %__MODULE__{flush_fn: opts[:flush_fn], writer: writer}
+
+        {:ok, maybe_schedule_compactions(state)}
+
+      {:error, reason} ->
+        {:stop, reason}
     end
   end
 
@@ -95,7 +100,11 @@ defmodule Elasticlunr.Server.Writer do
     with {:ok, writer} <- add_file_to_manifest(file_meta, writer),
          %Writer{schema: schema} <- writer,
          :ok <- PubSub.publish(schema.name, :file_created, file_meta) do
-      {:noreply, %{state | writer: writer}}
+      state
+      |> Map.put(:writer, writer)
+      # Schedule another compation in case the generated file fills a level
+      |> maybe_schedule_compactions()
+      |> then(&{:noreply, &1})
     end
   end
 
@@ -111,7 +120,7 @@ defmodule Elasticlunr.Server.Writer do
 
   @impl true
   def terminate(reason, %__MODULE__{task: task, writer: writer}) do
-    case complete_pending_task(task, writer) do
+    case kill_pending_task(task, writer) do
       :ok ->
         Logger.info("Terminating writer process due to #{inspect(reason)}")
 
@@ -119,6 +128,16 @@ defmodule Elasticlunr.Server.Writer do
         Logger.error(
           "Could not successfully terminate writer process because pending task failed due to #{inspect(reason)}"
         )
+    end
+  end
+
+  defp maybe_schedule_compactions(%{writer: writer} = state) do
+    writer
+    |> Writer.manifest()
+    |> Manifest.needs_compaction?()
+    |> case do
+      false -> state
+      true -> state
     end
   end
 
@@ -140,11 +159,12 @@ defmodule Elasticlunr.Server.Writer do
 
   defp gen_new_space(%{dir: dir, manifest: manifest} = writer) do
     {number, manifest} = Manifest.new_file_number(manifest)
+
     %{writer | manifest: manifest, wal: Wal.create(dir, number), mem_table: MemTable.new()}
   end
 
   defp wait_for_task(task) do
-    with {:ok, file_meta} <- Task.yield(task) || Task.ignore(task),
+    with {:ok, file_meta} <- Task.yield(task),
          {:add_file, ^file_meta} <- send(self(), {:add_file, file_meta}) do
       :ok
     else
@@ -153,12 +173,18 @@ defmodule Elasticlunr.Server.Writer do
     end
   end
 
-  defp complete_pending_task(nil, _writer), do: :ok
+  # Shutting down the pending task isn't terminal because data written will
+  # be recovered when the writer is restarted and we can flush again.
+  defp kill_pending_task(nil, _writer), do: :ok
 
-  defp complete_pending_task(task, writer) do
-    with {:ok, file_meta} <- Task.yield(task) || Task.ignore(task),
+  defp kill_pending_task(task, writer) do
+    with {:ok, file_meta} <- Task.shutdown(task),
          {:ok, _writer} <- add_file_to_manifest(file_meta, writer) do
       :ok
+    else
+      nil -> :ok
+      {:exit, :normal} -> :ok
+      error -> error
     end
   end
 

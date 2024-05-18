@@ -75,42 +75,39 @@ defmodule Elasticlunr.Workflow.WriteSSTable do
 
     entries
     |> Stream.with_index()
-    |> Enum.reduce_while({:ok, state}, fn {entry, index}, acc ->
+    |> Enum.reduce(state, fn {entry, index}, acc ->
       %{offset: offset, offsets: offsets, bloom_filter: bloom_filter, smallest_key: smallest_key} =
-        ok(acc)
+        acc
 
       binary = Entry.encode(entry)
       entry_size = Entry.size(entry)
       new_offset = offset + entry_size
 
-      case IO.binwrite(fd, binary) do
-        :ok ->
-          bloom_filter = BloomFilter.set(bloom_filter, entry.key)
+      :ok = IO.binwrite(fd, binary)
 
-          # TODO: allow interval to be configurable
-          offsets =
-            case rem(index, 128) do
-              0 -> Offsets.set(offsets, entry.key, offset)
-              _ -> offsets
-            end
+      bloom_filter = BloomFilter.set(bloom_filter, entry.key)
 
-          new_state = %{
-            state
-            | offsets: offsets,
-              bloom_filter: bloom_filter,
-              last_entry: entry,
-              offset: new_offset,
-              index_size: new_offset,
-              largest_key: entry.key,
-              smallest_key: smallest_key || entry.key
-          }
+      # TODO: allow interval to be configurable
+      offsets =
+        case rem(index, 128) do
+          0 -> Offsets.set(offsets, entry.key, offset)
+          _ -> offsets
+        end
 
-          {:cont, {:ok, new_state}}
+      new_state = %{
+        state
+        | offsets: offsets,
+          bloom_filter: bloom_filter,
+          last_entry: entry,
+          offset: new_offset,
+          index_size: new_offset,
+          largest_key: entry.key,
+          smallest_key: smallest_key || entry.key
+      }
 
-        error ->
-          {:halt, error}
-      end
+      new_state
     end)
+    |> then(&{:ok, &1})
   end
 
   defp flush_offsets(%{last_entry: nil} = state), do: {:ok, state}

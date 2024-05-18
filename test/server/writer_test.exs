@@ -20,11 +20,12 @@ defmodule Elasticlunr.Server.WriterTest do
 
   setup do
     dir = tmp_dir!()
+    %{options: options} = schema = Book.__schema__()
+    options = %{options | max_buffer_size: 550}
 
     opts = [
       dir: dir,
-      mem_table_max_size: 550,
-      schema: Book.__schema__()
+      schema: %{schema | options: options}
     ]
 
     pid = start_supervised!({Writer, opts})
@@ -101,6 +102,18 @@ defmodule Elasticlunr.Server.WriterTest do
     assert :eof = Fs.read(path)
   end
 
+  test "retrieve document from old memtable", %{pid: pid} do
+    document = GenServer.call(pid, {:save, new_book()})
+
+    (&new_book/0)
+    |> Stream.repeatedly()
+    |> Stream.each(&GenServer.call(pid, {:save, &1}))
+    |> Enum.take(4)
+
+    assert ^document = GenServer.call(pid, {:get, document.id})
+    refute GenServer.call(pid, {:get, "unknown"})
+  end
+
   test "newly created sstable is added to the manifest", %{dir: dir, pid: pid} do
     for _ <- 0..10 do
       GenServer.call(pid, {:save, new_book()})
@@ -149,8 +162,8 @@ defmodule Elasticlunr.Server.WriterTest do
     (&new_book/0)
     |> Stream.repeatedly()
     |> Stream.take(10)
-    |> Enum.reduce(write_to_wal(book, wal, schema), fn book, {:ok, wal} ->
-      write_to_wal(book, wal, schema)
+    |> Enum.reduce(write_to_wal(wal, book, schema), fn book, {:ok, wal} ->
+      write_to_wal(wal, book, schema)
     end)
 
     assert :ok = Wal.close(wal)
@@ -200,7 +213,7 @@ defmodule Elasticlunr.Server.WriterTest do
     assert {:ok, %Manifest{log_number: ^number}} = read_manifest(dir)
   end
 
-  defp write_to_wal(book, wal, schema) do
+  defp write_to_wal(wal, book, schema) do
     id = book.id || Utils.new_id()
 
     book

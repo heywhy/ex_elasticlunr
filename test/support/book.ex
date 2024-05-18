@@ -1,7 +1,7 @@
 defmodule Elasticlunr.Book do
   use Elasticlunr.Index
 
-  compaction(Compaction.Leveled, files_num_trigger: 5)
+  options(l0_compaction_trigger: 4)
 
   schema "books" do
     field(:id, :uid)

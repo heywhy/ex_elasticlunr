@@ -11,9 +11,6 @@ defmodule Elasticlunr.Index.Supervisor do
 
   require Logger
 
-  @otp_app :elasticlunr
-  # default to 160mb
-  @mem_table_max_size 167_772_160
   @registry Elasticlunr.IndexRegistry
 
   @spec save(binary(), map()) :: map()
@@ -63,11 +60,10 @@ defmodule Elasticlunr.Index.Supervisor do
   @impl true
   def init(%Schema{compaction_strategy: compaction} = schema) do
     dir = create_dir!(schema)
-    mem_table_max_size = Application.get_env(@otp_app, :mem_table_max_size, @mem_table_max_size)
 
     children = [
       {Compaction, dir: dir, schema: schema, strategy: compaction},
-      {Writer, dir: dir, schema: schema, mem_table_max_size: mem_table_max_size},
+      {Writer, dir: dir, schema: schema},
       {Reader, dir: dir, schema: schema}
     ]
 

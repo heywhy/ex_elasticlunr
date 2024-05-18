@@ -2,13 +2,21 @@ defmodule Elasticlunr.Schema do
   alias Elasticlunr.CompactionStrategy.SizeTiered
   alias Elasticlunr.Encoding
   alias Elasticlunr.Field
+  alias Elasticlunr.Options
 
-  defstruct [:name, fields: %{}, compaction_strategy: {SizeTiered, []}]
+  @enforce_keys [:name]
+  defstruct [
+    :name,
+    fields: %{},
+    options: %Options{},
+    compaction_strategy: {SizeTiered, []}
+  ]
 
   @type t :: %__MODULE__{
-          name: binary(),
-          fields: map(),
-          compaction_strategy: {module(), keyword()}
+          name: String.t(),
+          options: Options.t(),
+          compaction_strategy: {module(), keyword()},
+          fields: %{required(String.t()) => Field.t()}
         }
 
   @k_text_tag 1
@@ -16,6 +24,12 @@ defmodule Elasticlunr.Schema do
   @k_float_tag 3
   @k_date_tag 4
   @k_array_tag 5
+
+  defmacro options(opts) when is_list(opts) do
+    quote bind_quoted: [options: opts] do
+      @options struct!(Options, options)
+    end
+  end
 
   defmacro compaction(strategy, opts \\ []) do
     config = {strategy, opts}
@@ -162,29 +176,33 @@ defmodule Elasticlunr.Schema do
           {Date.from_gregorian_days(value), binary}
 
         @k_array_tag ->
-          {value, binary} = Encoding.chop_size_prefixed!(binary)
-
-          fun = fn
-            <<>>, _fun, acc ->
-              acc
-
-            binary, fun, acc ->
-              {element, binary} =
-                case Encoding.chop_int!(binary) do
-                  {0, binary} -> Encoding.chop_float64!(binary)
-                  {1, binary} -> Encoding.chop_int64!(binary)
-                  {2, binary} -> Encoding.chop_size_prefixed!(binary)
-                end
-
-              fun.(binary, fun, [element] ++ acc)
-          end
-
-          value
-          |> fun.(fun, [])
-          |> Enum.reverse()
-          |> then(&{&1, binary})
+          decode_array(binary)
       end
 
     extract_document(binary, Map.put(acc, field, value))
+  end
+
+  defp decode_array(binary) do
+    {value, binary} = Encoding.chop_size_prefixed!(binary)
+
+    fun = fn
+      <<>>, _fun, acc ->
+        acc
+
+      binary, fun, acc ->
+        {element, binary} =
+          case Encoding.chop_int!(binary) do
+            {0, binary} -> Encoding.chop_float64!(binary)
+            {1, binary} -> Encoding.chop_int64!(binary)
+            {2, binary} -> Encoding.chop_size_prefixed!(binary)
+          end
+
+        fun.(binary, fun, [element] ++ acc)
+    end
+
+    value
+    |> fun.(fun, [])
+    |> Enum.reverse()
+    |> then(&{&1, binary})
   end
 end

@@ -8,6 +8,7 @@ defmodule Elasticlunr.Index.Writer do
   alias Elasticlunr.Manifest.Changes
   alias Elasticlunr.MemTable
   alias Elasticlunr.MemTable.Entry, as: MemTableEntry
+  alias Elasticlunr.Options
   alias Elasticlunr.Schema
   alias Elasticlunr.SSTable
   alias Elasticlunr.Utils
@@ -17,23 +18,21 @@ defmodule Elasticlunr.Index.Writer do
 
   require Logger
 
-  defstruct [:dir, :schema, :wal, :mem_table, :mt_max_size, :manifest]
+  defstruct [:dir, :schema, :wal, :mem_table, :manifest]
 
   @type t :: %__MODULE__{
           wal: nil | Wal.t(),
           dir: Path.t(),
           schema: Schema.t(),
-          mt_max_size: pos_integer(),
           manifest: nil | Manifest.t(),
           mem_table: nil | MemTable.t()
         }
 
-  @spec new(Path.t(), Schema.t(), pos_integer()) :: t()
-  def new(dir, schema, mt_max_size) do
+  @spec new(Path.t(), Schema.t()) :: t()
+  def new(dir, schema) do
     attrs = [
       dir: dir,
-      schema: schema,
-      mt_max_size: mt_max_size
+      schema: schema
     ]
 
     struct!(__MODULE__, attrs)
@@ -128,7 +127,7 @@ defmodule Elasticlunr.Index.Writer do
   end
 
   defp recover_from_logs(
-         %{dir: dir, log_files: log_files, manifest: manifest, writer: writer} = state
+         %{dir: dir, log_files: log_files, manifest: manifest, options: options} = state
        ) do
     mergeable_fields = [:manifest, :mem_table, :compactions, :last_log_number]
 
@@ -136,8 +135,8 @@ defmodule Elasticlunr.Index.Writer do
       dir: dir,
       manifest: manifest,
       mem_table: MemTable.new(),
-      mt_max_size: writer.mt_max_size,
-      last_log_number: List.last(log_files)
+      last_log_number: List.last(log_files),
+      max_buffer_size: options.max_buffer_size
     }
 
     mark_file_number = fn %{manifest: manifest, log_number: log_number} = params ->
@@ -198,10 +197,10 @@ defmodule Elasticlunr.Index.Writer do
     |> Filename.log(log_number)
     |> Iterator.new!()
     |> Enum.reduce_while(params, fn entry, acc ->
-      %{mem_table: mt, compactions: c, manifest: manifest, mt_max_size: mms} = acc
+      %{mem_table: mt, compactions: c, manifest: manifest, max_buffer_size: mbs} = acc
       mt = update_mt.(mt, entry)
 
-      with {true, mt} <- {MemTable.size(mt) >= mms, mt},
+      with {true, mt} <- {MemTable.size(mt) >= mbs, mt},
            {:ok, manifest} <- flush_mt.(mt, dir, manifest) do
         {:cont, %{acc | mem_table: MemTable.new(), manifest: manifest, compactions: c + 1}}
       else
@@ -276,22 +275,24 @@ defmodule Elasticlunr.Index.Writer do
   end
 
   defp create_db_if_missing(%{dir: dir} = writer) do
+    options = options(writer)
     path = Filename.current(dir)
+    state = %{dir: dir, options: options, writer: writer}
 
     with false <- File.exists?(path),
-         :ok <- new_db(dir) do
-      {:ok, %{dir: dir, writer: writer}}
+         :ok <- new_db(dir, options) do
+      {:ok, state}
     else
-      true -> {:ok, %{dir: dir, writer: writer}}
+      true -> {:ok, state}
       error -> error
     end
   end
 
-  defp new_db(dir) do
+  defp new_db(dir, options) do
     path = Filename.manifest(dir, 1)
 
     with :ok <- File.touch(path),
-         manifest = Manifest.new(1, dir),
+         manifest = Manifest.new(1, dir, options),
          changes = Changes.set_next_file_number(2),
          {:ok, manifest} <- Manifest.apply_and_log(manifest, changes),
          :ok <- Manifest.close(manifest) do
@@ -319,9 +320,14 @@ defmodule Elasticlunr.Index.Writer do
     end
   end
 
+  @spec options(t()) :: Options.t()
+  def options(%__MODULE__{schema: schema}), do: schema.options
+
   @spec buffer_filled?(t()) :: boolean()
-  def buffer_filled?(%__MODULE__{mem_table: mem_table, mt_max_size: mt_max_size}) do
-    MemTable.size(mem_table) >= mt_max_size
+  def buffer_filled?(%__MODULE__{mem_table: mem_table} = writer) do
+    %Options{max_buffer_size: max_size} = options(writer)
+
+    MemTable.size(mem_table) >= max_size
   end
 
   @spec close(t()) :: :ok | no_return()

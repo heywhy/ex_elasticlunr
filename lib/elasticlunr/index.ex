@@ -7,6 +7,9 @@ defmodule Elasticlunr.Index do
 
       @before_compile Elasticlunr.Index
 
+      Module.register_attribute(__MODULE__, :compaction_strategy, [])
+      Module.register_attribute(__MODULE__, :options, [])
+
       @spec child_spec(keyword()) :: Supervisor.child_spec()
       def child_spec(arg) do
         %{
@@ -51,12 +54,12 @@ defmodule Elasticlunr.Index do
       def delete(id), do: Index.Supervisor.delete(@name, id)
 
       @spec __schema__() :: Schema.t()
-      if @compaction_strategy do
-        def __schema__ do
-          struct!(@schema, compaction_strategy: @compaction_strategy)
-        end
-      else
-        def __schema__, do: @schema
+      def __schema__ do
+        opts = [compaction_strategy: @compaction_strategy, options: @options]
+
+        opts
+        |> Enum.reject(&(elem(&1, 1) |> is_nil()))
+        |> then(&struct!(@schema, &1))
       end
 
       @spec running?() :: boolean()
