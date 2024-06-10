@@ -9,8 +9,11 @@ defmodule Elasticlunr.SSTable.Entry do
   |-----------------------------------------------------------------------------|
   """
 
+  alias Cmp.Comparable
   alias Elasticlunr.Encoding
   alias Elasticlunr.MemTable.Entry
+
+  @derive {Comparable, using: [:key, :timestamp]}
 
   @enforce_keys [:key, :value, :deleted, :timestamp]
   defstruct [:key, :value, :deleted, :timestamp]

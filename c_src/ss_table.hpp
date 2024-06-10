@@ -2,7 +2,7 @@
 
 #define __SS_TABLE_HPP__
 
-#include <iostream>
+#include <string_view>
 #include <map>
 
 using namespace std;

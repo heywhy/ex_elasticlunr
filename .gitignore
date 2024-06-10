@@ -32,4 +32,12 @@ elasticlunr-*.tar
 /priv/plts/*.plt
 /priv/plts/*.plt.hash
 
+# CMake
+.cmake
+Makefile
+build/
+
+# Clangd
+.cache
+
 compile_flags.txt

@@ -1,5 +1,6 @@
 #include "index.hpp"
 #include "utils.hpp"
+#include <vector>
 
 Index::Index(fs::path const &dir) : dir(dir) { load_from_dir(); };
 

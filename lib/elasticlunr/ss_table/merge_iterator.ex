@@ -51,7 +51,7 @@ defimpl Enumerable, for: Elasticlunr.SSTable.MergeIterator do
     {duplicates, rest} =
       Enum.split_while(entries, fn {entry, _iterator} -> entry.key == key end)
 
-    {entry, _iterator} = Enum.max_by(duplicates, fn {entry, _} -> entry.timestamp end)
+    {entry, _iterator} = Cmp.max_by(duplicates, fn {entry, _} -> entry end)
 
     duplicates
     |> Enum.map(&(elem(&1, 1) |> Iterator.next()))

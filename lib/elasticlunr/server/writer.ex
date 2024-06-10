@@ -2,6 +2,7 @@ defmodule Elasticlunr.Server.Writer do
   use GenServer
 
   alias Elasticlunr.BackgroundTaskSupervisor
+  alias Elasticlunr.CompactionController
   alias Elasticlunr.FileMeta
   alias Elasticlunr.Index.Writer
   alias Elasticlunr.Manifest
@@ -13,6 +14,7 @@ defmodule Elasticlunr.Server.Writer do
 
   require Logger
 
+  @enforce_keys [:flush_fn, :writer]
   defstruct [:task, :tmp, :flush_fn, :writer]
 
   @spec start_link(keyword()) :: GenServer.on_start()
@@ -28,13 +30,11 @@ defmodule Elasticlunr.Server.Writer do
 
     dir = Keyword.fetch!(opts, :dir)
     schema = Keyword.fetch!(opts, :schema)
+    writer = %Writer{dir: dir, schema: schema}
 
     :ok = Logger.metadata(index: schema.name)
 
-    dir
-    |> Writer.new(schema)
-    |> Writer.recover()
-    |> case do
+    case Writer.recover(writer) do
       # TODO: schedule compactions afterwards
       {:ok, writer} ->
         state = %__MODULE__{flush_fn: opts[:flush_fn], writer: writer}
@@ -102,7 +102,7 @@ defmodule Elasticlunr.Server.Writer do
          :ok <- PubSub.publish(schema.name, :file_created, file_meta) do
       state
       |> Map.put(:writer, writer)
-      # Schedule another compation in case the generated file fills a level
+      # Schedule another compaction in case the generated file fills a level
       |> maybe_schedule_compactions()
       |> then(&{:noreply, &1})
     end
@@ -137,15 +137,26 @@ defmodule Elasticlunr.Server.Writer do
     |> Manifest.needs_compaction?()
     |> case do
       false -> state
-      true -> state
+      true -> schedule_compaction(state)
+    end
+  end
+
+  defp schedule_compaction(%{writer: writer} = state) do
+    with {:ok, compaction} <- Manifest.pick_compaction(writer.manifest),
+         :ok <- CompactionController.process(compaction, writer.dir) do
+      state
+    else
+      {:error, reason} when is_binary(reason) ->
+        raise reason
     end
   end
 
   defp write_to_disk_if_needed(%{task: task, flush_fn: flush_fn, writer: writer} = state) do
     with true <- Writer.buffer_filled?(writer),
-         nil <- task,
-         {task, writer} <- flush_fn.(writer) do
-      %{state | task: task, tmp: writer, writer: gen_new_space(writer)}
+         nil <- task do
+      writer
+      |> flush_fn.()
+      |> then(&%{state | task: &1, tmp: writer, writer: gen_new_space(writer)})
     else
       false ->
         state
@@ -158,9 +169,9 @@ defmodule Elasticlunr.Server.Writer do
   end
 
   defp gen_new_space(%{dir: dir, manifest: manifest} = writer) do
-    {number, manifest} = Manifest.new_file_number(manifest)
+    number = Manifest.new_file_number(manifest)
 
-    %{writer | manifest: manifest, wal: Wal.create(dir, number), mem_table: MemTable.new()}
+    %{writer | wal: Wal.create(dir, number), mem_table: MemTable.new()}
   end
 
   defp wait_for_task(task) do
@@ -201,21 +212,18 @@ defmodule Elasticlunr.Server.Writer do
     end
   end
 
-  defp flush_async(%{dir: dir, manifest: manifest, mem_table: mem_table, wal: wal} = writer) do
-    {file_number, manifest} = Manifest.new_file_number(manifest)
+  defp flush_async(%{dir: dir, manifest: manifest, mem_table: mem_table, wal: wal}) do
+    file_number = Manifest.new_file_number(manifest)
     file_meta = %FileMeta{dir: dir, number: file_number}
 
-    task =
-      Task.Supervisor.async_nolink(BackgroundTaskSupervisor, fn ->
-        # This steps should be encapsulated in the writer module but wasn't
-        # because of data copying from this server to the task process so
-        # we only handpick the data needed by this task process
-        with {:ok, file_meta} <- SSTable.flush(mem_table, file_meta),
-             :ok <- Wal.delete(wal) do
-          file_meta
-        end
-      end)
-
-    {task, %{writer | manifest: manifest}}
+    Task.Supervisor.async_nolink(BackgroundTaskSupervisor, fn ->
+      # This steps should be encapsulated in the writer module but wasn't
+      # because of data copying from this server to the task process so
+      # we only handpick the data needed by this task process
+      with {:ok, file_meta} <- SSTable.flush(mem_table, file_meta),
+           :ok <- Wal.delete(wal) do
+        file_meta
+      end
+    end)
   end
 end

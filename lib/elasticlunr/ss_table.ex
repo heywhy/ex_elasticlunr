@@ -79,11 +79,15 @@ defmodule Elasticlunr.SSTable do
 
     file_metas
     |> MergeIterator.new()
-    |> Stream.reject(fn %Entry{timestamp: ts} ->
-      now
-      |> DateTime.diff(Utils.to_date_time(ts), :second)
-      # TODO: Make tombstone grace period configurable (currently 10 days)
-      |> Kernel.>=(864_000)
+    |> Stream.reject(fn
+      %Entry{deleted: false} ->
+        false
+
+      %Entry{timestamp: ts, deleted: true} ->
+        now
+        |> DateTime.diff(Utils.to_date_time(ts), :second)
+        # TODO: Make tombstone grace period configurable (currently 10 days)
+        |> Kernel.>=(864_000)
     end)
     |> WriteSSTable.new(file_meta)
     |> WriteSSTable.run()

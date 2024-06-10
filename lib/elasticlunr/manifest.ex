@@ -1,4 +1,6 @@
 defmodule Elasticlunr.Manifest do
+  alias Elasticlunr.AtomicInt
+  alias Elasticlunr.Compaction
   alias Elasticlunr.FileMeta
   alias Elasticlunr.Filename
   alias Elasticlunr.Manifest.Changes
@@ -6,13 +8,12 @@ defmodule Elasticlunr.Manifest do
 
   use Rop
 
-  @fields ~w[fd l0_compaction_trigger max_bytes_for_base_level max_bytes_for_level_multiplier max_level number]a
+  @fields ~w[fd l0_compaction_trigger max_bytes_for_base_level max_bytes_for_level_multiplier max_level number next_file_number]a
 
   @enforce_keys @fields
   defstruct @fields ++
               [
                 log_number: 0,
-                next_file_number: 0,
                 files: %{},
                 compaction_score: {-1, -1}
               ]
@@ -22,7 +23,7 @@ defmodule Elasticlunr.Manifest do
           number: non_neg_integer(),
           max_level: non_neg_integer(),
           log_number: non_neg_integer(),
-          next_file_number: non_neg_integer(),
+          next_file_number: AtomicInt.t(),
           l0_compaction_trigger: pos_integer(),
           compaction_score: {float(), integer()},
           max_bytes_for_base_level: pos_integer(),
@@ -40,6 +41,7 @@ defmodule Elasticlunr.Manifest do
       number: number,
       fd: File.open!(path, @opts),
       max_level: options.max_level,
+      next_file_number: AtomicInt.new(0),
       l0_compaction_trigger: options.l0_compaction_trigger,
       max_bytes_for_base_level: options.max_bytes_for_base_level,
       max_bytes_for_level_multiplier: options.max_bytes_for_level_multiplier
@@ -48,19 +50,24 @@ defmodule Elasticlunr.Manifest do
     struct!(__MODULE__, attrs)
   end
 
-  @spec new_file_number(t()) :: {pos_integer(), t()}
-  def new_file_number(%__MODULE__{next_file_number: no} = manifest) do
-    no
-    |> Kernel.+(1)
-    |> then(&{no, %{manifest | next_file_number: &1}})
+  @spec new_file_number(t()) :: pos_integer()
+  def new_file_number(%__MODULE__{next_file_number: nfn}) do
+    number = AtomicInt.get(nfn)
+
+    :ok = AtomicInt.add(nfn, 1)
+
+    number
   end
 
   @spec use_file_number(t(), pos_integer()) :: t()
-  def use_file_number(%__MODULE__{next_file_number: nfn} = manifest, number) when nfn <= number do
-    %{manifest | next_file_number: number + 1}
+  def use_file_number(%__MODULE__{next_file_number: nfn} = manifest, number) do
+    with value when value <= number <- AtomicInt.get(nfn),
+         :ok <- AtomicInt.put(nfn, number + 1) do
+      manifest
+    else
+      _ -> manifest
+    end
   end
-
-  def use_file_number(%__MODULE__{} = manifest, _number), do: manifest
 
   @spec current_log(t()) :: non_neg_integer()
   def current_log(%__MODULE__{log_number: number}), do: number
@@ -79,6 +86,175 @@ defmodule Elasticlunr.Manifest do
 
   @spec needs_compaction?(t()) :: boolean()
   def needs_compaction?(%__MODULE__{compaction_score: {score, _level}}), do: score >= 1
+
+  @spec pick_compaction(t()) :: {:ok, Compaction.t()} | {:error, term()}
+  def pick_compaction(%__MODULE__{
+        compaction_score: {_score, level},
+        files: files,
+        max_level: max_level
+      })
+      when level >= 0 do
+    file_meta =
+      files
+      |> level_files(level)
+      |> List.first()
+
+    params = %{
+      files: files,
+      level: level,
+      max_level: max_level,
+      compaction: %Compaction{level: level, inputs: [file_meta]}
+    }
+
+    level_below_max_level(params) >>>
+      maybe_include_level0_overlapping_files() >>>
+      include_boundary_files() >>>
+      include_overlapping_files_in_parent() >>>
+      include_boundary_files_in_parent() >>>
+      bind((fn %{compaction: c} -> c end).())
+  end
+
+  defp level_below_max_level(%{level: level, max_level: max_level} = params) do
+    case level + 1 < max_level do
+      true -> {:ok, params}
+      false -> {:error, "max level reached"}
+    end
+  end
+
+  defp maybe_include_level0_overlapping_files(
+         %{level: 0, compaction: compaction, files: files} = params
+       ) do
+    {sk, lk} = key_range(compaction.inputs)
+
+    files
+    |> overlapping_files(0, sk, lk)
+    |> then(&%{compaction | inputs: &1})
+    |> then(&{:ok, %{params | compaction: &1}})
+  end
+
+  defp maybe_include_level0_overlapping_files(params), do: {:ok, params}
+
+  defp include_boundary_files(%{compaction: compaction, files: files, level: level} = params) do
+    files
+    |> boundary_inputs(level, compaction.inputs)
+    |> then(&%{compaction | inputs: &1})
+    |> then(&{:ok, %{params | compaction: &1}})
+  end
+
+  defp include_overlapping_files_in_parent(
+         %{compaction: compaction, files: files, level: level} = params
+       ) do
+    {sk, lk} = key_range(compaction.inputs)
+
+    files
+    |> overlapping_files(level + 1, sk, lk)
+    |> then(&%{compaction | parent_inputs: &1})
+    |> then(&{:ok, %{params | compaction: &1}})
+  end
+
+  defp include_boundary_files_in_parent(
+         %{compaction: compaction, files: files, level: level} = params
+       ) do
+    files
+    |> boundary_inputs(level + 1, compaction.parent_inputs)
+    |> then(&%{compaction | parent_inputs: &1})
+    |> then(&{:ok, %{params | compaction: &1}})
+  end
+
+  defp boundary_inputs(files, level, compaction_files) do
+    files = level_files(files, level)
+
+    search_fn = fn
+      false, _lk, _lf, acc, _fun ->
+        acc
+
+      true, lk, files, acc, fun ->
+        case find_smallest_boundary_file(files, lk) do
+          nil -> fun.(false, lk, files, acc, fun)
+          file_meta -> fun.(true, file_meta.largest_key, files, [file_meta] ++ acc, fun)
+        end
+    end
+
+    case find_largest_key(compaction_files) do
+      nil -> compaction_files
+      lk -> search_fn.(true, lk, files, compaction_files, search_fn)
+    end
+  end
+
+  defp find_smallest_boundary_file(files, lk, acc \\ nil)
+
+  defp find_smallest_boundary_file([], _lk, acc), do: acc
+
+  defp find_smallest_boundary_file([file_meta | rest], lk, acc) do
+    with true <- Cmp.gt?(file_meta.smallest_key, lk),
+         true <- is_nil(acc) or Cmp.lt?(file_meta.smallest_key, acc.smallest_key) do
+      find_smallest_boundary_file(rest, lk, file_meta)
+    else
+      false -> find_smallest_boundary_file(rest, lk, acc)
+    end
+  end
+
+  defp find_largest_key([]), do: nil
+
+  defp find_largest_key(files) do
+    files
+    |> Enum.map(& &1.largest_key)
+    |> Cmp.max()
+  end
+
+  defp overlapping_files(files, level, start, stop) do
+    files = level_files(files, level)
+
+    find_fn = fn
+      [], _range, _level, acc, _files, _fun ->
+        acc
+
+      [file_meta | rest], {start, stop} = range, level, acc, files, fun ->
+        cond do
+          start != nil and Cmp.lt?(file_meta.largest_key, start) ->
+            fun.(rest, range, level, acc, files, fun)
+
+          stop != nil and Cmp.gt?(file_meta.smallest_key, stop) ->
+            fun.(rest, range, level, acc, files, fun)
+
+          level == 0 and start != nil and Cmp.gt?(start, file_meta.smallest_key) ->
+            fun.(files, {file_meta.smallest_key, stop}, level, [], files, fun)
+
+          level == 0 and stop != nil and Cmp.lt?(stop, file_meta.largest_key) ->
+            fun.(files, {start, file_meta.largest_key}, level, [], files, fun)
+
+          true ->
+            acc = [file_meta] ++ acc
+
+            fun.(rest, range, level, acc, files, fun)
+        end
+    end
+
+    find_fn.(files, {start, stop}, level, [], files, find_fn)
+  end
+
+  defp key_range(files, acc \\ {nil, nil})
+  defp key_range([], acc), do: acc
+
+  defp key_range([file_meta | rest], {nil, nil}) do
+    key_range(rest, {file_meta.smallest_key, file_meta.largest_key})
+  end
+
+  defp key_range([file_meta | rest], {sk, lk}) do
+    sk =
+      case Cmp.lt?(file_meta.smallest_key, sk) do
+        true -> file_meta.smallest_key
+        false -> sk
+      end
+
+    lk =
+      case Cmp.gt?(file_meta.largest_key, lk) do
+        true -> file_meta.largest_key
+        false -> lk
+      end
+
+    key_range(rest, {sk, lk})
+  end
 
   @spec known_files(t()) :: MapSet.t(pos_integer())
   def known_files(%__MODULE__{files: files}) do
@@ -121,7 +297,11 @@ defmodule Elasticlunr.Manifest do
       compute_compaction_score()
   end
 
-  defp level_files(files, level), do: Map.get(files, level, [])
+  defp level_files(files, level) do
+    files
+    |> Map.get(level, [])
+    |> Enum.sort_by(& &1.number)
+  end
 
   defp compute_compaction_score(%{manifest: manifest} = params) do
     score_fn = fn
@@ -194,17 +374,20 @@ defmodule Elasticlunr.Manifest do
   defp set_next_file_number(
          %{
            changes: %{next_file_number: number},
-           manifest: manifest
+           manifest: %{next_file_number: nfn}
          } = params
        )
        when is_integer(number) do
-    manifest = %{manifest | next_file_number: number}
-    %{params | manifest: manifest}
+    :ok = AtomicInt.put(nfn, number)
+
+    params
   end
 
   defp set_next_file_number(%{changes: changes, manifest: manifest} = params) do
+    number = AtomicInt.get(manifest.next_file_number)
+
     changes
-    |> Map.put(:next_file_number, manifest.next_file_number)
+    |> Map.put(:next_file_number, number)
     |> then(&%{params | changes: &1})
   end
 

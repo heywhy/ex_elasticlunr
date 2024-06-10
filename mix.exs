@@ -14,7 +14,7 @@ defmodule Elasticlunr.MixProject do
       deps: deps(),
       aliases: aliases(),
       package: [
-        files: ["lib", "mix.exs", "CHANGELOG.md", "README.md", "c_src", "Makefile"],
+        files: ["lib", "mix.exs", "CHANGELOG.md", "README.md", "c_src", "CMakeLists.txt"],
         maintainers: ["Atanda Rasheed"],
         licenses: ["MIT License"],
         links: %{
@@ -27,7 +27,7 @@ defmodule Elasticlunr.MixProject do
       """,
 
       # Compilers
-      # compilers: [:elixir_make] ++ Mix.compilers(),
+      compilers: [:elixir_cmake] ++ Mix.compilers(),
 
       # Coverage
       test_coverage: [tool: ExCoveralls],
@@ -73,10 +73,10 @@ defmodule Elasticlunr.MixProject do
       {:benchee, "~> 1.0", only: :dev},
       {:benchee_html, "~> 1.0", only: :dev},
       {:castore, "~> 1.0", only: :test},
-      {:cc_precompiler, "~> 0.1", runtime: false},
+      {:elixir_cmake, github: "heywhy/elixir_cmake", runtime: false},
+      {:cmp, "~> 0.1"},
       {:credo, "~> 1.5", only: :dev, runtime: false},
       {:dialyxir, "~> 1.1", only: :dev, runtime: false},
-      {:elixir_make, "~> 0.7", runtime: false},
       {:erbloom, github: "filmor/erbloom", branch: "update-rustler"},
       {:ex_doc, "~> 0.25", only: :dev, runtime: false},
       {:excoveralls, "~> 0.14", only: :test},

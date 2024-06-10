@@ -151,7 +151,7 @@ defmodule Elasticlunr.Server.WriterTest do
 
   test "existing logs gets compacted on startup", %{dir: dir, opts: opts, pid: pid} do
     %{writer: writer} = :sys.get_state(pid)
-    {number, _manifest} = Manifest.new_file_number(writer.manifest)
+    number = Manifest.new_file_number(writer.manifest)
 
     stop_supervised!(Writer)
 
@@ -183,14 +183,14 @@ defmodule Elasticlunr.Server.WriterTest do
     stop_supervised!(Writer)
 
     # Implementing the below function allows us to simulate when a task didn't return
-    flush_fn = fn %{manifest: manifest} = writer ->
+    flush_fn = fn %{manifest: manifest} ->
       owner = self()
       pid = spawn(fn -> nil end)
       ref = Process.monitor(pid)
       task = %Task{pid: pid, owner: owner, ref: ref, mfa: {Writer, :flush_asyc, 1}}
-      {_file_number, manifest} = Manifest.new_file_number(manifest)
+      _file_number = Manifest.new_file_number(manifest)
 
-      {task, %{writer | manifest: manifest}}
+      task
     end
 
     pid =

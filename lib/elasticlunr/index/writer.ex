@@ -18,6 +18,7 @@ defmodule Elasticlunr.Index.Writer do
 
   require Logger
 
+  @enforce_keys [:dir, :schema]
   defstruct [:dir, :schema, :wal, :mem_table, :manifest]
 
   @type t :: %__MODULE__{
@@ -27,16 +28,6 @@ defmodule Elasticlunr.Index.Writer do
           manifest: nil | Manifest.t(),
           mem_table: nil | MemTable.t()
         }
-
-  @spec new(Path.t(), Schema.t()) :: t()
-  def new(dir, schema) do
-    attrs = [
-      dir: dir,
-      schema: schema
-    ]
-
-    struct!(__MODULE__, attrs)
-  end
 
   @spec manifest(t()) :: Manifest.t()
   def manifest(%__MODULE__{manifest: manifest}), do: manifest
@@ -87,7 +78,7 @@ defmodule Elasticlunr.Index.Writer do
          %{log_files: log_files, compactions: compactions, dir: dir, manifest: manifest} = params
        )
        when log_files == [] or compactions >= 1 do
-    {number, manifest} = Manifest.new_file_number(manifest)
+    number = Manifest.new_file_number(manifest)
     wal = Wal.create(dir, number)
     changes = Changes.set_log_number(number)
 
@@ -181,7 +172,7 @@ defmodule Elasticlunr.Index.Writer do
 
     flush_mt = fn mem_table, dir, manifest ->
       with true <- MemTable.size(mem_table) > 0,
-           {number, manifest} = Manifest.new_file_number(manifest),
+           number = Manifest.new_file_number(manifest),
            file_meta = %FileMeta{dir: dir, number: number},
            {:ok, file_meta} <- SSTable.flush(mem_table, file_meta) do
         %Changes{}

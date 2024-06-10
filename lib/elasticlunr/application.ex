@@ -5,16 +5,18 @@ defmodule Elasticlunr.Application do
 
   use Application
 
+  alias Elasticlunr.CompactionController
   alias Elasticlunr.PubSub
 
   @impl true
   def start(_type, _args) do
     children = [
       PubSub,
+      FlakeIdWorker,
+      CompactionController,
       {Registry, name: Elasticlunr.Fs, keys: :unique},
       {Registry, name: Elasticlunr.IndexRegistry, keys: :unique},
-      {Task.Supervisor, name: Elasticlunr.BackgroundTaskSupervisor},
-      FlakeIdWorker
+      {Task.Supervisor, name: Elasticlunr.BackgroundTaskSupervisor}
     ]
 
     # See https://hexdocs.pm/elixir/Supervisor.html

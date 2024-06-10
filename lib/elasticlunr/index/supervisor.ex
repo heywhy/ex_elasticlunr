@@ -2,7 +2,6 @@ defmodule Elasticlunr.Index.Supervisor do
   use Supervisor
   use Rop
 
-  alias Elasticlunr.Compaction
   alias Elasticlunr.Process
   alias Elasticlunr.Schema
   alias Elasticlunr.Server.Reader
@@ -58,11 +57,10 @@ defmodule Elasticlunr.Index.Supervisor do
   end
 
   @impl true
-  def init(%Schema{compaction_strategy: compaction} = schema) do
+  def init(%Schema{} = schema) do
     dir = create_dir!(schema)
 
     children = [
-      {Compaction, dir: dir, schema: schema, strategy: compaction},
       {Writer, dir: dir, schema: schema},
       {Reader, dir: dir, schema: schema}
     ]

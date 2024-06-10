@@ -5,9 +5,9 @@
 #include <map>
 #include <string>
 
-using namespace std;
-
 namespace erlang {
+
+using namespace std;
 
 ERL_NIF_TERM badarg(ErlNifEnv *env);
 ERL_NIF_TERM atom(ErlNifEnv *env, char const *msg);
@@ -28,6 +28,7 @@ T *resource(ErlNifEnv *env, ERL_NIF_TERM term, ErlNifResourceType *type) {
   if (enif_get_resource(env, term, type, (void **)&object)) {
     return object;
   }
+
   return nullptr;
 }
 

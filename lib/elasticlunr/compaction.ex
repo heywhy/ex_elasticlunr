@@ -1,20 +1,14 @@
 defmodule Elasticlunr.Compaction do
-  use GenServer
+  alias Elasticlunr.FileMeta
+  alias Elasticlunr.Manifest.Changes
 
-  defstruct [:strategy, :task, :watcher]
+  @enforce_keys [:level]
+  defstruct [:level, inputs: [], parent_inputs: [], changes: %Changes{}]
 
   @type t :: %__MODULE__{
-          strategy: tuple(),
-          task: nil | Task.t()
+          level: non_neg_integer(),
+          changes: Changes.t(),
+          inputs: [FileMeta.t()],
+          parent_inputs: [FileMeta.t()]
         }
-
-  @spec start_link(keyword()) :: GenServer.on_start()
-  def start_link(opts) do
-    GenServer.start_link(__MODULE__, opts, hibernate_after: 5_000)
-  end
-
-  @impl true
-  def init(_opts) do
-    {:ok, %__MODULE__{}}
-  end
 end
