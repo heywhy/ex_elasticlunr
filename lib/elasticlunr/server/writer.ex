@@ -30,7 +30,7 @@ defmodule Elasticlunr.Server.Writer do
 
     dir = Keyword.fetch!(opts, :dir)
     schema = Keyword.fetch!(opts, :schema)
-    writer = %Writer{dir: dir, schema: schema}
+    writer = Writer.new(dir, schema)
 
     :ok = Logger.metadata(index: schema.name)
 
@@ -81,25 +81,29 @@ defmodule Elasticlunr.Server.Writer do
   end
 
   @impl true
-  def handle_info({ref, %FileMeta{} = file_meta}, %__MODULE__{task: %Task{ref: ref}} = state) do
+  def handle_info(
+        {ref, [%FileMeta{} | _] = file_metas},
+        %__MODULE__{task: %Task{ref: ref}} = state
+      ) do
     Process.demonitor(ref, [:flush])
 
-    case handle_info({:add_file, file_meta}, state) do
+    case handle_info({:add_file, file_metas}, state) do
       {:noreply, state} -> {:noreply, %{state | task: nil, tmp: nil}}
       error -> error
     end
   end
 
   def handle_info(
-        {:add_file, %FileMeta{size: size} = file_meta},
+        {:add_file, [%FileMeta{} | _] = file_metas},
         %__MODULE__{writer: writer} = state
-      )
-      when size > 0 do
-    # Only commit log number after successfully flushing the memtable to disk
+      ) do
+    file_metas = Enum.filter(file_metas, &(&1.size > 0))
 
-    with {:ok, writer} <- add_file_to_manifest(file_meta, writer),
-         %Writer{schema: schema} <- writer,
-         :ok <- PubSub.publish(schema.name, :file_created, file_meta) do
+    with file_metas when file_metas != [] <- file_metas,
+         {:ok, writer} <- add_files_to_manifest(file_metas, writer),
+         %Writer{schema: schema} <- writer do
+      publish_new_files!(schema.name, file_metas)
+
       state
       |> Map.put(:writer, writer)
       # Schedule another compaction in case the generated file fills a level
@@ -189,8 +193,8 @@ defmodule Elasticlunr.Server.Writer do
   defp kill_pending_task(nil, _writer), do: :ok
 
   defp kill_pending_task(task, writer) do
-    with {:ok, file_meta} <- Task.shutdown(task),
-         {:ok, _writer} <- add_file_to_manifest(file_meta, writer) do
+    with {:ok, file_metas} <- Task.shutdown(task),
+         {:ok, _writer} <- add_files_to_manifest(file_metas, writer) do
       :ok
     else
       nil -> :ok
@@ -199,31 +203,44 @@ defmodule Elasticlunr.Server.Writer do
     end
   end
 
-  defp add_file_to_manifest(file_meta, writer) do
+  defp add_files_to_manifest(file_metas, writer) do
+    # Only commit log number after successfully flushing the memtable to disk
     manifest = Writer.manifest(writer)
 
     changes =
-      manifest.log_number
-      |> Changes.set_log_number()
-      |> Changes.add_file(0, file_meta)
+      %Changes{}
+      |> Changes.add_files(0, file_metas)
+      |> Changes.set_log_number(manifest.log_number)
 
     with {:ok, manifest} <- Manifest.apply_and_log(manifest, changes) do
       {:ok, %{writer | manifest: manifest}}
     end
   end
 
-  defp flush_async(%{dir: dir, manifest: manifest, mem_table: mem_table, wal: wal}) do
-    file_number = Manifest.new_file_number(manifest)
-    file_meta = %FileMeta{dir: dir, number: file_number}
+  defp flush_async(%{
+         dir: dir,
+         manifest: manifest,
+         mem_table: mem_table,
+         options: options,
+         wal: wal
+       }) do
+    fun = Manifest.new_file_number_fn(manifest)
+    opts = [max_file_size: options.max_file_size]
 
     Task.Supervisor.async_nolink(BackgroundTaskSupervisor, fn ->
       # This steps should be encapsulated in the writer module but wasn't
       # because of data copying from this server to the task process so
       # we only handpick the data needed by this task process
-      with {:ok, file_meta} <- SSTable.flush(mem_table, file_meta),
+      with {:ok, file_meta} <- SSTable.flush(mem_table, dir, fun, opts),
            :ok <- Wal.delete(wal) do
         file_meta
       end
     end)
+  end
+
+  defp publish_new_files!(index, files) do
+    files
+    |> Enum.sort_by(& &1.number)
+    |> Enum.each(&(:ok = PubSub.publish(index, :file_created, &1)))
   end
 end

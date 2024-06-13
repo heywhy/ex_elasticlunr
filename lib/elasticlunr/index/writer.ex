@@ -1,7 +1,6 @@
 defmodule Elasticlunr.Index.Writer do
   use Rop
 
-  alias Elasticlunr.FileMeta
   alias Elasticlunr.Filename
   alias Elasticlunr.Fs
   alias Elasticlunr.Manifest
@@ -18,16 +17,22 @@ defmodule Elasticlunr.Index.Writer do
 
   require Logger
 
-  @enforce_keys [:dir, :schema]
-  defstruct [:dir, :schema, :wal, :mem_table, :manifest]
+  @enforce_keys [:dir, :schema, :options]
+  defstruct [:dir, :schema, :options, :wal, :mem_table, :manifest]
 
   @type t :: %__MODULE__{
           wal: nil | Wal.t(),
           dir: Path.t(),
           schema: Schema.t(),
+          options: Options.t(),
           manifest: nil | Manifest.t(),
           mem_table: nil | MemTable.t()
         }
+
+  @spec new(Path.t(), Schema.t()) :: t()
+  def new(dir, %Schema{options: options} = schema) do
+    struct!(__MODULE__, dir: dir, schema: schema, options: options)
+  end
 
   @spec manifest(t()) :: Manifest.t()
   def manifest(%__MODULE__{manifest: manifest}), do: manifest
@@ -80,7 +85,7 @@ defmodule Elasticlunr.Index.Writer do
        when log_files == [] or compactions >= 1 do
     number = Manifest.new_file_number(manifest)
     wal = Wal.create(dir, number)
-    changes = Changes.set_log_number(number)
+    changes = Changes.set_log_number(%Changes{}, number)
 
     with {:ok, manifest} <- Manifest.apply_and_log(manifest, changes) do
       params
@@ -94,8 +99,8 @@ defmodule Elasticlunr.Index.Writer do
          %{dir: dir, compactions: 0, last_log_number: log_number, manifest: manifest} =
            state
        ) do
-    log_number
-    |> Changes.set_log_number()
+    %Changes{}
+    |> Changes.set_log_number(log_number)
     |> then(&Manifest.apply_and_log(manifest, &1))
     |> case do
       {:ok, manifest} ->
@@ -124,6 +129,7 @@ defmodule Elasticlunr.Index.Writer do
 
     params = %{
       dir: dir,
+      options: options,
       manifest: manifest,
       mem_table: MemTable.new(),
       last_log_number: List.last(log_files),
@@ -157,7 +163,7 @@ defmodule Elasticlunr.Index.Writer do
     end
   end
 
-  defp recover_log_file(%{dir: dir, log_number: log_number} = params) do
+  defp recover_log_file(%{dir: dir, log_number: log_number, options: options} = params) do
     Logger.info("Recovering log #{log_number}")
 
     update_mt = fn mem_table, entry ->
@@ -170,14 +176,15 @@ defmodule Elasticlunr.Index.Writer do
       end
     end
 
-    flush_mt = fn mem_table, dir, manifest ->
+    flush_mt = fn mem_table, dir, manifest, max_file_size ->
+      opts = [max_file_size: max_file_size]
+      fun = Manifest.new_file_number_fn(manifest)
+
       with true <- MemTable.size(mem_table) > 0,
-           number = Manifest.new_file_number(manifest),
-           file_meta = %FileMeta{dir: dir, number: number},
-           {:ok, file_meta} <- SSTable.flush(mem_table, file_meta) do
-        %Changes{}
-        |> Changes.add_file(0, file_meta)
-        |> then(&Manifest.apply_and_log(manifest, &1))
+           {:ok, file_metas} <- SSTable.flush(mem_table, dir, fun, opts) do
+        changes = Changes.add_files(%Changes{}, 0, file_metas)
+
+        Manifest.apply_and_log(manifest, changes)
       else
         false -> {:ok, manifest}
         error -> error
@@ -192,7 +199,7 @@ defmodule Elasticlunr.Index.Writer do
       mt = update_mt.(mt, entry)
 
       with {true, mt} <- {MemTable.size(mt) >= mbs, mt},
-           {:ok, manifest} <- flush_mt.(mt, dir, manifest) do
+           {:ok, manifest} <- flush_mt.(mt, dir, manifest, options.max_file_size) do
         {:cont, %{acc | mem_table: MemTable.new(), manifest: manifest, compactions: c + 1}}
       else
         {false, mem_table} -> {:cont, Map.put(acc, :mem_table, mem_table)}
@@ -204,7 +211,7 @@ defmodule Elasticlunr.Index.Writer do
       when ln != lln ->
         # Write to level 0 in case the log got hanging due to incomplete compaction.
         # See `Elasticlunr.Server.Writer.flush_async/1`
-        {:ok, manifest} = flush_mt.(mt, dir, manifest)
+        {:ok, manifest} = flush_mt.(mt, dir, manifest, options.max_file_size)
 
         %{p | compactions: 1, mem_table: MemTable.new(), manifest: manifest}
 
@@ -265,8 +272,7 @@ defmodule Elasticlunr.Index.Writer do
     end
   end
 
-  defp create_db_if_missing(%{dir: dir} = writer) do
-    options = options(writer)
+  defp create_db_if_missing(%{dir: dir, options: options} = writer) do
     path = Filename.current(dir)
     state = %{dir: dir, options: options, writer: writer}
 
@@ -284,7 +290,7 @@ defmodule Elasticlunr.Index.Writer do
 
     with :ok <- File.touch(path),
          manifest = Manifest.new(1, dir, options),
-         changes = Changes.set_next_file_number(2),
+         changes = Changes.set_next_file_number(%Changes{}, 2),
          {:ok, manifest} <- Manifest.apply_and_log(manifest, changes),
          :ok <- Manifest.close(manifest) do
       set_current_manifest(dir, 1)
@@ -311,14 +317,9 @@ defmodule Elasticlunr.Index.Writer do
     end
   end
 
-  @spec options(t()) :: Options.t()
-  def options(%__MODULE__{schema: schema}), do: schema.options
-
   @spec buffer_filled?(t()) :: boolean()
-  def buffer_filled?(%__MODULE__{mem_table: mem_table} = writer) do
-    %Options{max_buffer_size: max_size} = options(writer)
-
-    MemTable.size(mem_table) >= max_size
+  def buffer_filled?(%__MODULE__{mem_table: mem_table, options: options}) do
+    MemTable.size(mem_table) >= options.max_buffer_size
   end
 
   @spec close(t()) :: :ok | no_return()

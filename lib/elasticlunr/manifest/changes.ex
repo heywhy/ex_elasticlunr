@@ -14,18 +14,8 @@ defmodule Elasticlunr.Manifest.Changes do
   @k_next_file_number 1
   @k_new_file 2
 
-  @spec set_log_number(pos_integer()) :: t()
-  def set_log_number(number) do
-    set_log_number(%__MODULE__{}, number)
-  end
-
   @spec set_log_number(t(), pos_integer()) :: t()
   def set_log_number(%__MODULE__{} = changes, number), do: %{changes | log_number: number}
-
-  @spec set_next_file_number(pos_integer()) :: t()
-  def set_next_file_number(number) do
-    set_next_file_number(%__MODULE__{}, number)
-  end
 
   @spec set_next_file_number(t(), pos_integer()) :: t()
   def set_next_file_number(%__MODULE__{} = changes, number) do
@@ -34,7 +24,12 @@ defmodule Elasticlunr.Manifest.Changes do
 
   @spec add_file(t(), non_neg_integer(), FileMeta.t()) :: t()
   def add_file(%__MODULE__{new_files: new_files} = changes, level, %FileMeta{} = file_meta) do
-    %{changes | new_files: [{level, file_meta}] ++ new_files}
+    %{changes | new_files: [{level, file_meta} | new_files]}
+  end
+
+  @spec add_files(t(), non_neg_integer(), [FileMeta.t()]) :: t()
+  def add_files(%__MODULE__{} = changes, level, files) do
+    Enum.reduce(files, changes, &add_file(&2, level, &1))
   end
 
   @spec encode(t()) :: iodata()

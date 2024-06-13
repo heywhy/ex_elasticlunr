@@ -4,7 +4,6 @@ defmodule Elasticlunr.SSTable do
 
   alias Elasticlunr.Bloom.Stackable, as: BloomFilter
   alias Elasticlunr.FileMeta
-  alias Elasticlunr.Filename
   alias Elasticlunr.MemTable
   alias Elasticlunr.SSTable.Entry
   alias Elasticlunr.SSTable.MergeIterator
@@ -52,29 +51,33 @@ defmodule Elasticlunr.SSTable do
     end)
   end
 
-  @spec flush(MemTable.t(), FileMeta.t()) :: {:ok, FileMeta.t()} | {:error, File.posix()}
-  def flush(%MemTable{} = mem_table, %FileMeta{dir: dir, number: number} = file_meta) do
-    path = Filename.ss_table(dir, number)
-
+  @spec flush(MemTable.t(), Path.t(), WriteSSTable.file_num_fn(), nil | keyword()) ::
+          {:ok, [FileMeta.t()]} | {:error, File.posix()}
+  def flush(%MemTable{} = mem_table, dir, new_file_num, opts \\ []) do
     metadata = %{
-      sstable: path,
       index: index_from_path(dir),
       entries: MemTable.length(mem_table)
     }
 
     Telemeter.track(@flush_event, metadata, fn ->
       mem_table
-      |> WriteSSTable.new(file_meta)
+      |> WriteSSTable.new(dir, new_file_num, opts)
       |> WriteSSTable.run()
       |> case do
-        {:ok, %FileMeta{size: size}} = result -> {result, %{file_size: size}}
-        {:error, reason} = result -> {result, %{failure_reason: reason}}
+        {:ok, files} = result ->
+          files
+          |> Enum.reduce(0, &(&1.size + &2))
+          |> then(&{result, %{file_size: &1}})
+
+        {:error, reason} = result ->
+          {result, %{failure_reason: reason}}
       end
     end)
   end
 
-  @spec merge([FileMeta.t()], FileMeta.t()) :: {:ok, FileMeta.t()} | {:error, File.posix()}
-  def merge(file_metas, %FileMeta{} = file_meta) do
+  @spec merge([FileMeta.t()], Path.t(), WriteSSTable.file_num_fn(), keyword()) ::
+          {:ok, [FileMeta.t()]} | {:error, File.posix()}
+  def merge(file_metas, dir, new_file_num, opts \\ []) do
     now = DateTime.utc_now()
 
     file_metas
@@ -89,7 +92,7 @@ defmodule Elasticlunr.SSTable do
         # TODO: Make tombstone grace period configurable (currently 10 days)
         |> Kernel.>=(864_000)
     end)
-    |> WriteSSTable.new(file_meta)
+    |> WriteSSTable.new(dir, new_file_num, opts)
     |> WriteSSTable.run()
   end
 

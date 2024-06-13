@@ -51,18 +51,19 @@ defmodule Elasticlunr.Manifest do
   end
 
   @spec new_file_number(t()) :: pos_integer()
-  def new_file_number(%__MODULE__{next_file_number: nfn}) do
-    number = AtomicInt.get(nfn)
+  def new_file_number(%__MODULE__{} = manifest) do
+    new_file_number_fn(manifest).()
+  end
 
-    :ok = AtomicInt.add(nfn, 1)
-
-    number
+  @spec new_file_number_fn(t()) :: (-> pos_integer())
+  def new_file_number_fn(%__MODULE__{next_file_number: ref}) do
+    fn -> AtomicInt.fetch_add(ref, 1) end
   end
 
   @spec use_file_number(t(), pos_integer()) :: t()
-  def use_file_number(%__MODULE__{next_file_number: nfn} = manifest, number) do
-    with value when value <= number <- AtomicInt.get(nfn),
-         :ok <- AtomicInt.put(nfn, number + 1) do
+  def use_file_number(%__MODULE__{next_file_number: ref} = manifest, number) do
+    with value when value <= number <- AtomicInt.get(ref),
+         :ok <- AtomicInt.put(ref, number + 1) do
       manifest
     else
       _ -> manifest
@@ -106,7 +107,7 @@ defmodule Elasticlunr.Manifest do
       compaction: %Compaction{level: level, inputs: [file_meta]}
     }
 
-    level_below_max_level(params) >>>
+    ensure_level_below_max_level(params) >>>
       maybe_include_level0_overlapping_files() >>>
       include_boundary_files() >>>
       include_overlapping_files_in_parent() >>>
@@ -114,7 +115,7 @@ defmodule Elasticlunr.Manifest do
       bind((fn %{compaction: c} -> c end).())
   end
 
-  defp level_below_max_level(%{level: level, max_level: max_level} = params) do
+  defp ensure_level_below_max_level(%{level: level, max_level: max_level} = params) do
     case level + 1 < max_level do
       true -> {:ok, params}
       false -> {:error, "max level reached"}
@@ -162,8 +163,6 @@ defmodule Elasticlunr.Manifest do
   end
 
   defp boundary_inputs(files, level, compaction_files) do
-    files = level_files(files, level)
-
     search_fn = fn
       false, _lk, _lf, acc, _fun ->
         acc
@@ -171,9 +170,11 @@ defmodule Elasticlunr.Manifest do
       true, lk, files, acc, fun ->
         case find_smallest_boundary_file(files, lk) do
           nil -> fun.(false, lk, files, acc, fun)
-          file_meta -> fun.(true, file_meta.largest_key, files, [file_meta] ++ acc, fun)
+          file_meta -> fun.(true, file_meta.largest_key, files, [file_meta | acc], fun)
         end
     end
+
+    files = level_files(files, level)
 
     case find_largest_key(compaction_files) do
       nil -> compaction_files
@@ -203,8 +204,6 @@ defmodule Elasticlunr.Manifest do
   end
 
   defp overlapping_files(files, level, start, stop) do
-    files = level_files(files, level)
-
     find_fn = fn
       [], _range, _level, acc, _files, _fun ->
         acc
@@ -229,6 +228,8 @@ defmodule Elasticlunr.Manifest do
             fun.(rest, range, level, acc, files, fun)
         end
     end
+
+    files = level_files(files, level)
 
     find_fn.(files, {start, stop}, level, [], files, find_fn)
   end
@@ -291,7 +292,8 @@ defmodule Elasticlunr.Manifest do
   end
 
   defp do_apply(%__MODULE__{} = manifest, %Changes{} = changes) do
-    set_next_file_number(%{changes: changes, manifest: manifest})
+    %{changes: changes, manifest: manifest}
+    |> set_next_file_number()
     |> validate_or_set_log_number() >>>
       merge_files() >>>
       compute_compaction_score()
@@ -374,11 +376,11 @@ defmodule Elasticlunr.Manifest do
   defp set_next_file_number(
          %{
            changes: %{next_file_number: number},
-           manifest: %{next_file_number: nfn}
+           manifest: %{next_file_number: ref}
          } = params
        )
        when is_integer(number) do
-    :ok = AtomicInt.put(nfn, number)
+    :ok = AtomicInt.put(ref, number)
 
     params
   end

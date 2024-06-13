@@ -94,12 +94,8 @@ defmodule Elasticlunr.Server.WriterTest do
     assert Manifest.known_files(writer.manifest) >= 2
   end
 
-  test "flushing empty memtable generates empty file", %{dir: dir} do
-    file_meta = %FileMeta{number: 999, dir: dir}
-
-    assert {:ok, ^file_meta} = SSTable.flush(MemTable.new(), file_meta)
-    assert path = Filename.ss_table(dir, file_meta.number)
-    assert :eof = Fs.read(path)
+  test "flushing empty memtable generates no file", %{dir: dir} do
+    assert {:ok, []} = SSTable.flush(MemTable.new(), dir, &Utils.now/0)
   end
 
   test "retrieve document from old memtable", %{pid: pid} do

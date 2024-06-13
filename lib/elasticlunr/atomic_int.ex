@@ -16,6 +16,13 @@ defmodule Elasticlunr.AtomicInt do
   @spec new(integer()) :: t()
   def new(value \\ 0), do: init(value)
 
+  @spec fetch_add(t(), non_neg_integer()) :: integer()
+  def fetch_add(ref, incr) do
+    ref
+    |> get()
+    |> tap(fn _ -> add(ref, incr) end)
+  end
+
   # nif methods
   def init(_value), do: :erlang.nif_error(:not_loaded)
 

@@ -6,9 +6,7 @@ using std::atomic_int64_t;
 struct atomic_int {
   atomic_int64_t value;
 
-  atomic_int(ErlNifSInt64 value) : value{value} {}
-  atomic_int(atomic_int &) = delete;
-  atomic_int(atomic_int &&) = delete;
+  atomic_int(ErlNifSInt64 value) : value(value) {}
 };
 
 static ErlNifResourceType *ATOMICS_RESOURCE_TYPE;
@@ -18,10 +16,10 @@ static ERL_NIF_TERM make_atom(ErlNifEnv *env, const char *value);
 ERL_NIF_TERM init(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[]) {
   ErlNifSInt64 value;
   atomic_int **resource = (atomic_int **)enif_alloc_resource(
-      ATOMICS_RESOURCE_TYPE, sizeof(atomic_int));
+      ATOMICS_RESOURCE_TYPE, sizeof(atomic_int *));
 
   if (enif_get_int64(env, argv[0], &value)) {
-    *resource = new atomic_int{value};
+    *resource = new atomic_int(value);
   }
 
   ERL_NIF_TERM term = enif_make_resource(env, resource);

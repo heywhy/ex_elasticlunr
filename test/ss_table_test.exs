@@ -10,54 +10,54 @@ defmodule Elasticlunr.SSTableTest do
   import Elasticlunr.Fixture
 
   setup do
-    file = new_file_meta()
+    dir = tmp_dir!()
 
     mem_table =
       MemTable.new()
       |> MemTable.set("key", "value", 1)
       |> MemTable.set("key1", "value1", 2)
 
-    on_exit(fn -> File.rm_rf(file.dir) end)
+    on_exit(fn -> File.rm_rf(dir) end)
 
-    [dir: file.dir, file_meta: file, mem_table: mem_table]
+    [dir: dir, mem_table: mem_table]
   end
 
-  test "count/1", %{file_meta: file_meta, mem_table: mem_table} do
-    ss_table = flush(mem_table, file_meta)
+  test "count/1", %{dir: dir, mem_table: mem_table} do
+    ss_table = flush(mem_table, dir)
 
     assert SSTable.count(ss_table) == 2
   end
 
-  test "contains?/2", %{file_meta: file_meta, mem_table: mem_table} do
-    ss_table = flush(mem_table, file_meta)
+  test "contains?/2", %{dir: dir, mem_table: mem_table} do
+    ss_table = flush(mem_table, dir)
 
     assert SSTable.contains?(ss_table, "key")
     assert SSTable.contains?(ss_table, "key1")
     refute SSTable.contains?(ss_table, "unknown")
   end
 
-  test "get!/2", %{file_meta: file_meta, mem_table: mem_table} do
-    ss_table = flush(mem_table, file_meta)
+  test "get!/2", %{dir: dir, mem_table: mem_table} do
+    ss_table = flush(mem_table, dir)
 
     assert %Entry{key: "key"} = SSTable.get!(ss_table, "key")
     assert %Entry{key: "key1"} = SSTable.get!(ss_table, "key1")
     refute SSTable.get!(ss_table, "unknown")
   end
 
-  test "flush/2", %{file_meta: file_meta, mem_table: mem_table} do
-    assert {:ok, %FileMeta{size: size}} = SSTable.flush(mem_table, file_meta)
+  test "flush/2", %{dir: dir, mem_table: mem_table} do
+    assert {:ok, [%FileMeta{size: size}]} = SSTable.flush(mem_table, dir, &Utils.now/0)
     assert size > 0
   end
 
-  test "from_path/1", %{file_meta: file_meta, mem_table: mem_table} do
+  test "from_path/1", %{dir: dir, mem_table: mem_table} do
     mem_table = MemTable.remove(mem_table, "key", 3)
 
-    assert {:ok, file_meta} = SSTable.flush(mem_table, file_meta)
+    assert {:ok, [file_meta]} = SSTable.flush(mem_table, dir, &Utils.now/0)
     assert {:ok, ss_table} = SSTable.from_path(file_meta)
     assert %Entry{key: "key", deleted: true} = SSTable.get!(ss_table, "key")
   end
 
-  test "merge/1", %{dir: dir, file_meta: file_meta} do
+  test "merge/1", %{dir: dir} do
     elapsed_tombstone_ts =
       DateTime.utc_now()
       |> DateTime.add(-10, :day)
@@ -87,14 +87,16 @@ defmodule Elasticlunr.SSTableTest do
 
     ss_tables =
       for mem_table <- [mem_table1, mem_table2, mem_table3] do
-        file_meta = %FileMeta{dir: dir, number: Utils.now()}
-
         mem_table
-        |> SSTable.flush(file_meta)
+        |> SSTable.flush(dir, &Utils.now/0)
         |> elem(1)
       end
 
-    assert {:ok, %FileMeta{size: size} = file_meta} = SSTable.merge(ss_tables, file_meta)
+    assert {:ok, [%FileMeta{size: size} = file_meta]} =
+             ss_tables
+             |> Enum.flat_map(& &1)
+             |> SSTable.merge(dir, &Utils.now/0)
+
     assert size > 0
     assert {:ok, ss_table} = SSTable.from_path(file_meta)
     refute SSTable.contains?(ss_table, "unknown")
@@ -106,8 +108,9 @@ defmodule Elasticlunr.SSTableTest do
 
   defp flush(mem_table, dir) do
     mem_table
-    |> SSTable.flush(dir)
+    |> SSTable.flush(dir, &Utils.now/0)
     |> elem(1)
+    |> List.first()
     |> SSTable.from_path()
     |> elem(1)
   end
