@@ -1,4 +1,5 @@
 #include <atomic>
+#include <cstdio>
 #include <erl_nif.h>
 
 using std::atomic_int64_t;
@@ -131,7 +132,13 @@ static int load(ErlNifEnv *env, void **priv_data, ERL_NIF_TERM load_info) {
   return 0;
 }
 
-ERL_NIF_INIT(Elixir.Elasticlunr.AtomicInt, nif_funcs, load, NULL, NULL, NULL);
+static int upgrade(ErlNifEnv *env, void **priv_data, void **old_priv_data,
+                   ERL_NIF_TERM load_info) {
+  return 0;
+}
+
+ERL_NIF_INIT(Elixir.Elasticlunr.AtomicInt, nif_funcs, load, NULL, upgrade,
+             NULL);
 
 ERL_NIF_TERM make_atom(ErlNifEnv *env, char const *value) {
   ERL_NIF_TERM a;
