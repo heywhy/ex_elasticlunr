@@ -90,7 +90,7 @@ defmodule Elasticlunr.Server.Reader do
            true <- MapSet.member?(known_files, number),
            %FileMeta{} = file_meta <- Manifest.find_file(manifest, number),
            {:ok, ss_table} <- SSTable.from_path(%{file_meta | dir: dir}) do
-        {:cont, [ss_table] ++ acc}
+        {:cont, [ss_table | acc]}
       else
         {:error, _reason} = error -> {:halt, error}
         _ -> {:cont, acc}

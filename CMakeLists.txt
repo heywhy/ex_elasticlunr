@@ -19,12 +19,12 @@ if(DEFINED ENV{ERTS_INCLUDE_DIR})
   set(ERTS_INCLUDE_DIR $ENV{ERTS_INCLUDE_DIR})
 endif()
 
-cmake_path(APPEND PRIV_PATH ${MIX_APP_PATH} "priv")
+cmake_path(APPEND PRIV_PATH ${MIX_COMPILE_PATH} "../priv")
 
 add_library(nif SHARED c_src/atomic_int.cpp)
 
 target_include_directories(nif SYSTEM PUBLIC ${ERTS_INCLUDE_DIR})
-target_link_options(nif PUBLIC -undefined dynamic_lookup -flat_namespace)
+target_link_options(nif PUBLIC -undefined dynamic_lookup)
 
 add_custom_command(
   TARGET nif POST_BUILD

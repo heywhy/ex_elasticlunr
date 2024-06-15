@@ -203,6 +203,7 @@ defmodule Elasticlunr.Manifest do
     |> Cmp.max()
   end
 
+  # credo:disable-for-next-line
   defp overlapping_files(files, level, start, stop) do
     find_fn = fn
       [], _range, _level, acc, _files, _fun ->

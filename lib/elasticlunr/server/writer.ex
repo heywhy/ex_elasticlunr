@@ -35,7 +35,6 @@ defmodule Elasticlunr.Server.Writer do
     :ok = Logger.metadata(index: schema.name)
 
     case Writer.recover(writer) do
-      # TODO: schedule compactions afterwards
       {:ok, writer} ->
         state = %__MODULE__{flush_fn: opts[:flush_fn], writer: writer}
 
