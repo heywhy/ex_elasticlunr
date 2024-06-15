@@ -14,14 +14,14 @@ jobs:
           elixir-version: "1.15"
 
       - name: Restore Cached Dependencies
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         id: mix-cache
         with:
           path: deps
           key: ${{ runner.os }}-${{ steps.beam.outputs.elixir-version }}-${{ steps.beam.outputs.otp-version }}-${{ hashFiles('mix.lock') }}
 
       - name: Restore PLT cache
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         id: plt-cache
         with:
           key: |

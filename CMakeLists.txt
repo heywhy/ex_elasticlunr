@@ -5,6 +5,8 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
+set(LINK_OPTIONS -fPIC -O3)
+
 if(NOT DEFINED ENV{MIX_APP_PATH})
   set(MIX_APP_PATH ${PROJECT_SOURCE_DIR})
 else()
@@ -24,7 +26,12 @@ cmake_path(APPEND PRIV_PATH ${MIX_COMPILE_PATH} "../priv")
 add_library(nif SHARED c_src/atomic_int.cpp)
 
 target_include_directories(nif SYSTEM PUBLIC ${ERTS_INCLUDE_DIR})
-target_link_options(nif PUBLIC -undefined dynamic_lookup)
+
+if(APPLE)
+  target_link_options(nif PUBLIC ${LINK_OPTIONS} -undefined dynamic_lookup -flat_namespace)
+elseif(LINUX)
+  target_link_options(nif PUBLIC ${LINK_OPTIONS})
+endif()
 
 add_custom_command(
   TARGET nif POST_BUILD
