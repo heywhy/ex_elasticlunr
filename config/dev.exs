@@ -9,14 +9,14 @@ config :git_hooks,
     ],
     pre_commit: [
       tasks: [
-        cmd: "mix format --check-formatted",
-        cmd: "mix credo --strict"
+        {:mix_task, :format, ["--check-formatted"]},
+        {:mix_task, :credo, ["--strict"]}
       ]
     ],
     pre_push: [
       tasks: [
-        cmd: "mix dialyzer",
-        cmd: "mix test --color"
+        {:mix_task, :dialyzer},
+        {:mix_task, :test, ["--color"]}
       ]
     ]
   ]
