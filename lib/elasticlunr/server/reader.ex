@@ -12,7 +12,7 @@ defmodule Elasticlunr.Server.Reader do
 
   require Logger
 
-  defstruct [:reader, :watcher]
+  defstruct [:dir, :reader, :watcher]
 
   @spec start_link(keyword()) :: GenServer.on_start()
   def start_link(opts) do
@@ -33,7 +33,7 @@ defmodule Elasticlunr.Server.Reader do
       patch_reader()
     |> case do
       {:error, reason} -> {:stop, reason}
-      {:ok, reader} -> {:ok, %__MODULE__{reader: reader}}
+      {:ok, reader} -> {:ok, %__MODULE__{dir: dir, reader: reader}}
     end
   end
 
@@ -54,7 +54,7 @@ defmodule Elasticlunr.Server.Reader do
   @impl true
   def handle_info(
         {:file_created, %FileMeta{dir: dir, number: number} = file_meta},
-        %__MODULE__{reader: reader} = state
+        %__MODULE__{dir: dir, reader: reader} = state
       ) do
     file = Filename.ss_table(dir, number)
 

@@ -5,7 +5,7 @@ defmodule Elasticlunr.Application do
 
   use Application
 
-  alias Elasticlunr.CompactionController
+  alias Elasticlunr.Compaction.Controller
   alias Elasticlunr.PubSub
 
   @impl true
@@ -13,7 +13,7 @@ defmodule Elasticlunr.Application do
     children = [
       PubSub,
       FlakeIdWorker,
-      CompactionController,
+      Controller,
       {Registry, name: Elasticlunr.Fs, keys: :unique},
       {Registry, name: Elasticlunr.IndexRegistry, keys: :unique},
       {Task.Supervisor, name: Elasticlunr.BackgroundTaskSupervisor}

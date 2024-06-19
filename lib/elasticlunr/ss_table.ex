@@ -10,7 +10,6 @@ defmodule Elasticlunr.SSTable do
   alias Elasticlunr.SSTable.Offsets
   alias Elasticlunr.SSTable.RangeIterator
   alias Elasticlunr.Telemeter
-  alias Elasticlunr.Utils
   alias Elasticlunr.Workflow.OpenSSTable
   alias Elasticlunr.Workflow.WriteSSTable
 
@@ -24,6 +23,7 @@ defmodule Elasticlunr.SSTable do
 
   @load_event :load_sstable
   @flush_event :flush_sstable
+  @merge_event :merge_sstable
 
   @spec new(Path.t(), BloomFilter.t(), Offsets.t()) :: t()
   def new(path, bloom_filter, offsets) do
@@ -78,22 +78,26 @@ defmodule Elasticlunr.SSTable do
   @spec merge([FileMeta.t()], Path.t(), WriteSSTable.file_num_fn(), keyword()) ::
           {:ok, [FileMeta.t()]} | {:error, File.posix()}
   def merge(file_metas, dir, new_file_num, opts \\ []) do
-    now = DateTime.utc_now()
+    metadata = %{
+      index: index_from_path(dir),
+      ss_tables: Enum.map(file_metas, & &1.number)
+    }
 
-    file_metas
-    |> MergeIterator.new()
-    |> Stream.reject(fn
-      %Entry{deleted: false} ->
-        false
+    Telemeter.track(@merge_event, metadata, fn ->
+      file_metas
+      |> MergeIterator.new()
+      |> WriteSSTable.new(dir, new_file_num, opts)
+      |> WriteSSTable.run()
+      |> case do
+        {:ok, files} = result ->
+          files
+          |> Enum.reduce(0, &(&1.size + &2))
+          |> then(&{result, %{file_size: &1}})
 
-      %Entry{timestamp: ts, deleted: true} ->
-        now
-        |> DateTime.diff(Utils.to_date_time(ts), :second)
-        # TODO: Make tombstone grace period configurable (currently 10 days)
-        |> Kernel.>=(864_000)
+        {:error, reason} = result ->
+          {result, %{failure_reason: reason}}
+      end
     end)
-    |> WriteSSTable.new(dir, new_file_num, opts)
-    |> WriteSSTable.run()
   end
 
   @spec count(t()) :: pos_integer()

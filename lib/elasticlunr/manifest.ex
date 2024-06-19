@@ -8,7 +8,8 @@ defmodule Elasticlunr.Manifest do
 
   use Rop
 
-  @fields ~w[fd l0_compaction_trigger max_bytes_for_base_level max_bytes_for_level_multiplier max_level number next_file_number]a
+  @enforce_keys [:fd, :options]
+  @fields ~w[fd options number next_file_number]a
 
   @enforce_keys @fields
   defstruct @fields ++
@@ -20,14 +21,11 @@ defmodule Elasticlunr.Manifest do
 
   @type t :: %__MODULE__{
           fd: File.io_device(),
+          options: Options.t(),
           number: non_neg_integer(),
-          max_level: non_neg_integer(),
           log_number: non_neg_integer(),
           next_file_number: AtomicInt.t(),
-          l0_compaction_trigger: pos_integer(),
           compaction_score: {float(), integer()},
-          max_bytes_for_base_level: pos_integer(),
-          max_bytes_for_level_multiplier: pos_integer(),
           files: %{non_neg_integer() => [FileMeta.t()]}
         }
 
@@ -39,12 +37,9 @@ defmodule Elasticlunr.Manifest do
 
     attrs = %{
       number: number,
+      options: options,
       fd: File.open!(path, @opts),
-      max_level: options.max_level,
-      next_file_number: AtomicInt.new(0),
-      l0_compaction_trigger: options.l0_compaction_trigger,
-      max_bytes_for_base_level: options.max_bytes_for_base_level,
-      max_bytes_for_level_multiplier: options.max_bytes_for_level_multiplier
+      next_file_number: AtomicInt.new(0)
     }
 
     struct!(__MODULE__, attrs)
@@ -88,12 +83,14 @@ defmodule Elasticlunr.Manifest do
   @spec needs_compaction?(t()) :: boolean()
   def needs_compaction?(%__MODULE__{compaction_score: {score, _level}}), do: score >= 1
 
-  @spec pick_compaction(t()) :: {:ok, Compaction.t()} | {:error, term()}
-  def pick_compaction(%__MODULE__{
-        compaction_score: {_score, level},
-        files: files,
-        max_level: max_level
-      })
+  @spec pick_compaction(t()) :: {:ok, Compaction.t(), t()} | {:error, term()}
+  def pick_compaction(
+        %__MODULE__{
+          files: files,
+          options: options,
+          compaction_score: {_score, level}
+        } = manifest
+      )
       when level >= 0 do
     file_meta =
       files
@@ -103,8 +100,13 @@ defmodule Elasticlunr.Manifest do
     params = %{
       files: files,
       level: level,
-      max_level: max_level,
-      compaction: %Compaction{level: level, inputs: [file_meta]}
+      max_level: options.max_level,
+      compaction: %Compaction{
+        level: level,
+        options: options,
+        inputs: [file_meta],
+        new_file_number: new_file_number_fn(manifest)
+      }
     }
 
     ensure_level_below_max_level(params) >>>
@@ -112,7 +114,19 @@ defmodule Elasticlunr.Manifest do
       include_boundary_files() >>>
       include_overlapping_files_in_parent() >>>
       include_boundary_files_in_parent() >>>
-      bind((fn %{compaction: c} -> c end).())
+      bind((fn %{compaction: c} -> c end).()) >>>
+      remove_compaction_inputs(manifest)
+  end
+
+  defp remove_compaction_inputs(compaction, %{files: files} = manifest) do
+    file_nums =
+      compaction.inputs
+      |> Enum.concat(compaction.parent_inputs)
+      |> Enum.map(& &1.number)
+
+    updated_files = remove_deleted_files(files, file_nums)
+
+    {:ok, compaction, %{manifest | files: updated_files}}
   end
 
   defp ensure_level_below_max_level(%{level: level, max_level: max_level} = params) do
@@ -308,18 +322,18 @@ defmodule Elasticlunr.Manifest do
 
   defp compute_compaction_score(%{manifest: manifest} = params) do
     score_fn = fn
-      files, 0 = level ->
+      files, 0 = level, options ->
         files
         |> level_files(level)
         |> Enum.count()
-        |> Kernel./(manifest.l0_compaction_trigger)
+        |> Kernel./(options.l0_compaction_trigger)
 
-      files, level ->
+      files, level, options ->
         max_bytes_for_level =
           level_max_bytes(
             level,
-            manifest.max_bytes_for_base_level,
-            manifest.max_bytes_for_level_multiplier
+            options.max_bytes_for_base_level,
+            options.max_bytes_for_level_multiplier
           )
 
         files
@@ -328,16 +342,16 @@ defmodule Elasticlunr.Manifest do
         |> Kernel./(max_bytes_for_level)
     end
 
-    {_, best_score, best_level} =
+    {_, _, best_score, best_level} =
       Enum.reduce(
-        0..manifest.max_level,
-        {manifest.files, -1, -1},
-        fn level, {files, best_score, _best_level} = acc ->
-          score = score_fn.(files, level)
+        0..manifest.options.max_level,
+        {manifest.files, manifest.options, -1, -1},
+        fn level, {files, options, best_score, _best_level} = acc ->
+          score = score_fn.(files, level, options)
 
           case score > best_score do
             false -> acc
-            true -> {files, score, level}
+            true -> {files, options, score, level}
           end
         end
       )
@@ -349,19 +363,31 @@ defmodule Elasticlunr.Manifest do
 
   defp level_max_bytes(level, max_size, multiplier), do: max_size * multiplier ** level
 
-  defp merge_files(%{changes: changes, manifest: manifest} = params) do
-    %__MODULE__{files: files} = manifest
-    %Changes{new_files: new_files} = changes
+  defp merge_files(%{changes: changes, manifest: %__MODULE__{files: files} = manifest} = params) do
+    %Changes{delete_files: delete_files, new_files: new_files} = changes
 
-    files =
-      Enum.reduce(new_files, files, fn {level, file}, files ->
-        files
-        |> level_files(level)
-        |> then(&([file] ++ &1))
-        |> then(&Map.put(files, level, &1))
-      end)
+    files
+    |> remove_deleted_files(delete_files)
+    |> add_new_files(new_files)
+    |> then(&%{manifest | files: &1})
+    |> then(&{:ok, %{params | manifest: &1}})
+  end
 
-    {:ok, %{params | manifest: %{manifest | files: files}}}
+  defp remove_deleted_files(files, files_to_delete) do
+    Enum.reduce(files, %{}, fn {level, files}, result ->
+      files
+      |> Enum.reject(&(&1.number in files_to_delete))
+      |> then(&Map.put(result, level, &1))
+    end)
+  end
+
+  defp add_new_files(files, new_files) do
+    Enum.reduce(new_files, files, fn {level, file}, files ->
+      files
+      |> level_files(level)
+      |> then(&[file | &1])
+      |> then(&Map.put(files, level, &1))
+    end)
   end
 
   defp log_changes(%{changes: changes, manifest: manifest}) do

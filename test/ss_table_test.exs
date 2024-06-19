@@ -50,7 +50,7 @@ defmodule Elasticlunr.SSTableTest do
   end
 
   test "from_path/1", %{dir: dir, mem_table: mem_table} do
-    mem_table = MemTable.remove(mem_table, "key", 3)
+    mem_table = MemTable.remove(mem_table, "key", Utils.now())
 
     assert {:ok, [file_meta]} = SSTable.flush(mem_table, dir, &Utils.now/0)
     assert {:ok, ss_table} = SSTable.from_path(file_meta)

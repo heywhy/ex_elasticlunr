@@ -44,11 +44,12 @@ defmodule Elasticlunr.Index.Writer do
       find_log_files() >>>
       recover_from_logs() >>>
       reuse_last_log() >>>
-      remove_obsolete_files() >>>
-      patch_writer()
+      patch_writer() >>>
+      bind(remove_obsolete_files)
   end
 
-  defp remove_obsolete_files(%{dir: dir, manifest: manifest} = state) do
+  @spec remove_obsolete_files(t()) :: t()
+  def remove_obsolete_files(%__MODULE__{dir: dir, manifest: manifest} = writer) do
     known_files = Manifest.known_files(manifest)
 
     keep? = fn path ->
@@ -72,7 +73,7 @@ defmodule Elasticlunr.Index.Writer do
 
     Enum.each(files_to_delete, &File.rm/1)
 
-    {:ok, state}
+    writer
   end
 
   defp patch_writer(%{wal: wal, manifest: manifest, mem_table: mem_table, writer: writer}) do

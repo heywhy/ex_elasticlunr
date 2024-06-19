@@ -2,17 +2,19 @@ defmodule Elasticlunr.Manifest.Changes do
   alias Elasticlunr.Encoding
   alias Elasticlunr.FileMeta
 
-  defstruct [:log_number, :next_file_number, new_files: []]
+  defstruct [:log_number, :next_file_number, delete_files: [], new_files: []]
 
   @type t :: %__MODULE__{
           log_number: nil | pos_integer(),
           next_file_number: nil | pos_integer(),
+          delete_files: [pos_integer()],
           new_files: [{pos_integer(), FileMeta.t()}]
         }
 
   @k_log_number 0
   @k_next_file_number 1
   @k_new_file 2
+  @k_delete_file 3
 
   @spec set_log_number(t(), pos_integer()) :: t()
   def set_log_number(%__MODULE__{} = changes, number), do: %{changes | log_number: number}
@@ -32,9 +34,28 @@ defmodule Elasticlunr.Manifest.Changes do
     Enum.reduce(files, changes, &add_file(&2, level, &1))
   end
 
+  @spec new_files(t()) :: [FileMeta.t()]
+  def new_files(%__MODULE__{new_files: new_files}) do
+    Enum.map(new_files, &elem(&1, 1))
+  end
+
+  @spec delete_files(t(), [pos_integer() | FileMeta.t()]) :: t()
+  def delete_files(%__MODULE__{delete_files: delete_files} = changes, files) do
+    fun = fn
+      %FileMeta{number: n} -> n
+      n when is_integer(n) -> n
+    end
+
+    files
+    |> Enum.map(fun)
+    |> Enum.concat(delete_files)
+    |> Enum.uniq()
+    |> then(&%{changes | delete_files: &1})
+  end
+
   @spec encode(t()) :: iodata()
   def encode(%__MODULE__{} = changes) do
-    keys = [:log_number, :next_file_number, :new_files]
+    keys = [:log_number, :next_file_number, :new_files, :delete_files]
 
     changes
     |> Map.from_struct()
@@ -72,6 +93,13 @@ defmodule Elasticlunr.Manifest.Changes do
         changes
         |> add_file(level, file_meta)
         |> then(&decode!(binary, &1))
+
+      @k_delete_file ->
+        {number, binary} = Encoding.chop_int64!(binary)
+
+        changes
+        |> delete_files([number])
+        |> then(&decode!(binary, &1))
     end
   end
 
@@ -85,6 +113,14 @@ defmodule Elasticlunr.Manifest.Changes do
     []
     |> Encoding.put_int(@k_next_file_number)
     |> Encoding.put_int64(value)
+  end
+
+  defp encode_field(:delete_files, files) when is_list(files) do
+    Enum.map(files, fn number ->
+      []
+      |> Encoding.put_int(@k_delete_file)
+      |> Encoding.put_int64(number)
+    end)
   end
 
   defp encode_field(:new_files, files) do

@@ -2,7 +2,8 @@ defmodule Elasticlunr.Server.Writer do
   use GenServer
 
   alias Elasticlunr.BackgroundTaskSupervisor
-  alias Elasticlunr.CompactionController
+  alias Elasticlunr.Compaction
+  alias Elasticlunr.Compaction.Controller
   alias Elasticlunr.FileMeta
   alias Elasticlunr.Index.Writer
   alias Elasticlunr.Manifest
@@ -79,6 +80,30 @@ defmodule Elasticlunr.Server.Writer do
     end
   end
 
+  def handle_call(
+        {:apply_compaction_changes, %{changes: changes}},
+        _from,
+        %__MODULE__{writer: writer} = state
+      ) do
+    manifest = Writer.manifest(writer)
+
+    case Manifest.apply_and_log(manifest, changes) do
+      {:ok, manifest} ->
+        %Writer{schema: schema} = writer
+        writer = Writer.remove_obsolete_files(%{writer | manifest: manifest})
+
+        new_files = Changes.new_files(changes)
+
+        # TODO: publish removed files to reader so that it can be up to date
+        publish_new_files!(schema.name, new_files)
+
+        {:reply, :ok, %{state | writer: writer}}
+
+      {:error, reason} ->
+        {:stop, reason, state}
+    end
+  end
+
   @impl true
   def handle_info(
         {ref, [%FileMeta{} | _] = file_metas},
@@ -145,9 +170,11 @@ defmodule Elasticlunr.Server.Writer do
   end
 
   defp schedule_compaction(%{writer: writer} = state) do
-    with {:ok, compaction} <- Manifest.pick_compaction(writer.manifest),
-         :ok <- CompactionController.process(compaction, writer.dir) do
-      state
+    with {:ok, compaction, manifest} <- Manifest.pick_compaction(writer.manifest),
+         writer = %{writer | manifest: manifest},
+         compaction = %Compaction{compaction | owner: self(), dir: writer.dir},
+         :ok <- Controller.process(compaction) do
+      %{state | writer: writer}
     else
       {:error, reason} when is_binary(reason) ->
         raise reason

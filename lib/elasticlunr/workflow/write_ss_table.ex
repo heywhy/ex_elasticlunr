@@ -9,18 +9,23 @@ defmodule Elasticlunr.Workflow.WriteSSTable do
   alias Elasticlunr.MemTable
   alias Elasticlunr.SSTable.Entry
   alias Elasticlunr.SSTable.Offsets
+  alias Elasticlunr.Utils
 
-  @enforce_keys [:entries, :dir, :new_file_num]
-  defstruct [:entries, :dir, :new_file_num, :max_file_size]
+  @enforce_keys [:entries, :dir, :new_file_num, :tombstone_ttl]
+  defstruct [:entries, :dir, :new_file_num, :tombstone_ttl, :max_file_size]
 
   @type t :: %__MODULE__{
           dir: Path.t(),
           entries: Enum.t(),
           new_file_num: file_num_fn(),
+          tombstone_ttl: pos_integer(),
           max_file_size: nil | pos_integer()
         }
 
   @type file_num_fn :: (-> pos_integer())
+
+  # currently 10 days in seconds
+  @tombstone_ttl 864_000
 
   @spec new(MemTable.t() | Enum.t(), Path.t(), file_num_fn(), keyword()) :: t()
   def new(mem_table, dir, new_file_num, opts \\ [])
@@ -33,13 +38,14 @@ defmodule Elasticlunr.Workflow.WriteSSTable do
   end
 
   def new(entries, dir, new_file_num, opts) do
-    opts = Keyword.validate!(opts, [:max_file_size])
+    opts = Keyword.validate!(opts, [:max_file_size, tombstone_ttl: @tombstone_ttl])
 
     attrs = %{
       dir: dir,
       entries: entries,
       new_file_num: new_file_num,
-      max_file_size: opts[:max_file_size]
+      max_file_size: opts[:max_file_size],
+      tombstone_ttl: opts[:tombstone_ttl]
     }
 
     struct!(__MODULE__, attrs)
@@ -50,8 +56,11 @@ defmodule Elasticlunr.Workflow.WriteSSTable do
         dir: dir,
         entries: entries,
         new_file_num: new_file_num,
-        max_file_size: max_file_size
+        max_file_size: max_file_size,
+        tombstone_ttl: tombstone_ttl
       }) do
+    now = DateTime.utc_now()
+
     state = %{
       files: [],
       dir: dir,
@@ -61,6 +70,7 @@ defmodule Elasticlunr.Workflow.WriteSSTable do
     }
 
     entries
+    |> Stream.reject(&past_ttl?(&1, tombstone_ttl, now))
     |> Stream.with_index()
     |> Enum.reduce_while(state, fn {entry, index}, state ->
       state
@@ -77,6 +87,14 @@ defmodule Elasticlunr.Workflow.WriteSSTable do
       %{files: files} -> {:ok, files}
       error -> error
     end
+  end
+
+  defp past_ttl?(%{deleted: false}, _ttl, _now), do: false
+
+  defp past_ttl?(%{deleted: true, timestamp: ts}, ttl, now) do
+    now
+    |> DateTime.diff(Utils.to_date_time(ts), :second)
+    |> Kernel.>=(ttl)
   end
 
   defp maybe_create_new_file(%{fd: _fd, file_meta: _} = state), do: {:ok, state}

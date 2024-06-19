@@ -2,6 +2,7 @@ defmodule Elasticlunr.Server.WriterTest do
   use ExUnit.Case, async: true
 
   alias Elasticlunr.Book
+  alias Elasticlunr.Compaction.Controller
   alias Elasticlunr.FileMeta
   alias Elasticlunr.Filename
   alias Elasticlunr.Fs
@@ -207,6 +208,25 @@ defmodule Elasticlunr.Server.WriterTest do
              |> Enum.filter(&match?({:log, _}, &1))
 
     assert {:ok, %Manifest{log_number: ^number}} = read_manifest(dir)
+  end
+
+  test "level 0 compaction triggered", %{pid: pid} do
+    (&new_book/0)
+    |> Stream.repeatedly()
+    |> Stream.each(&GenServer.call(pid, {:save, &1}))
+    |> Enum.take(20)
+
+    assert eventually(fn ->
+             Controller
+             |> :sys.get_state()
+             |> then(& &1.compactions)
+             |> Enum.empty?()
+           end)
+
+    assert %{writer: writer} = :sys.get_state(pid)
+    assert %{manifest: manifest} = writer
+    assert %{files: %{1 => [%{size: size}]}} = manifest
+    assert size > 0
   end
 
   defp write_to_wal(wal, book, schema) do
