@@ -16,13 +16,6 @@ defmodule Elasticlunr.AtomicInt do
   @spec new(integer()) :: t()
   def new(value \\ 0), do: init(value)
 
-  @spec fetch_add(t(), non_neg_integer()) :: integer()
-  def fetch_add(ref, incr) do
-    ref
-    |> get()
-    |> tap(fn _ -> add(ref, incr) end)
-  end
-
   # nif methods
   def init(_value), do: :erlang.nif_error(:not_loaded)
 
@@ -35,9 +28,18 @@ defmodule Elasticlunr.AtomicInt do
   @spec add(t(), non_neg_integer()) :: :ok
   def add(_ref, _incr), do: :erlang.nif_error(:not_loaded)
 
+  @spec sub(t(), non_neg_integer()) :: :ok
+  def sub(_ref, _incr), do: :erlang.nif_error(:not_loaded)
+
   @spec add_get(t(), non_neg_integer()) :: integer()
   def add_get(_ref, _incr), do: :erlang.nif_error(:not_loaded)
 
   @spec sub_get(t(), non_neg_integer()) :: integer()
   def sub_get(_ref, _incr), do: :erlang.nif_error(:not_loaded)
+
+  @spec fetch_add(t(), non_neg_integer()) :: integer()
+  def fetch_add(_ref, _incr), do: :erlang.nif_error(:not_loaded)
+
+  @spec fetch_sub(t(), non_neg_integer()) :: integer()
+  def fetch_sub(_ref, _incr), do: :erlang.nif_error(:not_loaded)
 end

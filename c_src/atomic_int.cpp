@@ -1,5 +1,4 @@
 #include <atomic>
-#include <cstdio>
 #include <erl_nif.h>
 
 using std::atomic_int64_t;
@@ -12,7 +11,7 @@ struct atomic_int {
 
 static ErlNifResourceType *ATOMICS_RESOURCE_TYPE;
 
-static ERL_NIF_TERM make_atom(ErlNifEnv *env, const char *value);
+ERL_NIF_TERM make_atom(ErlNifEnv *env, const char *value);
 
 ERL_NIF_TERM init(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[]) {
   ErlNifSInt64 value;
@@ -48,6 +47,24 @@ ERL_NIF_TERM add(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[]) {
   return enif_make_badarg(env);
 }
 
+ERL_NIF_TERM sub(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[]) {
+  ErlNifUInt64 count;
+  atomic_int **variable;
+
+  if (!enif_get_uint64(env, argv[1], &count)) {
+    return enif_make_badarg(env);
+  }
+
+  if (enif_get_resource(env, argv[0], ATOMICS_RESOURCE_TYPE,
+                        (void **)&variable)) {
+    (*variable)->value -= count;
+
+    return make_atom(env, "ok");
+  }
+
+  return enif_make_badarg(env);
+}
+
 ERL_NIF_TERM add_get(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[]) {
   ErlNifUInt64 count;
   atomic_int **variable;
@@ -76,9 +93,51 @@ ERL_NIF_TERM sub_get(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[]) {
 
   if (enif_get_resource(env, argv[0], ATOMICS_RESOURCE_TYPE,
                         (void **)&variable)) {
-    (*variable)->value += count;
+    (*variable)->value -= count;
 
     return enif_make_int64(env, (*variable)->value);
+  }
+
+  return enif_make_badarg(env);
+}
+
+ERL_NIF_TERM fetch_add(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[]) {
+  ErlNifUInt64 count;
+  atomic_int **variable;
+
+  if (!enif_get_uint64(env, argv[1], &count)) {
+    return enif_make_badarg(env);
+  }
+
+  if (enif_get_resource(env, argv[0], ATOMICS_RESOURCE_TYPE,
+                        (void **)&variable)) {
+
+    int64_t value = (*variable)->value;
+
+    (*variable)->value += count;
+
+    return enif_make_int64(env, value);
+  }
+
+  return enif_make_badarg(env);
+}
+
+ERL_NIF_TERM fetch_sub(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[]) {
+  ErlNifUInt64 count;
+  atomic_int **variable;
+
+  if (!enif_get_uint64(env, argv[1], &count)) {
+    return enif_make_badarg(env);
+  }
+
+  if (enif_get_resource(env, argv[0], ATOMICS_RESOURCE_TYPE,
+                        (void **)&variable)) {
+
+    int64_t value = (*variable)->value;
+
+    (*variable)->value -= count;
+
+    return enif_make_int64(env, value);
   }
 
   return enif_make_badarg(env);
@@ -115,9 +174,15 @@ ERL_NIF_TERM get(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[]) {
   return enif_make_badarg(env);
 }
 
-ErlNifFunc nif_funcs[] = {{"init", 1, init},       {"get", 1, get},
-                          {"add", 2, add},         {"put", 2, put},
-                          {"add_get", 2, add_get}, {"sub_get", 2, sub_get}};
+ErlNifFunc nif_funcs[] = {{"init", 1, init},
+                          {"get", 1, get},
+                          {"put", 2, put},
+                          {"add", 2, add},
+                          {"sub", 2, sub},
+                          {"add_get", 2, add_get},
+                          {"sub_get", 2, sub_get},
+                          {"fetch_add", 2, fetch_add},
+                          {"fetch_sub", 2, fetch_sub}};
 
 void desctructor(ErlNifEnv *env, void *ptr) {
   atomic_int **resource = reinterpret_cast<atomic_int **>(ptr);
@@ -125,15 +190,15 @@ void desctructor(ErlNifEnv *env, void *ptr) {
   delete *resource;
 }
 
-static int load(ErlNifEnv *env, void **priv_data, ERL_NIF_TERM load_info) {
+int load(ErlNifEnv *env, void **priv_data, ERL_NIF_TERM load_info) {
   ATOMICS_RESOURCE_TYPE = enif_open_resource_type(
       env, NULL, "atomics.ref", desctructor, ERL_NIF_RT_CREATE, NULL);
 
   return 0;
 }
 
-static int upgrade(ErlNifEnv *env, void **priv_data, void **old_priv_data,
-                   ERL_NIF_TERM load_info) {
+int upgrade(ErlNifEnv *env, void **priv_data, void **old_priv_data,
+            ERL_NIF_TERM load_info) {
   return 0;
 }
 

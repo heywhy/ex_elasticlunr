@@ -44,7 +44,7 @@ defmodule Elasticlunr.Index.Writer do
       find_log_files() >>>
       recover_from_logs() >>>
       reuse_last_log() >>>
-      patch_writer() >>>
+      bind(patch_writer) >>>
       bind(remove_obsolete_files)
   end
 
@@ -52,7 +52,7 @@ defmodule Elasticlunr.Index.Writer do
   def remove_obsolete_files(%__MODULE__{dir: dir, manifest: manifest} = writer) do
     known_files = Manifest.known_files(manifest)
 
-    keep? = fn path ->
+    keep? = fn path, manifest ->
       case Filename.parse(path) do
         {:current, _number} -> true
         {:log, number} -> number >= manifest.log_number
@@ -61,23 +61,16 @@ defmodule Elasticlunr.Index.Writer do
       end
     end
 
-    files_to_delete =
+    :ok =
       dir
       |> Fs.db_files()
-      |> Enum.reduce([], fn path, acc ->
-        case keep?.(path) do
-          false -> [path] ++ acc
-          true -> acc
-        end
-      end)
-
-    Enum.each(files_to_delete, &File.rm/1)
+      |> Enum.each(&unless keep?.(&1, manifest), do: File.rm(&1))
 
     writer
   end
 
   defp patch_writer(%{wal: wal, manifest: manifest, mem_table: mem_table, writer: writer}) do
-    {:ok, %{writer | manifest: manifest, mem_table: mem_table, wal: wal}}
+    %{writer | manifest: manifest, mem_table: mem_table, wal: wal}
   end
 
   defp reuse_last_log(
@@ -85,10 +78,11 @@ defmodule Elasticlunr.Index.Writer do
        )
        when log_files == [] or compactions >= 1 do
     number = Manifest.new_file_number(manifest)
-    wal = Wal.create(dir, number)
     changes = Changes.set_log_number(%Changes{}, number)
 
     with {:ok, manifest} <- Manifest.apply_and_log(manifest, changes) do
+      wal = Wal.create(dir, number)
+
       params
       |> Map.put(:wal, wal)
       |> Map.put(:manifest, manifest)
