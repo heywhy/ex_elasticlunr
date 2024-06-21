@@ -25,14 +25,16 @@ defmodule Elasticlunr.Bloom.Stackable do
   @spec new(keyword()) :: t()
   def new(opts \\ []) do
     # TODO: Allow parameters to be configured by user
-    fp_rate = Keyword.get(opts, :fp_rate, 0.01)
-    capacity = Keyword.get(opts, :capacity, 500_000)
+    opts = Keyword.validate!(opts, fp_rate: 0.01, capacity: 500_000, expansion: 2)
+
+    fp_rate = opts[:fp_rate]
+    capacity = opts[:capacity]
 
     attrs = %{
       count: 0,
       fp_rate: fp_rate,
       capacity: capacity,
-      expansion: Keyword.get(opts, :expansion, 2),
+      expansion: opts[:expansion],
       bloom_filters: [Bloom.new_optimal(capacity, fp_rate)]
     }
 

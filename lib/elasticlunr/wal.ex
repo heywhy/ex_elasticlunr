@@ -67,7 +67,7 @@ defmodule Elasticlunr.Wal do
       {wal, mem_table, total_size} =
         Enum.reduce(
           wals,
-          {create(dir), MemTable.new(), 0},
+          {create(dir), %MemTable{}, 0},
           fn path, {new_wal, mem_table, total_size} ->
             wal = from_path(path)
             %File.Stat{size: size} = File.stat!(path)

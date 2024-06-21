@@ -13,6 +13,7 @@ defmodule Elasticlunr.SSTable do
   alias Elasticlunr.Workflow.OpenSSTable
   alias Elasticlunr.Workflow.WriteSSTable
 
+  @enforce_keys [:path, :bloom_filter, :offsets]
   defstruct [:path, :bloom_filter, :offsets]
 
   @type t :: %__MODULE__{
@@ -24,17 +25,6 @@ defmodule Elasticlunr.SSTable do
   @load_event :load_sstable
   @flush_event :flush_sstable
   @merge_event :merge_sstable
-
-  @spec new(Path.t(), BloomFilter.t(), Offsets.t()) :: t()
-  def new(path, bloom_filter, offsets) do
-    attrs = %{
-      path: path,
-      offsets: offsets,
-      bloom_filter: bloom_filter
-    }
-
-    struct!(__MODULE__, attrs)
-  end
 
   @spec from_path(FileMeta.t()) :: {:ok, t()} | {:error, File.posix()}
   def from_path(%FileMeta{dir: dir, number: number} = file_meta) do

@@ -191,7 +191,7 @@ defmodule Elasticlunr.Server.Writer do
   defp gen_new_space(%{dir: dir, manifest: manifest} = writer) do
     number = Manifest.new_file_number(manifest)
 
-    %{writer | wal: Wal.create(dir, number), mem_table: MemTable.new()}
+    %{writer | wal: Wal.create(dir, number), mem_table: %MemTable{}}
   end
 
   defp wait_for_task(task) do

@@ -96,7 +96,7 @@ defmodule Elasticlunr.Server.WriterTest do
   end
 
   test "flushing empty memtable generates no file", %{dir: dir} do
-    assert {:ok, []} = SSTable.flush(MemTable.new(), dir, &Utils.now/0)
+    assert {:ok, []} = SSTable.flush(%MemTable{}, dir, &Utils.now/0)
   end
 
   test "retrieve document from old memtable", %{pid: pid} do

@@ -8,15 +8,4 @@ defmodule Elasticlunr.MemTable.Entry do
           deleted: boolean(),
           timestamp: pos_integer()
         }
-
-  def new(key, value, deleted, timestamp) do
-    attrs = %{
-      key: key,
-      value: value,
-      deleted: deleted,
-      timestamp: timestamp
-    }
-
-    struct!(__MODULE__, attrs)
-  end
 end

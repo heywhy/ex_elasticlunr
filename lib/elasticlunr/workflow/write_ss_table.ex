@@ -108,7 +108,7 @@ defmodule Elasticlunr.Workflow.WriteSSTable do
       |> Map.put(:fd, fd)
       |> Map.put(:offset, 0)
       |> Map.put(:file_meta, file_meta)
-      |> Map.put(:offsets, Offsets.new())
+      |> Map.put(:offsets, %Offsets{})
       |> Map.put(:bloom_filter, BloomFilter.new())
       |> then(&{:ok, &1})
     end

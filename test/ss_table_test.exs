@@ -13,7 +13,7 @@ defmodule Elasticlunr.SSTableTest do
     dir = tmp_dir!()
 
     mem_table =
-      MemTable.new()
+      %MemTable{}
       |> MemTable.set("key", "value", 1)
       |> MemTable.set("key1", "value1", 2)
 
@@ -64,21 +64,21 @@ defmodule Elasticlunr.SSTableTest do
       |> DateTime.to_unix(:microsecond)
 
     mem_table1 =
-      MemTable.new()
+      %MemTable{}
       |> MemTable.set("handbag", "8786", Utils.now())
       |> MemTable.set("handful", "40308", Utils.now())
       |> MemTable.set("handicap", "65995", Utils.now())
       |> MemTable.set("handkerchief", "16324", Utils.now())
 
     mem_table2 =
-      MemTable.new()
+      %MemTable{}
       |> MemTable.set("handcuffs", "2729", Utils.now())
       |> MemTable.set("handful", "42307", Utils.now())
       |> MemTable.set("handicap", "67884", Utils.now())
       |> MemTable.set("handkerchief", "20952", Utils.now())
 
     mem_table3 =
-      MemTable.new()
+      %MemTable{}
       |> MemTable.set("handful", "44662", Utils.now())
       |> MemTable.set("handicap", "70836", Utils.now())
       |> MemTable.set("handiwork", "45521", Utils.now())

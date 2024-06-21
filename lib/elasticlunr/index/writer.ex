@@ -113,7 +113,7 @@ defmodule Elasticlunr.Index.Writer do
   defp recover_from_logs(%{log_files: []} = state) do
     state
     |> Map.put(:compactions, 0)
-    |> Map.put(:mem_table, MemTable.new())
+    |> Map.put(:mem_table, %MemTable{})
     |> then(&{:ok, &1})
   end
 
@@ -126,7 +126,7 @@ defmodule Elasticlunr.Index.Writer do
       dir: dir,
       options: options,
       manifest: manifest,
-      mem_table: MemTable.new(),
+      mem_table: %MemTable{},
       last_log_number: List.last(log_files),
       max_buffer_size: options.max_buffer_size
     }
@@ -199,7 +199,7 @@ defmodule Elasticlunr.Index.Writer do
 
       with {true, mt} <- {MemTable.size(mt) >= mbs, mt},
            {:ok, manifest} <- flush_mt.(mt, dir, manifest, options) do
-        {:cont, %{acc | mem_table: MemTable.new(), manifest: manifest, compactions: c + 1}}
+        {:cont, %{acc | mem_table: %MemTable{}, manifest: manifest, compactions: c + 1}}
       else
         {false, mem_table} -> {:cont, Map.put(acc, :mem_table, mem_table)}
         error -> {:halt, error}
@@ -212,7 +212,7 @@ defmodule Elasticlunr.Index.Writer do
         # See `Elasticlunr.Server.Writer.flush_async/1`
         {:ok, manifest} = flush_mt.(mt, dir, manifest, options)
 
-        %{p | compactions: 1, mem_table: MemTable.new(), manifest: manifest}
+        %{p | compactions: 1, mem_table: %MemTable{}, manifest: manifest}
 
       %{} = p ->
         p

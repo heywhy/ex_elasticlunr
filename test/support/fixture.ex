@@ -27,7 +27,7 @@ defmodule Elasticlunr.Fixture do
   def new_sstable(count \\ 10) do
     0
     |> Range.new(count - 1)
-    |> Enum.reduce(MemTable.new(), fn _, mem_table ->
+    |> Enum.reduce(%MemTable{}, fn _, mem_table ->
       MemTable.set(mem_table, Pokemon.name(), Pokemon.location(), Utils.now())
     end)
     |> SSTable.flush(tmp_dir!(), &Utils.now/0)

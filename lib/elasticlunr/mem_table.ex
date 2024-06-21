@@ -8,9 +8,6 @@ defmodule Elasticlunr.MemTable do
           size: non_neg_integer()
         }
 
-  @spec new() :: t()
-  def new, do: struct!(__MODULE__)
-
   @spec length(t()) :: non_neg_integer()
   def length(%__MODULE__{entries: entries}), do: Treex.size(entries)
 
@@ -37,7 +34,7 @@ defmodule Elasticlunr.MemTable do
     case Treex.lookup(entries, key) do
       :none ->
         size = size + IO.iodata_length(key) + IO.iodata_length(value) + 16 + 1
-        entry = Entry.new(key, value, false, timestamp)
+        entry = %Entry{key: key, value: value, deleted: false, timestamp: timestamp}
 
         entries = Treex.insert!(entries, key, entry)
 
@@ -63,7 +60,7 @@ defmodule Elasticlunr.MemTable do
       :none ->
         size = size + IO.iodata_length(key) + 16 + 1
 
-        entry = Entry.new(key, nil, true, timestamp)
+        entry = %Entry{key: key, value: nil, deleted: true, timestamp: timestamp}
         entries = Treex.insert!(entries, key, entry)
 
         %{mem_table | entries: entries, size: size}

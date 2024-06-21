@@ -77,7 +77,7 @@ defmodule Elasticlunr.Workflow.OpenSSTable do
 
   defp close_file(%{fd: fd, path: path, offsets: offsets, bloom_filter: bloom_filter}) do
     with :ok <- File.close(fd) do
-      {:ok, SSTable.new(path, bloom_filter, offsets)}
+      {:ok, %SSTable{path: path, bloom_filter: bloom_filter, offsets: offsets}}
     end
   end
 end

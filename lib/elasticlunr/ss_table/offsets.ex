@@ -6,12 +6,9 @@ defmodule Elasticlunr.SSTable.Offsets do
   """
   alias Elasticlunr.Encoding
 
-  defstruct [:entries]
+  defstruct entries: Treex.empty()
 
   @type t :: %__MODULE__{entries: Treex.t()}
-
-  @spec new() :: t()
-  def new, do: struct!(__MODULE__, entries: Treex.empty())
 
   @spec set(t(), binary(), pos_integer()) :: t()
   def set(%__MODULE__{entries: e} = m, key, offset) do
@@ -57,7 +54,7 @@ defmodule Elasticlunr.SSTable.Offsets do
     end
 
     binary
-    |> fun.(fun, new())
+    |> fun.(fun, %__MODULE__{})
     |> then(&%{&1 | entries: Treex.balance(&1.entries)})
   end
 

@@ -6,7 +6,7 @@ defmodule Elasticlunr.MemTableTest do
 
   setup do
     mem_table =
-      MemTable.new()
+      %MemTable{}
       |> MemTable.set("key", "value", 1)
       |> MemTable.set("key1", "value1", 2)
 
