@@ -16,13 +16,13 @@ defmodule Elasticlunr.Server.Reader do
 
   @spec start_link(keyword()) :: GenServer.on_start()
   def start_link(opts) do
-    opts = Keyword.validate!(opts, [:dir, :schema])
-
-    GenServer.start_link(__MODULE__, [hibernate_after: 5_000] ++ opts)
+    GenServer.start_link(__MODULE__, opts, hibernate_after: 5_000)
   end
 
   @impl true
   def init(opts) do
+    opts = Keyword.validate!(opts, [:dir, :schema])
+
     dir = Keyword.fetch!(opts, :dir)
     schema = Keyword.fetch!(opts, :schema)
 

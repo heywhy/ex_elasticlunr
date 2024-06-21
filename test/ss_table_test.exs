@@ -95,7 +95,8 @@ defmodule Elasticlunr.SSTableTest do
     assert {:ok, [%FileMeta{size: size} = file_meta]} =
              ss_tables
              |> Enum.flat_map(& &1)
-             |> SSTable.merge(dir, &Utils.now/0)
+             # setting tombstone_ttl to 1s makes sure deleted entries are removed permanently
+             |> SSTable.merge(dir, &Utils.now/0, tombstone_ttl: 1)
 
     assert size > 0
     assert {:ok, ss_table} = SSTable.from_path(file_meta)

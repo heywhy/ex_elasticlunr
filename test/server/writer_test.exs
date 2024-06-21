@@ -216,8 +216,10 @@ defmodule Elasticlunr.Server.WriterTest do
     |> Stream.each(&GenServer.call(pid, {:save, &1}))
     |> Enum.take(20)
 
+    assert controller_pid = Process.whereis(Controller)
+
     assert eventually(fn ->
-             Controller
+             controller_pid
              |> :sys.get_state()
              |> then(& &1.compactions)
              |> Enum.empty?()

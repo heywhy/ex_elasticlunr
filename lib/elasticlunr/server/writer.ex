@@ -251,7 +251,11 @@ defmodule Elasticlunr.Server.Writer do
          wal: wal
        }) do
     fun = Manifest.new_file_number_fn(manifest)
-    opts = [max_file_size: options.max_file_size]
+
+    opts = [
+      max_file_size: options.max_file_size,
+      tombstone_ttl: options.tombstone_ttl
+    ]
 
     Task.Supervisor.async_nolink(BackgroundTaskSupervisor, fn ->
       # This steps should be encapsulated in the writer module but wasn't

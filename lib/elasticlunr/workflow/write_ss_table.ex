@@ -24,9 +24,6 @@ defmodule Elasticlunr.Workflow.WriteSSTable do
 
   @type file_num_fn :: (-> pos_integer())
 
-  # currently 10 days in seconds
-  @tombstone_ttl 864_000
-
   @spec new(MemTable.t() | Enum.t(), Path.t(), file_num_fn(), keyword()) :: t()
   def new(mem_table, dir, new_file_num, opts \\ [])
 
@@ -38,7 +35,7 @@ defmodule Elasticlunr.Workflow.WriteSSTable do
   end
 
   def new(entries, dir, new_file_num, opts) do
-    opts = Keyword.validate!(opts, [:max_file_size, tombstone_ttl: @tombstone_ttl])
+    opts = Keyword.validate!(opts, [:max_file_size, :tombstone_ttl])
 
     attrs = %{
       dir: dir,
@@ -90,6 +87,7 @@ defmodule Elasticlunr.Workflow.WriteSSTable do
   end
 
   defp past_ttl?(%{deleted: false}, _ttl, _now), do: false
+  defp past_ttl?(%{deleted: true}, nil, _now), do: false
 
   defp past_ttl?(%{deleted: true, timestamp: ts}, ttl, now) do
     now
@@ -144,7 +142,6 @@ defmodule Elasticlunr.Workflow.WriteSSTable do
     |> then(&{:ok, &1})
   end
 
-  # TODO: set max file size in places where the workflow is used
   defp close_file_if_maxed(%{offset: size, max_file_size: max} = state) do
     with true <- is_integer(max) and size >= max,
          %{} = state <- flush_and_close_file(state) do

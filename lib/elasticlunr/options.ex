@@ -1,5 +1,8 @@
 defmodule Elasticlunr.Options do
   defstruct max_level: 7,
+            # currently 10 days in seconds
+            tombstone_ttl: 864_000,
+            # the number of files in level 0 before compaction is triggered
             l0_compaction_trigger: 4,
             # default to 30mb
             max_file_size: 31_457_280,
@@ -12,6 +15,7 @@ defmodule Elasticlunr.Options do
   @type t :: %__MODULE__{
           max_level: pos_integer(),
           max_file_size: pos_integer(),
+          tombstone_ttl: pos_integer(),
           max_buffer_size: pos_integer(),
           l0_compaction_trigger: pos_integer(),
           max_bytes_for_base_level: pos_integer(),
