@@ -34,11 +34,6 @@ defmodule Elasticlunr.Manifest.Changes do
     Enum.reduce(files, changes, &add_file(&2, level, &1))
   end
 
-  @spec new_files(t()) :: [FileMeta.t()]
-  def new_files(%__MODULE__{new_files: new_files}) do
-    Enum.map(new_files, &elem(&1, 1))
-  end
-
   @spec delete_files(t(), [pos_integer() | FileMeta.t()]) :: t()
   def delete_files(%__MODULE__{delete_files: delete_files} = changes, files) do
     fun = fn

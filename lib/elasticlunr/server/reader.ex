@@ -67,6 +67,12 @@ defmodule Elasticlunr.Server.Reader do
     end
   end
 
+  def handle_info({:file_deleted, number}, %__MODULE__{reader: reader} = state) do
+    reader = Reader.remove_segment(reader, number)
+
+    {:noreply, %{state | reader: reader}}
+  end
+
   def handle_info(_msg, state), do: {:noreply, state}
 
   defp read_manifest(%{dir: dir} = state) do
@@ -109,7 +115,7 @@ defmodule Elasticlunr.Server.Reader do
 
   defp patch_reader(%{dir: dir, manifest: manifest, schema: schema, ss_tables: segments}) do
     with :ok <- Manifest.close(manifest) do
-      {:ok, Reader.new(dir, schema, segments: segments)}
+      {:ok, %Reader{dir: dir, schema: schema, segments: segments}}
     end
   end
 end

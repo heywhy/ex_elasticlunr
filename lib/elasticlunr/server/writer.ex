@@ -87,20 +87,13 @@ defmodule Elasticlunr.Server.Writer do
       ) do
     manifest = Writer.manifest(writer)
 
-    case Manifest.apply_and_log(manifest, changes) do
-      {:ok, manifest} ->
-        %Writer{schema: schema} = writer
-        writer = Writer.remove_obsolete_files(%{writer | manifest: manifest})
-
-        new_files = Changes.new_files(changes)
-
-        # TODO: publish removed files to reader so that it can be up to date
-        publish_new_files!(schema.name, new_files)
-
-        {:reply, :ok, %{state | writer: writer}}
-
-      {:error, reason} ->
-        {:stop, reason, state}
+    with {:ok, manifest} <- Manifest.apply_and_log(manifest, changes),
+         writer = %{writer | manifest: manifest},
+         writer = Writer.remove_obsolete_files(writer),
+         :ok <- publish_files_changes!(writer, changes) do
+      {:reply, :ok, %{state | writer: writer}}
+    else
+      {:error, reason} -> {:stop, reason, state}
     end
   end
 
@@ -124,10 +117,7 @@ defmodule Elasticlunr.Server.Writer do
     file_metas = Enum.filter(file_metas, &(&1.size > 0))
 
     with file_metas when file_metas != [] <- file_metas,
-         {:ok, writer} <- add_files_to_manifest(file_metas, writer),
-         %Writer{schema: schema} <- writer do
-      publish_new_files!(schema.name, file_metas)
-
+         {:ok, writer} <- add_files_to_manifest(file_metas, writer) do
       state
       |> Map.put(:writer, writer)
       # Schedule another compaction in case the generated file fills a level
@@ -238,8 +228,10 @@ defmodule Elasticlunr.Server.Writer do
       |> Changes.add_files(0, file_metas)
       |> Changes.set_log_number(manifest.log_number)
 
-    with {:ok, manifest} <- Manifest.apply_and_log(manifest, changes) do
-      {:ok, %{writer | manifest: manifest}}
+    with {:ok, manifest} <- Manifest.apply_and_log(manifest, changes),
+         writer = %{writer | manifest: manifest},
+         :ok <- publish_files_changes!(writer, changes) do
+      {:ok, writer}
     end
   end
 
@@ -268,9 +260,15 @@ defmodule Elasticlunr.Server.Writer do
     end)
   end
 
-  defp publish_new_files!(index, files) do
-    files
+  defp publish_files_changes!(
+         %{schema: schema},
+         %{new_files: new_files, delete_files: delete_files}
+       ) do
+    Enum.each(delete_files, &(:ok = PubSub.publish(schema.name, :file_deleted, &1)))
+
+    new_files
+    |> Enum.map(&elem(&1, 1))
     |> Enum.sort_by(& &1.number)
-    |> Enum.each(&(:ok = PubSub.publish(index, :file_created, &1)))
+    |> Enum.each(&(:ok = PubSub.publish(schema.name, :file_created, &1)))
   end
 end

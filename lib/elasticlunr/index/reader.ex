@@ -8,24 +8,14 @@ defmodule Elasticlunr.Index.Reader do
 
   require Logger
 
-  defstruct [:dir, :schema, :segments]
+  @enforce_keys [:dir, :schema]
+  defstruct [:dir, :schema, segments: []]
 
   @type t :: %__MODULE__{
           dir: Path.t(),
           schema: Schema.t(),
           segments: [SSTable.t()]
         }
-
-  @spec new(Path.t(), Schema.t(), keyword()) :: t()
-  def new(dir, schema, opts \\ []) do
-    attrs = [
-      dir: dir,
-      schema: schema,
-      segments: Keyword.get(opts, :segments, [])
-    ]
-
-    struct!(__MODULE__, attrs)
-  end
 
   @spec loaded?(t(), FileMeta.t()) :: boolean()
   def loaded?(%__MODULE__{segments: segments}, %FileMeta{dir: dir, number: number}) do
@@ -43,6 +33,19 @@ defmodule Elasticlunr.Index.Reader do
       true -> {:ok, reader}
       error -> error
     end
+  end
+
+  @spec remove_segment(t(), pos_integer()) :: t()
+  def remove_segment(%__MODULE__{segments: segments} = reader, number) when is_integer(number) do
+    segments =
+      Enum.reject(segments, fn %{path: path} ->
+        case Filename.parse(path) do
+          {:sst, ^number} -> true
+          _ -> false
+        end
+      end)
+
+    %{reader | segments: segments}
   end
 
   @spec get!(t(), String.t()) :: map() | nil | no_return()

@@ -2,6 +2,7 @@ defmodule Elasticlunr.Server.ReaderTest do
   use ExUnit.Case, async: true
 
   alias Elasticlunr.Book
+  alias Elasticlunr.PubSub
   alias Elasticlunr.Server.Reader
   alias Elasticlunr.Server.Writer
 
@@ -74,20 +75,22 @@ defmodule Elasticlunr.Server.ReaderTest do
     assert entry.id == document.id
   end
 
-  @tag skip: "testing should be all about compacting sstables"
   test "update internals when a segment is deleted", %{
     dir: dir,
     pid: pid,
     document: document,
+    schema: schema,
     writer: writer
   } do
+    GenServer.call(writer, {:save, new_book()})
+
+    # Add an extra write to force generate sstable
     GenServer.call(writer, {:save, new_book()})
 
     ss_tables = ss_tables(dir)
 
     assert eventually(fn -> GenServer.call(pid, {:get, document.id}) end)
-    assert Enum.each(ss_tables, &File.rm_rf!/1)
-    assert_received {:remove_lockfile, _dir, _path}
+    Enum.each(ss_tables, &PubSub.publish(schema.name, :file_deleted, &1))
     assert eventually(fn -> GenServer.call(pid, {:get, document.id}) == nil end)
   end
 end
