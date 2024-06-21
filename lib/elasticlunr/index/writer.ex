@@ -171,8 +171,12 @@ defmodule Elasticlunr.Index.Writer do
       end
     end
 
-    flush_mt = fn mem_table, dir, manifest, max_file_size ->
-      opts = [max_file_size: max_file_size]
+    flush_mt = fn mem_table, dir, manifest, options ->
+      opts = [
+        max_file_size: options.max_file_size,
+        tombstone_ttl: options.tombstone_ttl
+      ]
+
       fun = Manifest.new_file_number_fn(manifest)
 
       with true <- MemTable.size(mem_table) > 0,
@@ -194,7 +198,7 @@ defmodule Elasticlunr.Index.Writer do
       mt = update_mt.(mt, entry)
 
       with {true, mt} <- {MemTable.size(mt) >= mbs, mt},
-           {:ok, manifest} <- flush_mt.(mt, dir, manifest, options.max_file_size) do
+           {:ok, manifest} <- flush_mt.(mt, dir, manifest, options) do
         {:cont, %{acc | mem_table: MemTable.new(), manifest: manifest, compactions: c + 1}}
       else
         {false, mem_table} -> {:cont, Map.put(acc, :mem_table, mem_table)}
@@ -206,7 +210,7 @@ defmodule Elasticlunr.Index.Writer do
       when ln != lln ->
         # Write to level 0 in case the log got hanging due to incomplete compaction.
         # See `Elasticlunr.Server.Writer.flush_async/1`
-        {:ok, manifest} = flush_mt.(mt, dir, manifest, options.max_file_size)
+        {:ok, manifest} = flush_mt.(mt, dir, manifest, options)
 
         %{p | compactions: 1, mem_table: MemTable.new(), manifest: manifest}
 
